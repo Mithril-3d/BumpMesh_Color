@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <!--
   Copyright (c) 2026 CNCKitchen (Stefan Hermann) and contributors
   SPDX-License-Identifier: AGPL-3.0-only
@@ -28,7 +28,7 @@
   <meta name="twitter:image" content="https://bumpmesh.com/assets/preview.jpg" />
   <meta name="twitter:image:alt" content="BumpMesh interface for previewing and exporting textured 3D models" />
   <link rel="icon" type="image/png" href="logo.png" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260908e" />
   <script>
     // Apply saved theme before first paint to avoid flash
     (function() {
@@ -146,12 +146,7 @@
               <svg class="icon-expand" width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
             </button>
           </div>
-        </div>
-        <div id="store-cta-wrapper">
-          <span id="store-cta">
-            <span data-i18n-html="cta.store">Support this tool? Shop at <a href="https://geni.us/CNCStoreTexture" target="_blank" rel="noopener noreferrer">CNCKitchen.STORE</a> or send a tip via <a href="https://www.paypal.me/CNCKitchen" target="_blank" rel="noopener noreferrer">PayPal</a> / <a href="https://ko-fi.com/cnckitchen" target="_blank" rel="noopener noreferrer">Ko-fi</a></span><button id="store-cta-dismiss" aria-label="Dismiss">&times;</button>
-          </span>
-        </div>
+        <!-- store-cta removed for custom build -->
       </div>
       <div id="viewport-footer">
         <span id="mesh-info" class="mesh-info"></span>
@@ -241,6 +236,48 @@
           <label for="texture-smoothing" data-i18n="labels.textureSmoothing" data-i18n-title="tooltips.textureSmoothing" title="Applies a Gaussian blur to the displacement map. Higher values produce softer, more gradual surface detail. 0 = off.">Texture Smoothing â“˜</label>
           <input type="range" id="texture-smoothing" min="0" max="20" step="any" value="0" />
           <input type="number" class="val" id="texture-smoothing-val" value="0" min="0" max="20" step="any" data-wheel-decimals="1" />
+        </div>
+      </section>
+
+      <!-- Color & Multi-Tool -->
+      <section class="panel-section" id="color-multitool-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h2 style="margin:0;font-size:1rem;color:var(--text, #fff);display:flex;align-items:center;gap:6px;">
+            <span>🎨</span> Color &amp; Multi-Tool
+          </h2>
+          <label class="checkbox-label" for="color-mode-toggle" style="font-size:11px;cursor:pointer;">
+            <input type="checkbox" id="color-mode-toggle" checked />
+            <span style="font-weight:600;color:var(--accent,#3b82f6);">有効</span>
+          </label>
+        </div>
+
+        <div id="color-multitool-controls">
+          <div class="form-row slider-row">
+            <label for="color-count-slider" title="減色する代表色の数（Extruder数）">Extruder数 (色数)</label>
+            <input type="range" id="color-count-slider" min="2" max="8" step="1" value="4" />
+            <span class="val" id="color-count-val">4</span>
+          </div>
+
+          <div class="form-row" style="margin-top:6px;margin-bottom:8px;">
+            <label class="checkbox-label" for="color-preview-toggle" style="font-size:11px;cursor:pointer;">
+              <input type="checkbox" id="color-preview-toggle" checked />
+              <span>3Dプレビューでツール色を表示</span>
+            </label>
+          </div>
+
+          <div class="untextured-tool-row">
+            <label for="untextured-tool-select" title="マスク領域やテクスチャを適用しない面（底面など）に割り当てるツール">非テクスチャ部ツール</label>
+            <select id="untextured-tool-select">
+              <option value="1">Tool 1</option>
+              <option value="2">Tool 2</option>
+              <option value="3">Tool 3</option>
+              <option value="4" selected>Tool 4</option>
+            </select>
+          </div>
+
+          <div class="palette-container" id="palette-list">
+            <!-- JSで動的にカラーパレットカードを生成 -->
+          </div>
         </div>
       </section>
 
@@ -617,6 +654,7 @@
         <div class="export-buttons">
           <button id="export-btn" class="export-btn" disabled data-i18n="ui.exportStl" data-i18n-title="tooltips.exportStl" title="Widely compatible with all slicers">Export STL</button>
           <button id="export-3mf-btn" class="export-btn" disabled data-i18n="ui.export3mf" data-i18n-title="tooltips.export3mf" title="Smaller file size â€” may not be accepted by all slicers">Export 3MF</button>
+          <button id="export-multicolor-3mf-btn" class="export-btn export-btn-primary" disabled style="grid-column: 1 / -1; margin-top: 6px;" title="PrusaSlicer, OrcaSlicer, Bambu Studio 完全互換のマルチツール 3MF をエクスポート">🎨 Export Multi-Tool 3MF</button>
         </div>
       </section>
 
@@ -701,58 +739,7 @@
     </div>
   </div>
 
-  <!-- Sponsor popup -->
-  <div id="sponsor-overlay" class="sponsor-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sponsor-title">
-    <div class="sponsor-modal">
-      <h2 id="sponsor-title" data-i18n="sponsor.title">Thanks for using BumpMesh by CNC Kitchen!</h2>
-      <p data-i18n-html="sponsor.body">This tool is provided <strong>completely free</strong> by CNC Kitchen.<br>
-      While your STL is being processed, why not check out the store that helps us keep making cool stuff for you?</p>
-      <a href="https://geni.us/CNCStoreTexture" target="_blank" rel="noopener noreferrer" class="sponsor-link" data-i18n="sponsor.visitStore">
-        ðŸ›’ Visit CNCKitchen.STORE
-      </a>
-      <a href="https://www.paypal.me/CNCKitchen" target="_blank" rel="noopener noreferrer" class="sponsor-link sponsor-link--paypal" data-i18n="sponsor.donate">
-        ðŸ’™ Send a tip on PayPal
-      </a>
-      <a href="https://ko-fi.com/cnckitchen" target="_blank" rel="noopener noreferrer" class="sponsor-link sponsor-link--kofi" data-i18n="sponsor.donateKofi">
-        â˜• Send a tip on Ko-fi
-      </a>
-      <label class="sponsor-no-show">
-        <input type="checkbox" id="sponsor-dont-show" />
-        <span data-i18n="sponsor.dontShow">Don't show this again</span>
-      </label>
-      <button id="sponsor-close" class="sponsor-close-btn" data-i18n-html="sponsor.closeAndContinue">Close &amp; Continue</button>
-    </div>
-  </div>
-
-  <!-- Welcome / What's New popup -->
-  <div id="welcome-overlay" class="welcome-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
-    <div class="welcome-modal">
-      <button id="welcome-close" class="license-close-btn" aria-label="Close">&#215;</button>
-      <h2 id="welcome-title">Welcome to BumpMesh</h2>
-      <p class="welcome-tagline">Add a texture to any of your STLs &mdash; directly in your browser, no cloud and completely free!</p>
-
-      <h3 class="welcome-heading">Quick start</h3>
-      <ol class="welcome-steps">
-        <li>Import an STL, OBJ, 3MF or STEP.</li>
-        <li>Pick a texture from the preset library or upload your own image.</li>
-        <li>Tweak amplitude, scale, and mapping mode to taste.</li>
-        <li>Export as STL or 3MF.</li>
-      </ol>
-
-      <h3 class="welcome-heading">New in this release <span class="welcome-date">&mdash; July 2026</span></h3>
-      <ul class="welcome-changelog">
-        <li><strong>STEP import</strong> &mdash; load CAD files (.step / .stp) directly: they&rsquo;re converted to a mesh right in your browser by our new open-source <a href="https://github.com/CNCKitchen/meshStep" target="_blank" rel="noopener">meshStep</a> library, with coarse / standard / fine quality presets.</li>
-        <li><strong>Smooth Mask transitions</strong> &mdash; choose how the texture fades out at masked boundaries: Linear, S-Curve, or the new default Ease-In for a gentler blend at the mask edge.</li>
-      </ul>
-
-      <label class="sponsor-no-show">
-        <input type="checkbox" id="welcome-dont-show" />
-        <span>Don&rsquo;t show this again until there&rsquo;s something new</span>
-      </label>
-      <button id="welcome-got-it" class="sponsor-close-btn">Got it</button>
-    </div>
-  </div>
-
-  <script type="module" src="js/main.js"></script>
+  <!-- Sponsor overlay and Welcome overlay removed for custom build -->
+  <script type="module" src="js/main.js?v=20260908e"></script>
 </body>
 </html>

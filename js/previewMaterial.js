@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { scaleMmToRelative } from './mapping.js';
+import { scaleMmToRelative } from './mapping.js?v=20260908d';
 
 // Mapping mode constants (must match index.html <option value="…">)
 export const MODE_PLANAR_XY   = 0;
@@ -47,6 +47,8 @@ const sharedGLSL = /* glsl */`
   uniform int       symmetricDisplacement;
   uniform int       noDownwardZ;
   uniform int       useDisplacement;
+  uniform int       useColorTexture;
+  uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
 
   const float PI     = 3.14159265358979;
@@ -68,10 +70,6 @@ const sharedGLSL = /* glsl */`
                     : axis == 1 ? max(absN.x, absN.z)
                                 : max(absN.x, absN.y);
 
-    // blend=0: hard one-hot for sharp seams. Do NOT also short-circuit at
-    // primary≈secondary when blend>0 — the smooth branch produces 0.5/0.5
-    // there, and short-circuiting to one-hot creates a single-fragment spike
-    // wherever a fillet's smooth normal lands exactly on the 45° tie.
     if (mappingBlend < 0.001) {
       if (axis == 0) return vec3(1.0, 0.0, 0.0);
       if (axis == 1) return vec3(0.0, 1.0, 0.0);
@@ -103,6 +101,101 @@ const sharedGLSL = /* glsl */`
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
     uv += 0.5;
     return texture2D(displacementMap, uv).r;
+  }
+
+  vec3 sampleMapColor(vec2 rawUV) {
+    vec2 uv = (rawUV * textureAspect) / scaleUV + offsetUV;
+    float c = cos(rotation); float s = sin(rotation);
+    uv -= 0.5;
+    uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
+    uv += 0.5;
+    return texture2D(displacementMap, uv).rgb;
+  }
+
+  // Compute color at a world-space point
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+    vec3 rel = pos - boundsCenter;
+    float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
+    float md = max(maxDim, 1e-4);
+
+    if (mappingMode == 0) {
+      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.y - boundsMin.y) / md));
+    } else if (mappingMode == 1) {
+      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.z - boundsMin.z) / md));
+    } else if (mappingMode == 2) {
+      return sampleMapColor(vec2((pos.y - boundsMin.y) / md, (pos.z - boundsMin.z) / md));
+    } else if (mappingMode == 3) {
+      vec2 cylRel2 = pos.xy - cylinderCenter;
+      float r = max(cylinderRadius, 1e-4);
+      float C = TWO_PI * r;
+      float u_cyl = atan(cylRel2.y, cylRel2.x) / TWO_PI + 0.5;
+      float v_cyl = (pos.z - boundsMin.z) / C;
+      float seamBand = seamBandWidth * 0.1;
+      float seamDist = min(u_cyl, 1.0 - u_cyl);
+      vec3 cSide;
+      if (seamBand > 0.001 && seamDist < seamBand) {
+        float d = u_cyl < 0.5 ? u_cyl : u_cyl - 1.0;
+        float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
+        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_cyl));
+        vec3 cRight = sampleMapColor(vec2(d, v_cyl));
+        cSide = mix(cLeft, cRight, t);
+      } else {
+        cSide = sampleMapColor(vec2(u_cyl, v_cyl));
+      }
+      if (mappingBlend < 0.001) return cSide;
+      float capThreshold = cos(radians(capAngle));
+      float blendHalf = seamBandWidth * 0.5;
+      float capW = smoothstep(capThreshold - blendHalf, capThreshold + blendHalf, abs(blendN.z));
+      vec3 cCap = sampleMapColor(vec2(cylRel2.x / C + 0.5, cylRel2.y / C + 0.5));
+      return mix(cSide, cCap, capW);
+    } else if (mappingMode == 4) {
+      float r     = length(rel);
+      float phi   = acos(clamp(rel.z / max(r, 1e-4), -1.0, 1.0));
+      float u_sph = atan(rel.y, rel.x) / TWO_PI + 0.5;
+      float v_sph = phi / PI;
+      float seamBand = seamBandWidth * 0.1;
+      float seamDist = min(u_sph, 1.0 - u_sph);
+      if (seamBand > 0.001 && seamDist < seamBand) {
+        float d = u_sph < 0.5 ? u_sph : u_sph - 1.0;
+        float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
+        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_sph));
+        vec3 cRight = sampleMapColor(vec2(d, v_sph));
+        return mix(cLeft, cRight, t);
+      }
+      return sampleMapColor(vec2(u_sph, v_sph));
+    } else if (mappingMode == 5) {
+      vec3 blend = abs(projN);
+      blend = pow(blend, vec3(4.0));
+      blend /= dot(blend, vec3(1.0)) + 1e-4;
+      float yzU = (pos.y - boundsMin.y) / md;
+      if (projN.x < 0.0) yzU = -yzU;
+      float xzU = (pos.x - boundsMin.x) / md;
+      if (projN.y > 0.0) xzU = -xzU;
+      float xyU = (pos.x - boundsMin.x) / md;
+      if (projN.z < 0.0) xyU = -xyU;
+      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
+      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
+      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
+      return cXY * blend.z + cXZ * blend.y + cYZ * blend.x;
+    } else {
+      float yzU = (pos.y - boundsMin.y) / md;
+      if (projN.x < 0.0) yzU = -yzU;
+      float xzU = (pos.x - boundsMin.x) / md;
+      if (projN.y > 0.0) xzU = -xzU;
+      float xyU = (pos.x - boundsMin.x) / md;
+      if (projN.z < 0.0) xyU = -xyU;
+      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
+      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
+      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
+      vec3 bN = blendN;
+      vec3 absFaceN = abs(projN);
+      float facePrimary = max(absFaceN.x, max(absFaceN.y, absFaceN.z));
+      float faceSecondary = absFaceN.x + absFaceN.y + absFaceN.z - facePrimary
+                          - min(absFaceN.x, min(absFaceN.y, absFaceN.z));
+      if (facePrimary - faceSecondary <= CUBIC_AXIS_EPSILON) bN = projN;
+      vec3 wts = cubicBlendWeights(bN);
+      return cYZ * wts.x + cXZ * wts.y + cXY * wts.z;
+    }
   }
 
   // Compute displacement height at a world-space point.
@@ -375,11 +468,13 @@ const fragmentShader = /* glsl */`
     bumpN = mix(smoothN, bumpN, maskBlend);
 
     // ── Shading ───────────────────────────────────────────────────────────
-    // Compute lighting identically for ALL surfaces using the teal base so
-    // that specular highlights, diffuse response, and view-dependent shading
-    // are perfectly consistent everywhere.  Mask tinting is applied AFTER
-    // lighting as a colour blend so masked areas keep the same glossy look.
+    vec3 _dpx = dFdx(vModelPos);
+    vec3 _dpy = dFdy(vModelPos);
+    vec3 _fN  = cross(_dpx, _dpy);
+    vec3 PN   = length(_fN) > 1e-10 ? normalize(_fN) : vModelNormal;
+
     vec3 tealBase      = vec3(0.22, 0.68, 0.68);
+    vec3 baseColor     = (useColorTexture == 1) ? computeColorAtPoint(vModelPos, PN, vModelNormal) : tealBase;
     vec3 userMaskColor = vec3(0.85, 0.40, 0.15);
     vec3 angleMaskColor = vec3(0.45, 0.48, 0.50);
 
@@ -393,23 +488,24 @@ const fragmentShader = /* glsl */`
     vec3 H1   = normalize(L1 + V);
     float spec = pow(max(dot(bumpN, H1), 0.0), 64.0) * 0.60;
 
-    // Lit teal (identical for textured and masked surfaces)
-    vec3 litTeal = tealBase * 0.55
-                 + tealBase * diff1 * vec3(1.00, 0.96, 0.88) * 0.55
-                 + tealBase * diff2 * vec3(0.80, 0.60, 0.50) * 0.15
-                 + vec3(spec);
+    // Lit surface
+    vec3 litSurface = baseColor * 0.55
+                    + baseColor * diff1 * vec3(1.00, 0.96, 0.88) * 0.55
+                    + baseColor * diff2 * vec3(0.80, 0.60, 0.50) * 0.15
+                    + vec3(spec);
 
-    // Mask tint: pick colour by mask type, compute same lighting with that base
+    // Mask tint: pick colour by mask type, or use designated untextured tool color when color preview is on
     float maskEffect = 1.0 - maskBlend; // 0 = fully textured, 1 = fully masked
     float effectiveMaskType = mix(vMaskType, 0.0, step(0.5, 1.0 - vUserMask));
-    vec3 maskBase = mix(userMaskColor, angleMaskColor, effectiveMaskType);
+    vec3 stdMaskBase = mix(userMaskColor, angleMaskColor, effectiveMaskType);
+    vec3 maskBase    = (useColorTexture == 1) ? untexturedColor : stdMaskBase;
     vec3 litMask = maskBase * 0.55
                  + maskBase * diff1 * vec3(1.00, 0.96, 0.88) * 0.55
                  + maskBase * diff2 * vec3(0.80, 0.60, 0.50) * 0.15
                  + vec3(spec);
 
     // Blend: 100% mask colour at the boundary, fading to 0% at falloff distance
-    vec3 color = mix(litTeal, litMask, maskEffect);
+    vec3 color = mix(litSurface, litMask, maskEffect);
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -470,6 +566,10 @@ export function updateMaterial(material, displacementTexture, settings) {
   u.symmetricDisplacement.value   = settings.symmetricDisplacement   ? 1 : 0;
   u.noDownwardZ.value             = settings.noDownwardZ             ? 1 : 0;
   u.useDisplacement.value         = settings.useDisplacement         ? 1 : 0;
+  if (!u.useColorTexture) u.useColorTexture = { value: 0 };
+  u.useColorTexture.value         = settings.useColorTexture         ? 1 : 0;
+  if (!u.untexturedColor) u.untexturedColor = { value: new THREE.Vector3(0.68, 0.08, 0.22) };
+  if (settings.untexturedColor) u.untexturedColor.value.copy(settings.untexturedColor);
   u.textureAspect.value.set(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1);
   u.boundaryFalloffDist.value       = settings.boundaryFalloff           ?? 0.0;
   u.boundaryFalloffCurve.value      = FALLOFF_CURVE_INDEX[settings.boundaryFalloffCurve] ?? 0;
@@ -484,6 +584,7 @@ function buildUniforms(tex, settings) {
     center: new THREE.Vector3(),
   };
   const relScale = scaleMmToRelative(settings.mappingMode ?? MODE_TRIPLANAR, settings, b);
+  const uc = settings.untexturedColor || new THREE.Vector3(0.68, 0.08, 0.22);
   return {
     displacementMap: { value: tex || createFallbackTexture() },
     mappingMode:     { value: settings.mappingMode ?? MODE_TRIPLANAR },
@@ -507,6 +608,8 @@ function buildUniforms(tex, settings) {
     symmetricDisplacement:    { value: settings.symmetricDisplacement   ? 1 : 0 },
     noDownwardZ:              { value: settings.noDownwardZ             ? 1 : 0 },
     useDisplacement:          { value: settings.useDisplacement         ? 1 : 0 },
+    useColorTexture:          { value: settings.useColorTexture         ? 1 : 0 },
+    untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },
     boundaryEdgeCount:        { value: 0 },

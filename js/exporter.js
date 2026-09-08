@@ -234,3 +234,187 @@ export function export3MF(geometry, filename = 'textured.3mf') {
     'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
   );
 }
+
+/**
+ * Multi-material 3MF exporter — builds a multi-volume 3MF package fully
+ * compatible with Bambu Studio, OrcaSlicer, and PrusaSlicer.
+ *
+ * Each tool/extruder is exported as an independent sub-mesh (volume) inside
+ * a root assembly object, accompanied by color group metadata and slicer
+ * configuration files (`Metadata/model_settings.config`).
+ *
+ * @param {Map<number, THREE.BufferGeometry>} subGeometries - Map of toolId -> BufferGeometry
+ * @param {Array<{ id: number, color: number[], hex: string, toolId: number }>} palette
+ * @param {string} [filename]
+ */
+export function exportMultiColor3MF(subGeometries, palette, filename = 'textured_multicolor.3mf') {
+  const enc = new TextEncoder();
+  const byteChunks = [];
+  let totalBytes = 0;
+  let pending = '';
+  const FLUSH_THRESHOLD = 1 << 20;
+
+  function flush() {
+    if (!pending) return;
+    const b = enc.encode(pending);
+    byteChunks.push(b);
+    totalBytes += b.length;
+    pending = '';
+  }
+  function emit(s) {
+    pending += s;
+    if (pending.length >= FLUSH_THRESHOLD) flush();
+  }
+
+  const fmt = (n) => {
+    let s = n.toFixed(4);
+    if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+  };
+
+  // Build tool -> palette index mapping and color map
+  const toolToPalIndex = new Map();
+  palette.forEach((p, idx) => {
+    if (!toolToPalIndex.has(p.toolId)) {
+      toolToPalIndex.set(p.toolId, idx);
+    }
+  });
+
+  emit(
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<model unit="millimeter" xml:lang="en-US" ' +
+    'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
+    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
+    'xmlns:p="http://schemas.prusa3d.com/3mf/2020/01">\n' +
+    '<metadata name="Application">BumpMesh Color</metadata>\n' +
+    '<resources>\n'
+  );
+
+  // 1. Color group
+  emit('  <m:colorgroup id="1">\n');
+  for (const item of palette) {
+    emit(`    <m:color color="${item.hex.toUpperCase()}"/>\n`);
+  }
+  emit('  </m:colorgroup>\n');
+
+  // 2. Sub-mesh objects for each tool
+  const partObjects = []; // { objId, toolId, name }
+  let nextObjId = 10;
+
+  for (const [toolId, geometry] of subGeometries.entries()) {
+    const posArr = geometry.attributes.position.array;
+    const triCount = (posArr.length / 9) | 0;
+    if (triCount === 0) continue;
+
+    const objId = nextObjId++;
+    const partName = `Tool_${toolId}`;
+    partObjects.push({ objId, toolId, name: partName });
+
+    // Deduplicate vertices
+    const indexMap = new QuantizedPointMap(1e4, Math.min(triCount * 3, 1 << 22));
+    const uniqueXYZ = [];
+    const triIdx = new Uint32Array(triCount * 3);
+
+    for (let i = 0; i < triCount; i++) {
+      for (let j = 0; j < 3; j++) {
+        const b = i * 9 + j * 3;
+        const x = posArr[b];
+        const y = posArr[b + 1];
+        const z = posArr[b + 2];
+        const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
+        if (indexMap.inserted) uniqueXYZ.push(x, y, z);
+        triIdx[i * 3 + j] = idx;
+      }
+    }
+
+    const vertCount = uniqueXYZ.length / 3;
+    const palIdx = toolToPalIndex.get(toolId) ?? 0;
+
+    emit(`  <object id="${objId}" type="model" name="${partName}" p:extruder="${toolId}">\n`);
+    emit('    <mesh>\n      <vertices>\n');
+
+    for (let i = 0; i < vertCount; i++) {
+      const b = i * 3;
+      emit(`        <vertex x="${fmt(uniqueXYZ[b])}" y="${fmt(uniqueXYZ[b+1])}" z="${fmt(uniqueXYZ[b+2])}"/>\n`);
+    }
+
+    emit('      </vertices>\n      <triangles>\n');
+
+    for (let i = 0; i < triCount; i++) {
+      const b = i * 3;
+      emit(`        <triangle v1="${triIdx[b]}" v2="${triIdx[b+1]}" v3="${triIdx[b+2]}" pid="1" p1="${palIdx}"/>\n`);
+    }
+
+    emit('      </triangles>\n    </mesh>\n  </object>\n');
+  }
+
+  // 3. Root assembly object
+  const rootAssemblyId = 1;
+  emit(`  <object id="${rootAssemblyId}" type="model" name="BumpMesh_MultiColor">\n    <components>\n`);
+  for (const part of partObjects) {
+    emit(`      <component objectid="${part.objId}"/>\n`);
+  }
+  emit('    </components>\n  </object>\n');
+
+  emit(
+    '</resources>\n' +
+    '<build>\n' +
+    `  <item objectid="${rootAssemblyId}"/>\n` +
+    '</build>\n' +
+    '</model>\n'
+  );
+  flush();
+
+  const modelBytes = new Uint8Array(totalBytes);
+  {
+    let off = 0;
+    for (const b of byteChunks) { modelBytes.set(b, off); off += b.length; }
+  }
+
+  // Bambu Studio & OrcaSlicer config
+  let bambuConfigXml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<config>\n' +
+    `  <object id="${rootAssemblyId}">\n` +
+    '    <metadata key="name" value="BumpMesh_MultiColor"/>\n';
+  for (const part of partObjects) {
+    bambuConfigXml +=
+      `    <part id="${part.objId}" subtype="normal_part">\n` +
+      `      <metadata key="name" value="${part.name}"/>\n` +
+      `      <metadata key="extruder" value="${part.toolId}"/>\n` +
+      '    </part>\n';
+  }
+  bambuConfigXml +=
+    '  </object>\n' +
+    '</config>\n';
+
+  // Static package files
+  const contentTypesXml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
+    '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n' +
+    '<Default Extension="config" ContentType="text/xml"/>\n' +
+    '</Types>\n';
+
+  const relsXml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
+    '<Relationship Id="rel-1" Target="/3D/3dmodel.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
+    '<Relationship Id="rel-2" Target="/Metadata/model_settings.config" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
+    '</Relationships>\n';
+
+  const zipped = zipSync({
+    '[Content_Types].xml':           strToU8(contentTypesXml),
+    '_rels/.rels':                   strToU8(relsXml),
+    '3D/3dmodel.model':              modelBytes,
+    'Metadata/model_settings.config': strToU8(bambuConfigXml),
+  }, { level: 6 });
+
+  triggerDownload(
+    zipped,
+    filename,
+    'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
+  );
+}
+

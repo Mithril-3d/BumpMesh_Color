@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2026 CNCKitchen (Stefan Hermann) and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
@@ -641,11 +641,12 @@ function sampleBilinear(data, w, h, u, v) {
   x0 = ((x0 % w) + w) % w;
   y0 = ((y0 % h) + h) % h;
 
-  // Red channel â€” image is greyscale so R == G == B
-  const v00 = data[(y0 * w + x0) * 4] / 255;
-  const v10 = data[(y0 * w + x1) * 4] / 255;
-  const v01 = data[(y1 * w + x0) * 4] / 255;
-  const v11 = data[(y1 * w + x1) * 4] / 255;
+  // ITU-R Rec.709 luminance â€” preserves full resolution height detail from color textures
+  const lum = (idx) => (0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2]) / 255;
+  const v00 = lum((y0 * w + x0) * 4);
+  const v10 = lum((y0 * w + x1) * 4);
+  const v01 = lum((y1 * w + x0) * 4);
+  const v11 = lum((y1 * w + x1) * 4);
 
   return v00 * (1-tx) * (1-ty)
        + v10 * tx * (1-ty)

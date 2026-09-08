@@ -9,25 +9,26 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setExclusionOverlay, setHoverPreview, setViewerTheme,
          setProjection, requestRender,
          clearDiagOverlays, setDiagEdges, addDiagFaces,
-         setRotationGizmo, isGizmoDragging } from './viewer.js';
-import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js';
-import { estimateStep } from './stepLoader.js';
-import { resolveStepSettings } from './stepConvert.js';
-import { computeSmartResolution } from './smartResolution.js';
-import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js';
-import { subdivide }          from './subdivision.js';
-import { regularizeMesh }     from './regularize.js';
-import { runExportPipeline }  from './exportPipeline.js';
-import { exportSTL, export3MF } from './exporter.js';
+         setRotationGizmo, isGizmoDragging } from './viewer.js?v=20260908d';
+import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
+import { estimateStep } from './stepLoader.js?v=20260908d';
+import { resolveStepSettings } from './stepConvert.js?v=20260908d';
+import { computeSmartResolution } from './smartResolution.js?v=20260908d';
+import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260908d';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908d';
+import { subdivide }          from './subdivision.js?v=20260908d';
+import { regularizeMesh }     from './regularize.js?v=20260908d';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908d';
+import { quantizeImage } from './colorQuantization.js?v=20260908d';
+import { partitionMeshByTool } from './meshPartition.js?v=20260908d';
 import { buildAdjacency, bucketFill,
-         buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js';
+         buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
-         getEdgePositions, getShellAssignments } from './meshValidation.js';
-import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js';
-import { getScaleReferenceLengths } from './mapping.js';
-import { QuantizedPointMap } from './meshIndex.js';
-import { APP_VERSION } from './version.js';
+         getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
+import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
+import { getScaleReferenceLengths } from './mapping.js?v=20260908d';
+import { QuantizedPointMap } from './meshIndex.js?v=20260908d';
+import { APP_VERSION } from './version.js?v=20260908d';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ const settings = {
   refineLength:  1.0,
   maxTriangles:  750_000,
   lockScale:     true,
+  untexturedToolId: 4,
   bottomAngleLimit: 5,
   topAngleLimit:    0,
   mappingBlend:     1,
@@ -286,6 +288,18 @@ function _setMeshInfo(triCount, mb, sx, sy, sz) {
 }
 const exportBtn        = document.getElementById('export-btn');
 const export3mfBtn     = document.getElementById('export-3mf-btn');
+const exportMultiColor3mfBtn = document.getElementById('export-multicolor-3mf-btn');
+const colorMultitoolSection  = document.getElementById('color-multitool-section');
+const colorModeToggle        = document.getElementById('color-mode-toggle');
+const colorCountSlider       = document.getElementById('color-count-slider');
+const colorCountVal          = document.getElementById('color-count-val');
+const colorPreviewToggle     = document.getElementById('color-preview-toggle');
+const untexturedToolSelect   = document.getElementById('untextured-tool-select');
+const paletteList            = document.getElementById('palette-list');
+
+let currentColorPalette      = [];
+let currentQuantizedResult   = null;
+let _quantizedTextureCache   = null;
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
 const exportProgPct    = document.getElementById('export-progress-pct');
@@ -1083,7 +1097,7 @@ scaleVVal.value = fmtScaleVal(posToScale(parseFloat(scaleVSlider.value)));
 loadDefaultCube();
 
 // Build swatches with placeholder canvases, then load thumbnails
-const DEFAULT_PRESET_NAME = 'Crystal';
+const DEFAULT_PRESET_NAME = 'Geometric 4-Color';
 const _presetSwatches = IMAGE_PRESETS.map((p, idx) => {
   const swatch = document.createElement('div');
   swatch.className = 'preset-swatch preset-loading';
@@ -1175,6 +1189,7 @@ async function selectPreset(idx, swatchEl, applyDefaults = true) {
   // If full texture is already loaded, use it directly
   if (entry.texture) {
     activeMapEntry = entry;
+    runColorQuantization();
     updatePreview();
     return;
   }
@@ -1186,6 +1201,7 @@ async function selectPreset(idx, swatchEl, applyDefaults = true) {
     if (gen !== _selectGeneration) return;   // user clicked another preset meanwhile
     PRESETS[idx] = { ...entry, ...full };
     activeMapEntry = PRESETS[idx];
+    runColorQuantization();
     swatchEl.classList.remove('preset-loading-full');
     updatePreview();
   } catch (err) {
@@ -1233,6 +1249,7 @@ function _activateCustomMap() {
   document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('active'));
   customMapSwatch.classList.add('active');
   activeMapName.textContent = _lastCustomMap.name;
+  runColorQuantization();
   updatePreview();
 }
 
@@ -1263,29 +1280,149 @@ if (customMapRemoveBtn) {
   });
 }
 
+// ── Color Quantization & Multi-Tool UI ───────────────────────────────────────
+
+function runColorQuantization() {
+  if (!activeMapEntry || !activeMapEntry.imageData) {
+    if (paletteList) paletteList.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:4px;">テクスチャ未選択</div>';
+    if (exportMultiColor3mfBtn) exportMultiColor3mfBtn.disabled = true;
+    currentColorPalette = [];
+    currentQuantizedResult = null;
+    return;
+  }
+
+  const k = parseInt(colorCountSlider ? colorCountSlider.value : 4, 10) || 4;
+  if (colorCountVal) colorCountVal.textContent = k;
+
+  // Perform k-means++ clustering on the texture
+  currentQuantizedResult = quantizeImage(activeMapEntry.imageData, k);
+  currentColorPalette = currentQuantizedResult.palette;
+
+  renderPaletteUI();
+  updateUntexturedToolOptions(k);
+  _refreshQuantizedTexture();
+
+  if (exportMultiColor3mfBtn) {
+    exportMultiColor3mfBtn.disabled = (currentGeometry === null);
+  }
+}
+
+function _refreshQuantizedTexture() {
+  if (!currentQuantizedResult || !activeMapEntry) return;
+  const { width, height } = activeMapEntry;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  ctx.putImageData(currentQuantizedResult.quantizedImageData, 0, 0);
+
+  if (_quantizedTextureCache) {
+    _quantizedTextureCache.dispose();
+  }
+  _quantizedTextureCache = new THREE.CanvasTexture(canvas);
+  _quantizedTextureCache.wrapS = _quantizedTextureCache.wrapT = THREE.RepeatWrapping;
+  _quantizedTextureCache.name = 'quantized_tool_preview';
+}
+
+function renderPaletteUI() {
+  if (!paletteList) return;
+  paletteList.innerHTML = '';
+  if (!currentColorPalette || currentColorPalette.length === 0) return;
+
+  currentColorPalette.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'palette-item';
+
+    const left = document.createElement('div');
+    left.className = 'palette-color-group';
+
+    const chip = document.createElement('div');
+    chip.className = 'palette-color-chip';
+    chip.style.backgroundColor = item.hex;
+
+    const info = document.createElement('div');
+    info.className = 'palette-color-info';
+
+    const hex = document.createElement('span');
+    hex.className = 'palette-color-hex';
+    hex.textContent = item.hex;
+
+    const ratio = document.createElement('span');
+    ratio.className = 'palette-color-ratio';
+    ratio.textContent = `${(item.ratio * 100).toFixed(1)}%`;
+
+    info.appendChild(hex);
+    info.appendChild(ratio);
+    left.appendChild(chip);
+    left.appendChild(info);
+
+    const right = document.createElement('div');
+    right.className = 'palette-tool-assign';
+
+    const label = document.createElement('label');
+    label.textContent = '割当:';
+
+    const select = document.createElement('select');
+    select.className = 'palette-tool-select';
+    for (let t = 1; t <= 8; t++) {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = `Tool ${t}`;
+      if (item.toolId === t) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', (e) => {
+      item.toolId = parseInt(e.target.value, 10);
+      updatePreview();
+    });
+
+    right.appendChild(label);
+    right.appendChild(select);
+
+    row.appendChild(left);
+    row.appendChild(right);
+    paletteList.appendChild(row);
+  });
+}
+
+function updateUntexturedToolOptions(k) {
+  if (!untexturedToolSelect) return;
+  const currentVal = parseInt(untexturedToolSelect.value, 10) || settings.untexturedToolId || 4;
+  untexturedToolSelect.innerHTML = '';
+  for (let i = 1; i <= k; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `Tool ${i}`;
+    untexturedToolSelect.appendChild(opt);
+  }
+  const chosen = Math.min(Math.max(1, currentVal), k);
+  untexturedToolSelect.value = chosen;
+  settings.untexturedToolId = chosen;
+}
+
 // ── Welcome popup: open / dismiss ─────────────────────────────────────────────
 function openWelcome({ allowDismissPersist }) {
-  welcomeDontShow.checked = false;
+  if (!welcomeOverlay) return;
+  if (welcomeDontShow) welcomeDontShow.checked = false;
   welcomeOverlay.classList.remove('hidden');
   trapFocus(welcomeOverlay);
 
   const close = () => {
-    if (allowDismissPersist && welcomeDontShow.checked) {
+    if (allowDismissPersist && welcomeDontShow?.checked) {
       try { localStorage.setItem(WELCOME_STORAGE_KEY, WELCOME_LAST_UPDATED); } catch { /* quota / private mode */ }
     }
     welcomeOverlay.classList.add('hidden');
   };
-  welcomeClose.onclick   = close;
-  welcomeGotIt.onclick   = close;
+  if (welcomeClose) welcomeClose.onclick   = close;
+  if (welcomeGotIt) welcomeGotIt.onclick   = close;
   welcomeOverlay.onclick = (e) => { if (e.target === welcomeOverlay) close(); };
 }
 
 function showWelcomeIfNeeded() {
-  let seen = null;
-  try { seen = localStorage.getItem(WELCOME_STORAGE_KEY); } catch { /* private mode */ }
-  if (seen !== WELCOME_LAST_UPDATED) {
-    openWelcome({ allowDismissPersist: true });
-  }
+  // Disabled: do not show welcome popup
+  return;
 }
 
 // ── Accessibility: Modal focus trap ───────────────────────────────────────────
@@ -1409,6 +1546,7 @@ function wireEvents() {
       _showCustomMapThumb(activeMapEntry);
       customMapSwatch.classList.add('active');
       resetTextureSmoothing();
+      runColorQuantization();
       updatePreview();
     } catch (err) {
       console.error('Failed to load texture:', err);
@@ -1634,45 +1772,66 @@ function wireEvents() {
   });
 
   // ── Welcome / What's New ──
-  welcomeLink.addEventListener('click', () => openWelcome({ allowDismissPersist: false }));
+  welcomeLink?.addEventListener('click', () => openWelcome({ allowDismissPersist: false }));
 
   // ── Mesh diagnostics dismiss ──
-  meshDiagDismiss.addEventListener('click', () => {
-    meshDiagnostics.classList.add('hidden');
+  meshDiagDismiss?.addEventListener('click', () => {
+    meshDiagnostics?.classList.add('hidden');
     clearDiagHighlight();
   });
 
   // ── Support banner dismiss ──
-  document.getElementById('store-cta-dismiss').addEventListener('click', () => {
-    document.getElementById('store-cta-wrapper').classList.add('store-cta-hidden');
+  const storeCtaDismiss = document.getElementById('store-cta-dismiss');
+  storeCtaDismiss?.addEventListener('click', () => {
+    document.getElementById('store-cta-wrapper')?.classList.add('store-cta-hidden');
   });
 
   // ── Export ──
   const startExport = (format) => {
-    // Start the export immediately — the pipeline runs in the worker, so the
-    // sponsor overlay sits on top of a live progress bar instead of delaying
-    // the work until it's dismissed.
     handleExport(format);
-
-    if (sessionStorage.getItem('stlt-no-sponsor') === '1') return;
-    const overlay = document.getElementById('sponsor-overlay');
-    const closeBtn = document.getElementById('sponsor-close');
-    const storeLink = overlay.querySelector('.sponsor-link');
-    overlay.classList.remove('hidden');
-    trapFocus(overlay);
-
-    const dismiss = () => {
-      if (document.getElementById('sponsor-dont-show').checked) {
-        sessionStorage.setItem('stlt-no-sponsor', '1');
-      }
-      overlay.classList.add('hidden');
-    };
-
-    closeBtn.onclick = dismiss;
-    storeLink.onclick = () => setTimeout(dismiss, 150);
   };
   exportBtn.addEventListener('click', () => startExport('stl'));
   export3mfBtn.addEventListener('click', () => startExport('3mf'));
+  if (exportMultiColor3mfBtn) {
+    exportMultiColor3mfBtn.addEventListener('click', () => startExport('multicolor-3mf'));
+  }
+
+  // ── Color & Multi-Tool listeners ──
+  if (colorCountSlider) {
+    colorCountSlider.addEventListener('input', () => {
+      if (colorCountVal) colorCountVal.textContent = colorCountSlider.value;
+      runColorQuantization();
+      updatePreview();
+    });
+  }
+
+  if (colorModeToggle) {
+    colorModeToggle.addEventListener('change', () => {
+      const isEnabled = colorModeToggle.checked;
+      const ctrl = document.getElementById('color-multitool-controls');
+      if (ctrl) {
+        ctrl.style.opacity = isEnabled ? '1' : '0.4';
+        ctrl.style.pointerEvents = isEnabled ? 'auto' : 'none';
+      }
+      if (exportMultiColor3mfBtn) {
+        exportMultiColor3mfBtn.disabled = !isEnabled || (activeMapEntry === null || currentGeometry === null);
+      }
+      updatePreview();
+    });
+  }
+
+  if (colorPreviewToggle) {
+    colorPreviewToggle.addEventListener('change', () => {
+      updatePreview();
+    });
+  }
+
+  if (untexturedToolSelect) {
+    untexturedToolSelect.addEventListener('change', () => {
+      settings.untexturedToolId = parseInt(untexturedToolSelect.value, 10) || 4;
+      updatePreview();
+    });
+  }
 
   // ── Advanced / Beta Features panel: collapse toggle + bake action ──
   advancedToggle.addEventListener('click', () => {
@@ -4079,45 +4238,60 @@ function buildParentFaceMap(subdivGeo) {
 }
 
 function getEffectiveMapEntry() {
-  if (!activeMapEntry || settings.textureSmoothing === 0) {
+  if (!activeMapEntry) return null;
+
+  let baseEntry = activeMapEntry;
+  if (settings.textureSmoothing !== 0) {
+    const { fullCanvas, width, height, name } = activeMapEntry;
+    const cacheKey = `${name}_${width}_${height}_${settings.textureSmoothing}`;
+    if (_effectiveMapCacheKey === cacheKey && _effectiveMapCache) {
+      baseEntry = _effectiveMapCache;
+    } else {
+      // Tile the source 3×3 before blurring so edge pixels have correct
+      // neighbours and the blurred centre tile is seamlessly tileable.
+      const tiled = document.createElement('canvas');
+      tiled.width  = width  * 3;
+      tiled.height = height * 3;
+      const tc = tiled.getContext('2d');
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          tc.drawImage(fullCanvas, col * width, row * height);
+        }
+      }
+      // Blur the 3×3 canvas, then crop out only the centre tile.
+      const blurred = document.createElement('canvas');
+      blurred.width  = width  * 3;
+      blurred.height = height * 3;
+      blurred.getContext('2d').drawImage(tiled, 0, 0);
+      blurCanvas(blurred, settings.textureSmoothing);
+      const offscreen = document.createElement('canvas');
+      offscreen.width  = width;
+      offscreen.height = height;
+      offscreen.getContext('2d').drawImage(blurred, width, height, width, height, 0, 0, width, height);
+      const imageData = offscreen.getContext('2d').getImageData(0, 0, width, height);
+      const texture   = new THREE.CanvasTexture(offscreen);
+      texture.wrapS   = texture.wrapT = THREE.RepeatWrapping;
+      if (_lastEffectiveTexture) _lastEffectiveTexture.dispose();
+      _lastEffectiveTexture = texture;
+      _effectiveMapCache    = { ...activeMapEntry, imageData, texture };
+      _effectiveMapCacheKey = cacheKey;
+      baseEntry = _effectiveMapCache;
+    }
+  } else {
     _effectiveMapCache    = null;
     _effectiveMapCacheKey = null;
-    return activeMapEntry;
   }
-  const { fullCanvas, width, height, name } = activeMapEntry;
-  const cacheKey = `${name}_${width}_${height}_${settings.textureSmoothing}`;
-  if (_effectiveMapCacheKey === cacheKey && _effectiveMapCache) {
-    return _effectiveMapCache;
+
+  // When color mode is enabled and 3D tool color preview is ON, use the quantized texture
+  if (colorModeToggle?.checked && colorPreviewToggle?.checked && _quantizedTextureCache) {
+    return {
+      ...baseEntry,
+      texture: _quantizedTextureCache,
+      imageData: activeMapEntry.imageData // Always retain original high-res imageData for displacement!
+    };
   }
-  // Tile the source 3×3 before blurring so edge pixels have correct
-  // neighbours and the blurred centre tile is seamlessly tileable.
-  const tiled = document.createElement('canvas');
-  tiled.width  = width  * 3;
-  tiled.height = height * 3;
-  const tc = tiled.getContext('2d');
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
-      tc.drawImage(fullCanvas, col * width, row * height);
-    }
-  }
-  // Blur the 3×3 canvas, then crop out only the centre tile.
-  const blurred = document.createElement('canvas');
-  blurred.width  = width  * 3;
-  blurred.height = height * 3;
-  blurred.getContext('2d').drawImage(tiled, 0, 0);
-  blurCanvas(blurred, settings.textureSmoothing);
-  const offscreen = document.createElement('canvas');
-  offscreen.width  = width;
-  offscreen.height = height;
-  offscreen.getContext('2d').drawImage(blurred, width, height, width, height, 0, 0, width, height);
-  const imageData = offscreen.getContext('2d').getImageData(0, 0, width, height);
-  const texture   = new THREE.CanvasTexture(offscreen);
-  texture.wrapS   = texture.wrapT = THREE.RepeatWrapping;
-  if (_lastEffectiveTexture) _lastEffectiveTexture.dispose();
-  _lastEffectiveTexture = texture;
-  _effectiveMapCache    = { ...activeMapEntry, imageData, texture };
-  _effectiveMapCacheKey = cacheKey;
-  return _effectiveMapCache;
+
+  return baseEntry;
 }
 
 // Build the regularize.js opts object from current settings.  Centralised so
@@ -4145,11 +4319,21 @@ function updatePreview() {
   // wider-than-tall content.  The wider axis gets aspect = 1 (unchanged).
   const tw = activeMapEntry?.width ?? 1, th = activeMapEntry?.height ?? 1;
   const tmax = Math.max(tw, th, 1);
+  const untexturedTool = settings.untexturedToolId || 4;
+  const untexturedColorVec = new THREE.Vector3(0.68, 0.08, 0.22); // Default Tool 4 color
+  if (currentColorPalette && currentColorPalette.length > 0) {
+    const item = currentColorPalette.find(p => p.toolId === untexturedTool);
+    if (item && item.rgb) {
+      untexturedColorVec.set(item.rgb[0] / 255, item.rgb[1] / 255, item.rgb[2] / 255);
+    }
+  }
   const fullSettings = {
     ...settings,
     bounds: currentBounds,
     textureAspectU: tmax / Math.max(tw, 1),
     textureAspectV: tmax / Math.max(th, 1),
+    useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
+    untexturedColor: untexturedColorVec,
   };
 
   if (!activeMapEntry) {
@@ -4161,6 +4345,7 @@ function updatePreview() {
     }
     exportBtn.disabled = true;
     export3mfBtn.disabled = true;
+    if (exportMultiColor3mfBtn) exportMultiColor3mfBtn.disabled = true;
     bakeBtn.disabled = true;
     updateSmartResBtnState();
     return;
@@ -4184,10 +4369,16 @@ function updatePreview() {
   } else {
     updateMaterial(previewMaterial, effectiveEntry.texture, fullSettings);
   }
+  window.__previewMaterial = previewMaterial;
+  window.__effectiveEntry = effectiveEntry;
+  window.__fullSettings = fullSettings;
 
   syncBoundaryEdgeUniforms();
   exportBtn.disabled = false;
   export3mfBtn.disabled = false;
+  if (exportMultiColor3mfBtn) {
+    exportMultiColor3mfBtn.disabled = (!colorModeToggle?.checked || !currentGeometry);
+  }
   bakeBtn.disabled = isBaking;
   updateSmartResBtnState();
 }
@@ -4750,6 +4941,7 @@ async function handleExport(format = 'stl') {
   isExporting = true;
   exportBtn.classList.add('busy');
   export3mfBtn.classList.add('busy');
+  if (exportMultiColor3mfBtn) exportMultiColor3mfBtn.classList.add('busy');
   exportProgress.classList.remove('hidden');
 
   let finalGeometry   = null;
@@ -4836,6 +5028,25 @@ async function handleExport(format = 'stl') {
       await yieldFrame();
       if (exportToken !== myToken) return;
       export3MF(finalGeometry, `${baseName}.3mf`);
+    } else if (format === 'multicolor-3mf') {
+      setProgress(0.95, 'Splitting mesh by tool & writing multi-volume 3MF…');
+      await yieldFrame();
+      if (exportToken !== myToken) return;
+      const untexturedTool = settings.untexturedToolId || 4;
+      const subGeoms = partitionMeshByTool(
+        finalGeometry,
+        exportEntry.imageData,
+        exportEntry.width,
+        exportEntry.height,
+        settings,
+        currentBounds,
+        currentColorPalette,
+        untexturedTool,
+        excludedFaces
+      );
+      setProgress(0.98, 'Packaging 3MF with Bambu / Orca / Prusa metadata…');
+      await yieldFrame();
+      exportMultiColor3MF(subGeoms, currentColorPalette, `${baseName}_multicolor_${currentColorPalette.length}tools.3mf`);
     } else {
       setProgress(0.97, t('progress.writingStl'));
       await yieldFrame();
@@ -4865,6 +5076,7 @@ async function handleExport(format = 'stl') {
     isExporting = false;
     exportBtn.classList.remove('busy');
     export3mfBtn.classList.remove('busy');
+    if (exportMultiColor3mfBtn) exportMultiColor3mfBtn.classList.remove('busy');
   }
 }
 

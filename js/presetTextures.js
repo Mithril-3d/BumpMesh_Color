@@ -26,6 +26,7 @@ function fitDimensions(imgW, imgH) {
 // ── Image-based presets ───────────────────────────────────────────────────────
 
 const IMAGE_PRESETS = [
+  { name: 'Geometric 4-Color', url: 'textures/geometric_4color.png', thumb: 'textures/thumbs/geometric_4color.webp', defaultScale: 0.5 },
   { name: 'Basket',       url: 'textures/basket.png',       thumb: 'textures/thumbs/basket.webp',       defaultScale: 0.5 },
   { name: 'Brick',        url: 'textures/brick.png',        thumb: 'textures/thumbs/brick.webp',        defaultScale: 0.5 },
   { name: 'Bubble',       url: 'textures/bubble.png',       thumb: 'textures/thumbs/bubble.webp',       defaultScale: 0.5 },
