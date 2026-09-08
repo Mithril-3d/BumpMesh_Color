@@ -454,10 +454,12 @@ const fragmentShader = /* glsl */`
 
     // When vertex displacement is active, reduce bump strength: the macro shape
     // is already physical; bump only adds sub-vertex fine detail.
+    // Use soft compression so bump never hard-saturates at amplitude >= 1.0.
     float posScale = max(length(dp1) + length(dp2), 1e-6);
+    float rawBump  = amplitude * 4.0 / posScale;
     float bumpStr  = useDisplacement == 1
-      ? amplitude * 2.0 / posScale
-      : amplitude * 6.0 / posScale;
+      ? amplitude * 1.8 / posScale
+      : rawBump / (1.0 + abs(rawBump) * 0.15);
 
     vec3 bumpVec = N - bumpStr * (dhx * T + dhy * B);
     vec3 bumpN = length(bumpVec) > 1e-6 ? normalize(bumpVec) : N;
@@ -489,10 +491,15 @@ const fragmentShader = /* glsl */`
     vec3 H1   = normalize(L1 + V);
     float spec = pow(max(dot(bumpN, H1), 0.0), 64.0) * 0.60;
 
+    // Depth cavity darkening: as amplitude increases (> 1.0), crevices and gradient valleys
+    // receive deeper self-shadowing, preventing optical saturation and dynamically enhancing 3D relief.
+    float gradMag = abs(dhx) + abs(dhy);
+    float cavity = clamp(1.0 - abs(amplitude) * gradMag * 0.65, 0.15, 1.0);
+
     // Lit surface
-    vec3 litSurface = baseColor * 0.55
+    vec3 litSurface = (baseColor * 0.55
                     + baseColor * diff1 * vec3(1.00, 0.96, 0.88) * 0.55
-                    + baseColor * diff2 * vec3(0.80, 0.60, 0.50) * 0.15
+                    + baseColor * diff2 * vec3(0.80, 0.60, 0.50) * 0.15) * cavity
                     + vec3(spec);
 
     // Mask tint: pick colour by mask type, or use designated untextured tool color when color preview is on
