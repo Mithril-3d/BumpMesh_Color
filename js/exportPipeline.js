@@ -324,19 +324,28 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     // export grid would collapse fine detail into degenerates.
     let repairStats = null;
     if (runDecimation) {
-      onEvent('repair', 0);
-      await yieldFrame();
+      const before = countEdgeDefects(finalGeometry);
       const beforeSlivers = countAreaSlivers(finalGeometry);
-      const repaired = resolveTJunctions(finalGeometry);
-      finalGeometry.dispose();
-      finalGeometry = repaired;
-      const after = countEdgeDefects(finalGeometry);
+      // Only run repair if the mesh has open edges that need sealing.
+      // If the decimated mesh is already 100% watertight (open === 0), do not touch it.
+      if (before.open > 0) {
+        onEvent('repair', 0);
+        await yieldFrame();
+        const repaired = resolveTJunctions(finalGeometry);
+        const after = countEdgeDefects(repaired);
+        // Only accept repair if it does not introduce non-manifold defects
+        if (after.nonManifold === 0 && after.open <= before.open) {
+          finalGeometry.dispose();
+          finalGeometry = repaired;
+        }
+      }
+      const finalDefects = countEdgeDefects(finalGeometry);
       repairStats = {
         beforeSlivers,
-        open: after.open,
-        nonManifold: after.nonManifold,
+        open: finalDefects.open,
+        nonManifold: finalDefects.nonManifold,
         slivers: countAreaSlivers(finalGeometry),
-        tris: after.tris,
+        tris: finalDefects.tris,
       };
       if (shouldAbort()) return null;
     }

@@ -116,9 +116,9 @@ export function export3MF(geometry, filename = 'textured.3mf') {
   for (let i = 0; i < triCount; i++) {
     for (let j = 0; j < 3; j++) {
       const b = i * 9 + j * 3;
-      const x = posArr[b];
-      const y = posArr[b + 1];
-      const z = posArr[b + 2];
+      const x = Math.round(posArr[b] * 1e4) / 1e4;
+      const y = Math.round(posArr[b + 1] * 1e4) / 1e4;
+      const z = Math.round(posArr[b + 2] * 1e4) / 1e4;
       const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
       if (indexMap.inserted) uniqueXYZ.push(x, y, z);
       triIdx[i * 3 + j] = idx;
@@ -180,12 +180,23 @@ export function export3MF(geometry, filename = 'textured.3mf') {
 
   emit('</vertices>\n<triangles>\n');
 
+  const seenFaces3mf = new Set();
   for (let i = 0; i < triCount; i++) {
     const b = i * 3;
+    const v1 = triIdx[b], v2 = triIdx[b + 1], v3 = triIdx[b + 2];
+    if (v1 === v2 || v2 === v3 || v1 === v3) continue;
+    let lo = v1, mid = v2, hi = v3;
+    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    if (mid > hi) { const t = mid; mid = hi; hi = t; }
+    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    const faceKey = `${lo},${mid},${hi}`;
+    if (seenFaces3mf.has(faceKey)) continue;
+    seenFaces3mf.add(faceKey);
+
     emit(
-      '<triangle v1="' + triIdx[b] +
-      '" v2="'         + triIdx[b + 1] +
-      '" v3="'         + triIdx[b + 2] +
+      '<triangle v1="' + v1 +
+      '" v2="'         + v2 +
+      '" v3="'         + v3 +
       '"/>\n'
     );
   }
@@ -236,7 +247,23 @@ export function export3MF(geometry, filename = 'textured.3mf') {
 }
 
 /**
- * Multi-material 3MF exporter — builds a multi-volume 3MF package fully
+ * Encode toolhead ID into the TriangleSelector nibble-packed serialization
+ * required by PrusaSlicer (slic3rpe:mmu_segmentation) and Bambu Studio (paint_color).
+ *
+ * Leaf encoding for unsplit triangle (split = 0):
+ *   Tool 1 -> '4'
+ *   Tool 2 -> '8'
+ *   Tool 3 -> '0C'
+ *   Tool 4 -> '1C'
+ *   Tool K -> (K - 3).toString(16).toUpperCase() + 'C'
+ */
+export function encodeTrianglePaint(toolId) {
+  if (toolId <= 0) return '0';
+  if (toolId === 1) return '4';
+  if (toolId === 2) return '8';
+  return (toolId - 3).toString(16).toUpperCase() + 'C';
+}
+
 /**
  * Multi-material 3MF exporter — builds a single watertight solid mesh with
  * per-triangle tool/color attributes (facet painting) compatible with PrusaSlicer,
@@ -297,9 +324,9 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   for (let i = 0; i < triCount; i++) {
     for (let j = 0; j < 3; j++) {
       const b = i * 9 + j * 3;
-      const x = posArr[b];
-      const y = posArr[b + 1];
-      const z = posArr[b + 2];
+      const x = Math.round(posArr[b] * 1e4) / 1e4;
+      const y = Math.round(posArr[b + 1] * 1e4) / 1e4;
+      const z = Math.round(posArr[b + 2] * 1e4) / 1e4;
       const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
       if (indexMap.inserted) uniqueXYZ.push(x, y, z);
       triIdx[i * 3 + j] = idx;
@@ -312,7 +339,8 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
-    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">\n' +
+    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
+    'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
     '<metadata name="Application">BumpMesh Color</metadata>\n' +
     '<resources>\n'
   );
@@ -338,12 +366,26 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
 
   emit('      </vertices>\n      <triangles>\n');
 
+  const seenFacesMulti = new Set();
   for (let i = 0; i < triCount; i++) {
     const b = i * 3;
+    const v1 = triIdx[b], v2 = triIdx[b + 1], v3 = triIdx[b + 2];
+    // Skip index-degenerate triangles (collapsed edge)
+    if (v1 === v2 || v2 === v3 || v1 === v3) continue;
+    // Skip duplicate / back-to-back face sets
+    let lo = v1, mid = v2, hi = v3;
+    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    if (mid > hi) { const t = mid; mid = hi; hi = t; }
+    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    const faceKey = `${lo},${mid},${hi}`;
+    if (seenFacesMulti.has(faceKey)) continue;
+    seenFacesMulti.add(faceKey);
+
     const toolId = (triTools && triTools[i]) ? triTools[i] : 1;
     const palIdx = toolToPalIndex.get(toolId) ?? 0;
+    const paintCode = encodeTrianglePaint(toolId);
     emit(
-      `        <triangle v1="${triIdx[b]}" v2="${triIdx[b+1]}" v3="${triIdx[b+2]}" pid="1" p1="${palIdx}"/>\n`
+      `        <triangle v1="${v1}" v2="${v2}" v3="${v3}" pid="1" p1="${palIdx}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
     );
   }
 

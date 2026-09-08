@@ -164,9 +164,10 @@ export function resolveTJunctions(geometry, opts = {}) {
         const ex = vx[b]-ax, ey = vy[b]-ay, ez = vz[b]-az;
         const elen2 = ex*ex + ey*ey + ez*ez;
         if (elen2 < 1e-20) continue;
+        const apex = f[0] !== a && f[0] !== b ? f[0] : f[1] !== a && f[1] !== b ? f[1] : f[2];
         const found = [];
         for (const c of bvArr) {
-          if (c === a || c === b) continue;
+          if (c === a || c === b || c === apex) continue;
           const cx = vx[c]-ax, cy = vy[c]-ay, cz = vz[c]-az;
           const tp = (cx*ex + cy*ey + cz*ez) / elen2;
           if (tp <= 1e-4 || tp >= 1 - 1e-4) continue;          // strictly between A and B
@@ -194,7 +195,15 @@ export function resolveTJunctions(geometry, opts = {}) {
       let dirAB = false;
       for (let e = 0; e < 3; e++) if (f[e] === a && f[(e+1)%3] === b) { dirAB = true; break; }
       const seq = dirAB ? [a, ...mids, b] : [b, ...mids.slice().reverse(), a];
-      for (let s = 0; s < seq.length - 1; s++) next.push([seq[s], seq[s+1], apex]);
+      for (let s = 0; s < seq.length - 1; s++) {
+        const vA = seq[s], vB = seq[s+1], vC = apex;
+        if (vA === vB || vB === vC || vA === vC) continue;
+        const ux = vx[vB]-vx[vA], uy = vy[vB]-vy[vA], uz = vz[vB]-vz[vA];
+        const wx = vx[vC]-vx[vA], wy = vy[vC]-vy[vA], wz = vz[vC]-vz[vA];
+        const cx = uy*wz - uz*wy, cy = uz*wx - ux*wz, cz = ux*wy - uy*wx;
+        if (cx*cx + cy*cy + cz*cz < DEGEN_AREA2) continue;
+        next.push([vA, vB, vC]);
+      }
     }
     faces = next;
   }
