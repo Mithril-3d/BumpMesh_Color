@@ -18,9 +18,9 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908e';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908d';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908e';
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
-import { partitionMeshByTool } from './meshPartition.js?v=20260908d';
+import { partitionMeshByTool } from './meshPartition.js?v=20260908e';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
@@ -5012,16 +5012,42 @@ async function handleExport(format = 'stl') {
     triLimitWarning.classList.toggle('hidden', exportWarnings.length === 0);
     triLimitWarning.textContent = exportWarnings.join(' ');
 
-    // Map the pipeline output back to the model's original position and
-    // orientation (issue #82) — in-app rotation is a texturing aid and is
-    // reverted here. The pipeline itself runs in the working space, so this
-    // must stay after runPipeline — and outside of it, keeping the
-    // bench-pipeline fingerprint valid. result arrays are fresh; mutating is safe.
-    _restoreOriginalPose(result.positions, result.normals);
+function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settings) {
+  const weights = buildCombinedFaceWeights(geometry, excludedFaces, selectionMode, settings);
+  if (!weights) return [];
+  const pos = geometry.attributes.position.array;
+  const count = (pos.length / 9) | 0;
+  const list = [];
+  const pA = new THREE.Vector3(), pB = new THREE.Vector3(), pC = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
 
-    finalGeometry = new THREE.BufferGeometry();
-    finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
-    if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+  for (let i = 0; i < count; i++) {
+    if (weights[i * 3] > 0.99) {
+      const b = i * 9;
+      pA.set(pos[b],   pos[b+1], pos[b+2]);
+      pB.set(pos[b+3], pos[b+4], pos[b+5]);
+      pC.set(pos[b+6], pos[b+7], pos[b+8]);
+      ab.subVectors(pB, pA);
+      ac.subVectors(pC, pA);
+      n.crossVectors(ab, ac).normalize();
+      const planeD = n.dot(pA);
+      list.push({
+        a: pA.clone(),
+        b: pB.clone(),
+        c: pC.clone(),
+        n: n.clone(),
+        planeD,
+        minX: Math.min(pA.x, pB.x, pC.x) - 0.3,
+        maxX: Math.max(pA.x, pB.x, pC.x) + 0.3,
+        minY: Math.min(pA.y, pB.y, pC.y) - 0.3,
+        maxY: Math.max(pA.y, pB.y, pC.y) + 0.3,
+        minZ: Math.min(pA.z, pB.z, pC.z) - 0.3,
+        maxZ: Math.max(pA.z, pB.z, pC.z) + 0.3,
+      });
+    }
+  }
+  return list;
+}
 
     if (result.repairStats) {
       const rs = result.repairStats;
@@ -5043,16 +5069,18 @@ async function handleExport(format = 'stl') {
     const ampLabel = settings.amplitude.toFixed(2).replace('.', 'p');
     const baseName = `${currentStlName}_${texLabel}_amp${ampLabel}`;
 
-    if (format === '3mf') {
-      setProgress(0.97, t('progress.writing3mf'));
-      await yieldFrame();
-      if (exportToken !== myToken) return;
-      export3MF(finalGeometry, `${baseName}.3mf`);
-    } else if (format === 'multicolor-3mf') {
+    if (format === 'multicolor-3mf') {
       setProgress(0.95, 'Splitting mesh by tool & writing multi-volume 3MF…');
       await yieldFrame();
       if (exportToken !== myToken) return;
+
+      // 1. Build geometry in working space for UV & angle alignment
+      finalGeometry = new THREE.BufferGeometry();
+      finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
+      if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+
       const untexturedTool = settings.untexturedToolId || 4;
+      const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
       const subGeoms = partitionMeshByTool(
         finalGeometry,
         exportEntry.imageData,
@@ -5062,16 +5090,37 @@ async function handleExport(format = 'stl') {
         currentBounds,
         currentColorPalette,
         untexturedTool,
-        excludedFaces
+        excludedTris
       );
+
+      // 2. Restore original model pose on each sub-geometry
+      for (const geom of subGeoms.values()) {
+        const pa = geom.attributes.position.array;
+        const na = geom.attributes.normal ? geom.attributes.normal.array : null;
+        _restoreOriginalPose(pa, na);
+      }
+
       setProgress(0.98, 'Packaging 3MF with Bambu / Orca / Prusa metadata…');
       await yieldFrame();
       exportMultiColor3MF(subGeoms, currentColorPalette, `${baseName}_multicolor_${currentColorPalette.length}tools.3mf`);
     } else {
-      setProgress(0.97, t('progress.writingStl'));
-      await yieldFrame();
-      if (exportToken !== myToken) return;
-      exportSTL(finalGeometry, `${baseName}.stl`);
+      _restoreOriginalPose(result.positions, result.normals);
+
+      finalGeometry = new THREE.BufferGeometry();
+      finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
+      if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+
+      if (format === '3mf') {
+        setProgress(0.97, t('progress.writing3mf'));
+        await yieldFrame();
+        if (exportToken !== myToken) return;
+        export3MF(finalGeometry, `${baseName}.3mf`);
+      } else {
+        setProgress(0.97, t('progress.writingStl'));
+        await yieldFrame();
+        if (exportToken !== myToken) return;
+        exportSTL(finalGeometry, `${baseName}.stl`);
+      }
     }
     exportSucceeded = true;
 

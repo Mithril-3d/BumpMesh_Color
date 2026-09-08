@@ -8,42 +8,46 @@ import { computeUV } from './mapping.js?v=20260908d';
 import { getToolAtUV } from './colorQuantization.js?v=20260908d';
 
 /**
- * Partition a displaced BufferGeometry into sub-geometries by assigned tool (Extruder ID).
- *
- * @param {THREE.BufferGeometry} geometry - Non-indexed triangle soup
- * @param {ImageData} imageData           - Texture pixel data
- * @param {number} imgWidth
- * @param {number} imgHeight
- * @param {object} settings               - Mapping settings (scale, offset, rot, etc.)
- * @param {object} bounds                 - { min, max, size, center }
- * @param {Array} palette                 - Quantized color palette with tool assignments
- * @returns {Map<number, THREE.BufferGeometry>} Map of toolId -> sub BufferGeometry
+ * Check if 3D point p is within triangle abc (projected along normal n)
  */
+function isPointInTri(p, a, b, c, n) {
+  // Edge 0
+  const ab = b.clone().sub(a);
+  const ap = p.clone().sub(a);
+  if (ab.cross(ap).dot(n) < -1e-2) return false;
+
+  // Edge 1
+  const bc = c.clone().sub(b);
+  const bp = p.clone().sub(b);
+  if (bc.cross(bp).dot(n) < -1e-2) return false;
+
+  // Edge 2
+  const ca = a.clone().sub(c);
+  const cp = p.clone().sub(c);
+  if (ca.cross(cp).dot(n) < -1e-2) return false;
+
+  return true;
+}
+
 /**
  * Partition a displaced BufferGeometry into sub-geometries by assigned tool (Extruder ID).
  *
- * @param {THREE.BufferGeometry} geometry - Non-indexed triangle soup
+ * @param {THREE.BufferGeometry} geometry - Non-indexed triangle soup in WORKING SPACE
  * @param {ImageData} imageData           - Texture pixel data
  * @param {number} imgWidth
  * @param {number} imgHeight
  * @param {object} settings               - Mapping settings (scale, offset, rot, etc.)
- * @param {object} bounds                 - { min, max, size, center }
+ * @param {object} bounds                 - { min, max, size, center } in working space
  * @param {Array} palette                 - Quantized color palette with tool assignments
  * @param {number} [untexturedToolId=4]   - Tool ID to assign to untextured / masked regions
- * @param {Set|object} [excludedFaces=null]- Set of face indices excluded by user
+ * @param {Array} [excludedTriangles=null]- Array of {a, b, c, n, minX, maxX, ...} from original excluded faces
  * @returns {Map<number, THREE.BufferGeometry>} Map of toolId -> sub BufferGeometry
  */
-export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, settings, bounds, palette, untexturedToolId = 4, excludedFaces = null) {
+export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, settings, bounds, palette, untexturedToolId = 4, excludedTriangles = null) {
   const posArr = geometry.attributes.position.array;
   const norArr = geometry.attributes.normal ? geometry.attributes.normal.array : null;
   const faceMaskAttr = geometry.getAttribute('faceMask');
   const triCount = (posArr.length / 9) | 0;
-
-  // Pre-calculate angle limits for masked face detection
-  const hasBottomLimit = (settings.bottomAngleLimit ?? 0) > 0;
-  const bottomLimitCos = hasBottomLimit ? Math.cos((settings.bottomAngleLimit) * Math.PI / 180) : 1.0;
-  const hasTopLimit = (settings.topAngleLimit ?? 0) > 0;
-  const topLimitCos = hasTopLimit ? Math.cos((settings.topAngleLimit) * Math.PI / 180) : 1.0;
 
   // Aspect ratio correction matching displacement.js
   const tmax = Math.max(imgWidth, imgHeight, 1);
@@ -53,10 +57,15 @@ export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, se
 
   const tmpCentroid = new THREE.Vector3();
   const tmpNormal = new THREE.Vector3();
+  const tmpEdge1 = new THREE.Vector3();
+  const tmpEdge2 = new THREE.Vector3();
 
   // First pass: determine tool assignment for each triangle
   const triTool = new Int32Array(triCount);
   const toolTriCounts = new Map();
+
+  const botLimit = settings.bottomAngleLimit ?? 0;
+  const topLimit = settings.topAngleLimit ?? 0;
 
   for (let i = 0; i < triCount; i++) {
     const b = i * 9;
@@ -67,28 +76,49 @@ export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, se
     // Compute centroid
     tmpCentroid.set((ax + bx + cx) / 3, (ay + by + cy) / 3, (az + bz + cz) / 3);
 
-    // Compute normal
-    if (norArr) {
-      tmpNormal.set(norArr[b], norArr[b+1], norArr[b+2]);
-    } else {
-      const ux = bx - ax, uy = by - ay, uz = bz - az;
-      const vx = cx - ax, vy = cy - ay, vz = cz - az;
-      tmpNormal.set(uy*vz - uz*vy, uz*vx - ux*vz, ux*vy - uy*vx).normalize();
-    }
+    // Compute face normal
+    tmpEdge1.set(bx - ax, by - ay, bz - az);
+    tmpEdge2.set(cx - ax, cy - ay, cz - az);
+    tmpNormal.crossVectors(tmpEdge1, tmpEdge2).normalize();
 
     // Determine if this triangle is untextured / masked:
     let isMasked = false;
 
-    // 1. Angle limits (bottom / top)
-    if (hasBottomLimit && -tmpNormal.z >= bottomLimitCos - 1e-4) {
-      isMasked = true;
-    } else if (hasTopLimit && tmpNormal.z >= topLimitCos - 1e-4) {
-      isMasked = true;
+    // 1. Angle limits (matching shader and buildCombinedFaceWeights)
+    // Surface angle is degree from vertical Z: 0 = flat horizontal facing up/down
+    const faceNzNorm = tmpNormal.z;
+    const faceAngle = Math.acos(Math.min(Math.max(Math.abs(faceNzNorm), 0), 1)) * (180 / Math.PI);
+    if (faceNzNorm < 0) {
+      if (botLimit >= 1.0 && faceAngle <= botLimit + 0.1) {
+        isMasked = true;
+      }
+    } else {
+      if (topLimit >= 1.0 && faceAngle <= topLimit + 0.1) {
+        isMasked = true;
+      }
     }
 
-    // 2. User excluded faces
-    if (!isMasked && excludedFaces && excludedFaces.has && excludedFaces.has(i)) {
-      isMasked = true;
+    // 2. User excluded faces check against original excluded triangles
+    if (!isMasked && excludedTriangles && excludedTriangles.length > 0) {
+      const px = tmpCentroid.x, py = tmpCentroid.y, pz = tmpCentroid.z;
+      for (let k = 0; k < excludedTriangles.length; k++) {
+        const t = excludedTriangles[k];
+        if (px < t.minX || px > t.maxX || py < t.minY || py > t.maxY || pz < t.minZ || pz > t.maxZ) {
+          continue;
+        }
+        // Check normal alignment
+        if (tmpNormal.dot(t.n) < 0.85) continue;
+
+        // Check distance to plane
+        const distToPlane = Math.abs(tmpNormal.dot(tmpCentroid) - t.planeD);
+        if (distToPlane > 0.4) continue;
+
+        // Check if centroid is within triangle
+        if (isPointInTri(tmpCentroid, t.a, t.b, t.c, t.n)) {
+          isMasked = true;
+          break;
+        }
+      }
     }
 
     // 3. faceMask attribute if present (0 = masked, 1 = textured)
@@ -106,7 +136,7 @@ export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, se
       // Assign the designated untextured tool
       toolId = untexturedToolId || 4;
     } else {
-      // Compute UV at triangle centroid with correct argument signature
+      // Compute UV at triangle centroid in working space
       const mode = settings.mappingMode ?? 5;
       const uvResult = computeUV(tmpCentroid, tmpNormal, mode, settingsWithAspect, bounds);
       let u = 0, v = 0;
@@ -115,7 +145,6 @@ export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, se
           u = uvResult.u;
           v = uvResult.v;
         } else if (Array.isArray(uvResult.samples) && uvResult.samples.length > 0) {
-          // For triplanar/cubic, pick the dominant sample
           let maxW = -1;
           for (const s of uvResult.samples) {
             if (s.w > maxW) {
@@ -136,9 +165,12 @@ export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, se
   }
 
   // Second pass: allocate arrays and copy triangles for each tool
+  // Sort tools so Map iteration is always in ascending order
   const subGeometries = new Map();
+  const sortedToolIds = Array.from(toolTriCounts.keys()).sort((a, b) => a - b);
 
-  for (const [toolId, count] of toolTriCounts.entries()) {
+  for (const toolId of sortedToolIds) {
+    const count = toolTriCounts.get(toolId) || 0;
     if (count === 0) continue;
     const subPos = new Float32Array(count * 9);
     const subNor = norArr ? new Float32Array(count * 9) : null;
@@ -154,15 +186,12 @@ export function partitionMeshByTool(geometry, imageData, imgWidth, imgHeight, se
       dstIdx += 9;
     }
 
-    const subGeom = new THREE.BufferGeometry();
-    subGeom.setAttribute('position', new THREE.BufferAttribute(subPos, 3));
+    const subGeo = new THREE.BufferGeometry();
+    subGeo.setAttribute('position', new THREE.BufferAttribute(subPos, 3));
     if (subNor) {
-      subGeom.setAttribute('normal', new THREE.BufferAttribute(subNor, 3));
-    } else {
-      subGeom.computeVertexNormals();
+      subGeo.setAttribute('normal', new THREE.BufferAttribute(subNor, 3));
     }
-    subGeom.userData = { toolId };
-    subGeometries.set(toolId, subGeom);
+    subGeometries.set(toolId, subGeo);
   }
 
   return subGeometries;

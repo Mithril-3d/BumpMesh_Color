@@ -297,11 +297,12 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
   }
   emit('  </m:colorgroup>\n');
 
-  // 2. Sub-mesh objects for each tool
+  // 2. Sub-mesh objects for each tool (sorted ascending by toolId: 1, 2, 3, 4...)
   const partObjects = []; // { objId, toolId, name }
   let nextObjId = 10;
+  const sortedEntries = Array.from(subGeometries.entries()).sort((a, b) => a[0] - b[0]);
 
-  for (const [toolId, geometry] of subGeometries.entries()) {
+  for (const [toolId, geometry] of sortedEntries) {
     const posArr = geometry.attributes.position.array;
     const triCount = (posArr.length / 9) | 0;
     if (triCount === 0) continue;
@@ -331,6 +332,8 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
     const palIdx = toolToPalIndex.get(toolId) ?? 0;
 
     emit(`  <object id="${objId}" type="model" name="${partName}" p:extruder="${toolId}">\n`);
+    emit(`    <metadata type="prusa" key="extruder" value="${toolId}"/>\n`);
+    emit(`    <metadata name="extruder" value="${toolId}"/>\n`);
     emit('    <mesh>\n      <vertices>\n');
 
     for (let i = 0; i < vertCount; i++) {
@@ -352,7 +355,7 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
   const rootAssemblyId = 1;
   emit(`  <object id="${rootAssemblyId}" type="model" name="BumpMesh_MultiColor">\n    <components>\n`);
   for (const part of partObjects) {
-    emit(`      <component objectid="${part.objId}"/>\n`);
+    emit(`      <component objectid="${part.objId}" p:extruder="${part.toolId}"/>\n`);
   }
   emit('    </components>\n  </object>\n');
 
@@ -388,6 +391,22 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
     '  </object>\n' +
     '</config>\n';
 
+  // PrusaSlicer config
+  let prusaConfigXml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<config>\n' +
+    `  <object id="${rootAssemblyId}">\n`;
+  for (const part of partObjects) {
+    prusaConfigXml +=
+      `    <volume id="${part.objId}">\n` +
+      `      <metadata key="name" value="${part.name}"/>\n` +
+      `      <metadata key="extruder" value="${part.toolId}"/>\n` +
+      '    </volume>\n';
+  }
+  prusaConfigXml +=
+    '  </object>\n' +
+    '</config>\n';
+
   // Static package files
   const contentTypesXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -402,6 +421,7 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
     '<Relationship Id="rel-1" Target="/3D/3dmodel.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
     '<Relationship Id="rel-2" Target="/Metadata/model_settings.config" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
+    '<Relationship Id="rel-3" Target="/Metadata/Slic3r_PE.config" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n' +
     '</Relationships>\n';
 
   const zipped = zipSync({
@@ -409,6 +429,7 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
     '_rels/.rels':                   strToU8(relsXml),
     '3D/3dmodel.model':              modelBytes,
     'Metadata/model_settings.config': strToU8(bambuConfigXml),
+    'Metadata/Slic3r_PE.config':     strToU8(prusaConfigXml),
   }, { level: 6 });
 
   triggerDownload(
