@@ -5,7 +5,8 @@
 
 import { THREE } from './threeCompat.js?v=20260908d';
 import { computeUV } from './mapping.js?v=20260908d';
-import { getToolAtUV } from './colorQuantization.js?v=20260908d';
+import { getToolAtUV, sampleLuminanceBilinear } from './colorQuantization.js?v=20260908d';
+import { getSurfaceToolAtHeight } from './layerBlending.js?v=20260908d';
 
 /**
  * Check if 3D point p is within triangle abc (projected along normal n)
@@ -34,7 +35,18 @@ function isPointInTri(p, a, b, c, n) {
  * Returns Int32Array of length triCount where each element is toolId (1..K).
  * This guarantees the exported 3MF remains a 100% watertight, single-solid manifold.
  */
-export function assignToolsToTriangles(geometry, imageData, imgWidth, imgHeight, settings, bounds, palette, untexturedToolId = 4, excludedTriangles = null) {
+export function assignToolsToTriangles(
+  geometry,
+  imageData,
+  imgWidth,
+  imgHeight,
+  settings,
+  bounds,
+  palette,
+  untexturedToolId = 4,
+  excludedTriangles = null,
+  layerBlendLayers = null
+) {
   const posArr = geometry.attributes.position.array;
   const faceMaskAttr = geometry.getAttribute('faceMask');
   const triCount = (posArr.length / 9) | 0;
@@ -52,6 +64,8 @@ export function assignToolsToTriangles(geometry, imageData, imgWidth, imgHeight,
   const triTool = new Int32Array(triCount);
   const botLimit = settings.bottomAngleLimit ?? 0;
   const topLimit = settings.topAngleLimit ?? 0;
+  const isLayerBlend = (settings.colorSubMode === 1 && layerBlendLayers && layerBlendLayers.length > 0);
+  const amplitude = settings.amplitude ?? 1.0;
 
   for (let i = 0; i < triCount; i++) {
     const b = i * 9;
@@ -120,7 +134,15 @@ export function assignToolsToTriangles(geometry, imageData, imgWidth, imgHeight,
           }
         }
       }
-      toolId = getToolAtUV(imageData.data, imgWidth, imgHeight, u, v, palette);
+
+      if (isLayerBlend) {
+        // Sample height / luminance at (u, v) and map to layer height
+        const lum = sampleLuminanceBilinear(imageData.data, imgWidth, imgHeight, u, v);
+        const h = lum * amplitude;
+        toolId = getSurfaceToolAtHeight(h, layerBlendLayers);
+      } else {
+        toolId = getToolAtUV(imageData.data, imgWidth, imgHeight, u, v, palette);
+      }
     }
     triTool[i] = toolId;
   }

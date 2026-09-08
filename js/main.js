@@ -21,6 +21,14 @@ import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909a';
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles } from './meshPartition.js?v=20260908f';
+import {
+  LAYER_BLENDING_PRESETS,
+  calculateDefaultLayerBounds,
+  generateSlicingGuide,
+  generateGradientLookupTable,
+  rgbToHex,
+  hexToRgb
+} from './layerBlending.js?v=20260909a';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
@@ -297,9 +305,22 @@ const colorPreviewToggle     = document.getElementById('color-preview-toggle');
 const untexturedToolSelect   = document.getElementById('untextured-tool-select');
 const paletteList            = document.getElementById('palette-list');
 
-let currentColorPalette      = [];
-let currentQuantizedResult   = null;
-let _quantizedTextureCache   = null;
+const tabColorQuantize           = document.getElementById('tab-color-quantize');
+const tabColorLayerBlend          = document.getElementById('tab-color-layerblend');
+const quantizeControlsContainer   = document.getElementById('quantize-controls-container');
+const layerblendControlsContainer = document.getElementById('layerblend-controls-container');
+const layerblendPresetSelect     = document.getElementById('layerblend-preset-select');
+const layerblendStackList        = document.getElementById('layerblend-stack-list');
+const layerblendAddToolBtn       = document.getElementById('layerblend-add-tool-btn');
+const slicingGuideContent        = document.getElementById('slicing-guide-content');
+const copySlicingGuideBtn        = document.getElementById('copy-slicing-guide-btn');
+
+let currentColorPalette          = [];
+let currentQuantizedResult       = null;
+let _quantizedTextureCache       = null;
+let currentColorSubMode          = 0; // 0 = Quantize, 1 = Layer Blending
+let currentLayerBlendLayers      = calculateDefaultLayerBounds(LAYER_BLENDING_PRESETS[0].layers, 1.0);
+let _layerBlendTextureCache       = null;
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
 const exportProgPct    = document.getElementById('export-progress-pct');
@@ -1391,15 +1412,294 @@ function updateUntexturedToolOptions(k) {
   if (!untexturedToolSelect) return;
   const currentVal = parseInt(untexturedToolSelect.value, 10) || settings.untexturedToolId || 4;
   untexturedToolSelect.innerHTML = '';
-  for (let i = 1; i <= k; i++) {
+  for (let i = 1; i <= Math.max(k, 4); i++) {
     const opt = document.createElement('option');
     opt.value = i;
     opt.textContent = `Tool ${i}`;
     untexturedToolSelect.appendChild(opt);
   }
-  const chosen = Math.min(Math.max(1, currentVal), k);
+  const chosen = Math.min(Math.max(1, currentVal), Math.max(k, 4));
   untexturedToolSelect.value = chosen;
   settings.untexturedToolId = chosen;
+}
+
+// ── Phase 2: Layer Blending (振り重ね混色) ───────────────────────────────────
+
+function _refreshLayerBlendGradientTexture() {
+  const amp = settings.amplitude || 1.0;
+  const table = generateGradientLookupTable(currentLayerBlendLayers, amp);
+
+  if (_layerBlendTextureCache) {
+    _layerBlendTextureCache.dispose();
+  }
+  _layerBlendTextureCache = new THREE.DataTexture(table, 256, 1, THREE.RGBAFormat);
+  _layerBlendTextureCache.wrapS = THREE.ClampToEdgeWrapping;
+  _layerBlendTextureCache.wrapT = THREE.ClampToEdgeWrapping;
+  _layerBlendTextureCache.minFilter = THREE.LinearFilter;
+  _layerBlendTextureCache.magFilter = THREE.LinearFilter;
+  _layerBlendTextureCache.needsUpdate = true;
+  _layerBlendTextureCache.name = 'layer_blend_gradient';
+
+  settings.layerBlendMap = _layerBlendTextureCache;
+  settings.colorSubMode = currentColorSubMode;
+}
+
+function renderSlicingGuideUI() {
+  if (!slicingGuideContent) return;
+  const guide = generateSlicingGuide(currentLayerBlendLayers, 0.08, 0.20);
+  if (!guide || guide.length === 0) {
+    slicingGuideContent.textContent = 'レイヤー情報なし';
+    return;
+  }
+
+  let text = `【スライサー フィラメント交換指示 (初期層0.20mm / レイヤー高0.08mm)】\n`;
+  guide.forEach((g) => {
+    if (g.isStart) {
+      text += `• 開始 (0.00mm〜): Tool ${g.toolId} (${g.colorName} / ${g.hex})\n`;
+    } else {
+      text += `• Layer ${g.layerIndex} (${g.heightMm.toFixed(2)}mm): Tool ${g.toolId} (${g.colorName} / ${g.hex}) へ交換\n`;
+    }
+  });
+  slicingGuideContent.textContent = text.trim();
+}
+
+function renderLayerBlendUI() {
+  if (!layerblendStackList) return;
+  layerblendStackList.innerHTML = '';
+  const amp = settings.amplitude || 1.0;
+
+  currentLayerBlendLayers.forEach((layer, idx) => {
+    const card = document.createElement('div');
+    card.className = 'layerblend-card';
+
+    // Header: color input + badge + name + order buttons
+    const header = document.createElement('div');
+    header.className = 'layerblend-card-header';
+
+    const hLeft = document.createElement('div');
+    hLeft.className = 'layerblend-header-left';
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.className = 'layerblend-color-input';
+    colorInput.value = layer.hex || rgbToHex(...layer.color);
+    colorInput.title = 'フィラメント色を選択';
+    colorInput.addEventListener('input', (e) => {
+      layer.hex = e.target.value;
+      layer.color = hexToRgb(e.target.value);
+      _refreshLayerBlendGradientTexture();
+      renderSlicingGuideUI();
+      updatePreview();
+    });
+
+    const badge = document.createElement('span');
+    badge.className = 'layerblend-tool-badge';
+    badge.textContent = `Tool ${layer.toolId}`;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'layerblend-tool-name';
+    nameSpan.textContent = layer.name || `Layer ${idx + 1}`;
+
+    hLeft.appendChild(colorInput);
+    hLeft.appendChild(badge);
+    hLeft.appendChild(nameSpan);
+
+    const hRight = document.createElement('div');
+    hRight.className = 'layerblend-order-actions';
+
+    // Up button (moves layer down in height/earlier in stack)
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button';
+    downBtn.className = 'layer-order-btn';
+    downBtn.textContent = '▼';
+    downBtn.title = '積層順序を下げる (底面側へ)';
+    downBtn.disabled = (idx === 0);
+    downBtn.addEventListener('click', () => {
+      if (idx > 0) {
+        const temp = currentLayerBlendLayers[idx];
+        currentLayerBlendLayers[idx] = currentLayerBlendLayers[idx - 1];
+        currentLayerBlendLayers[idx - 1] = temp;
+        // Re-assign default toolIds to keep 1..K in order
+        currentLayerBlendLayers.forEach((l, i) => l.toolId = i + 1);
+        currentLayerBlendLayers = calculateDefaultLayerBounds(currentLayerBlendLayers, amp);
+        renderLayerBlendUI();
+        _refreshLayerBlendGradientTexture();
+        renderSlicingGuideUI();
+        updatePreview();
+      }
+    });
+
+    // Down button (moves layer up in height/later in stack)
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button';
+    upBtn.className = 'layer-order-btn';
+    upBtn.textContent = '▲';
+    upBtn.title = '積層順序を上げる (表面側へ)';
+    upBtn.disabled = (idx === currentLayerBlendLayers.length - 1);
+    upBtn.addEventListener('click', () => {
+      if (idx < currentLayerBlendLayers.length - 1) {
+        const temp = currentLayerBlendLayers[idx];
+        currentLayerBlendLayers[idx] = currentLayerBlendLayers[idx + 1];
+        currentLayerBlendLayers[idx + 1] = temp;
+        currentLayerBlendLayers.forEach((l, i) => l.toolId = i + 1);
+        currentLayerBlendLayers = calculateDefaultLayerBounds(currentLayerBlendLayers, amp);
+        renderLayerBlendUI();
+        _refreshLayerBlendGradientTexture();
+        renderSlicingGuideUI();
+        updatePreview();
+      }
+    });
+
+    hRight.appendChild(downBtn);
+    hRight.appendChild(upBtn);
+
+    header.appendChild(hLeft);
+    header.appendChild(hRight);
+    card.appendChild(header);
+
+    // Sliders: Start Height (for idx > 0) & TD (Transmission Distance)
+    const slidersGrid = document.createElement('div');
+    slidersGrid.className = 'layerblend-slider-grid';
+
+    // Start Height slider
+    if (idx > 0) {
+      const heightItem = document.createElement('div');
+      heightItem.className = 'layerblend-slider-item';
+
+      const hLabel = document.createElement('label');
+      hLabel.innerHTML = `<span>開始高さ:</span> <strong>${layer.startHeight.toFixed(2)}mm</strong>`;
+
+      const hRange = document.createElement('input');
+      hRange.type = 'range';
+      hRange.min = '0.04';
+      hRange.max = (amp).toFixed(2);
+      hRange.step = '0.04';
+      hRange.value = layer.startHeight.toFixed(2);
+
+      hRange.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        layer.startHeight = val;
+        if (currentLayerBlendLayers[idx - 1]) {
+          currentLayerBlendLayers[idx - 1].endHeight = val;
+        }
+        hLabel.innerHTML = `<span>開始高さ:</span> <strong>${val.toFixed(2)}mm</strong>`;
+        _refreshLayerBlendGradientTexture();
+        renderSlicingGuideUI();
+        updatePreview();
+      });
+
+      heightItem.appendChild(hLabel);
+      heightItem.appendChild(hRange);
+      slidersGrid.appendChild(heightItem);
+    } else {
+      const baseItem = document.createElement('div');
+      baseItem.className = 'layerblend-slider-item';
+      baseItem.innerHTML = `<label><span>基準底層:</span> <strong>0.00mm</strong></label><div style="font-size:9px;color:var(--text-muted);padding-top:4px;">最下層ベース</div>`;
+      slidersGrid.appendChild(baseItem);
+    }
+
+    // TD (Transmission Distance) slider
+    const tdItem = document.createElement('div');
+    tdItem.className = 'layerblend-slider-item';
+
+    const tdLabel = document.createElement('label');
+    tdLabel.innerHTML = `<span>透過度 (TD):</span> <strong>${(layer.td || 2.0).toFixed(1)}</strong>`;
+
+    const tdRange = document.createElement('input');
+    tdRange.type = 'range';
+    tdRange.min = '0.2';
+    tdRange.max = '10.0';
+    tdRange.step = '0.2';
+    tdRange.value = (layer.td || 2.0).toFixed(1);
+
+    tdRange.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      layer.td = val;
+      tdLabel.innerHTML = `<span>透過度 (TD):</span> <strong>${val.toFixed(1)}</strong>`;
+      _refreshLayerBlendGradientTexture();
+      renderSlicingGuideUI();
+      updatePreview();
+    });
+
+    tdItem.appendChild(tdLabel);
+    tdItem.appendChild(tdRange);
+    slidersGrid.appendChild(tdItem);
+
+    card.appendChild(slidersGrid);
+    layerblendStackList.appendChild(card);
+  });
+
+  renderSlicingGuideUI();
+}
+
+function initLayerBlendingEvents() {
+  if (tabColorQuantize && tabColorLayerBlend) {
+    tabColorQuantize.addEventListener('click', () => {
+      currentColorSubMode = 0;
+      tabColorQuantize.classList.add('active');
+      tabColorLayerBlend.classList.remove('active');
+      if (quantizeControlsContainer) quantizeControlsContainer.classList.remove('hidden');
+      if (layerblendControlsContainer) layerblendControlsContainer.classList.add('hidden');
+      settings.colorSubMode = 0;
+      updatePreview();
+    });
+
+    tabColorLayerBlend.addEventListener('click', () => {
+      currentColorSubMode = 1;
+      tabColorLayerBlend.classList.add('active');
+      tabColorQuantize.classList.remove('active');
+      if (layerblendControlsContainer) layerblendControlsContainer.classList.remove('hidden');
+      if (quantizeControlsContainer) quantizeControlsContainer.classList.add('hidden');
+      settings.colorSubMode = 1;
+      _refreshLayerBlendGradientTexture();
+      renderLayerBlendUI();
+      updatePreview();
+    });
+  }
+
+  if (layerblendPresetSelect) {
+    layerblendPresetSelect.addEventListener('change', (e) => {
+      const presetId = e.target.value;
+      const found = LAYER_BLENDING_PRESETS.find(p => p.id === presetId);
+      if (found) {
+        currentLayerBlendLayers = calculateDefaultLayerBounds(found.layers, settings.amplitude || 1.0);
+        renderLayerBlendUI();
+        _refreshLayerBlendGradientTexture();
+        renderSlicingGuideUI();
+        updatePreview();
+      }
+    });
+  }
+
+  if (layerblendAddToolBtn) {
+    layerblendAddToolBtn.addEventListener('click', () => {
+      if (currentLayerBlendLayers.length >= 8) return;
+      const newToolId = currentLayerBlendLayers.length + 1;
+      const newLayer = {
+        toolId: newToolId,
+        name: `Tool ${newToolId}`,
+        hex: '#e2e8f0',
+        color: [226, 232, 240],
+        td: 5.0
+      };
+      currentLayerBlendLayers.push(newLayer);
+      currentLayerBlendLayers = calculateDefaultLayerBounds(currentLayerBlendLayers, settings.amplitude || 1.0);
+      renderLayerBlendUI();
+      _refreshLayerBlendGradientTexture();
+      renderSlicingGuideUI();
+      updatePreview();
+    });
+  }
+
+  if (copySlicingGuideBtn && slicingGuideContent) {
+    copySlicingGuideBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(slicingGuideContent.textContent).then(() => {
+        const orig = copySlicingGuideBtn.textContent;
+        copySlicingGuideBtn.textContent = 'コピー完了!';
+        setTimeout(() => copySlicingGuideBtn.textContent = orig, 1500);
+      });
+    });
+  }
 }
 
 // ── Welcome popup: open / dismiss ─────────────────────────────────────────────
@@ -1648,6 +1948,10 @@ function wireEvents() {
     settings.textureHeight = v;
     settings.amplitude = (settings.invertDisplacement ? -1 : 1) * v;
     checkAmplitudeWarning();
+    if (currentColorSubMode === 1) {
+      _refreshLayerBlendGradientTexture();
+      renderLayerBlendUI();
+    }
     return v.toFixed(2);
   });
   amplitudeVal.addEventListener('change', checkAmplitudeWarning);
@@ -1832,6 +2136,11 @@ function wireEvents() {
       updatePreview();
     });
   }
+
+  // Phase 2 Layer Blending initialization
+  initLayerBlendingEvents();
+  renderLayerBlendUI();
+  _refreshLayerBlendGradientTexture();
 
   // ── Advanced / Beta Features panel: collapse toggle + bake action ──
   advancedToggle.addEventListener('click', () => {
@@ -4321,7 +4630,12 @@ function getUntexturedColorVector(untexturedToolId) {
   const def = DEFAULT_TOOL_COLORS[untexturedToolId] || [0.85, 0.16, 0.16];
   const vec = new THREE.Vector3(def[0], def[1], def[2]);
 
-  if (currentColorPalette && currentColorPalette.length > 0) {
+  if (currentColorSubMode === 1 && currentLayerBlendLayers && currentLayerBlendLayers.length > 0) {
+    const item = currentLayerBlendLayers.find(l => l.toolId === untexturedToolId);
+    if (item && item.color) {
+      vec.set(item.color[0] / 255, item.color[1] / 255, item.color[2] / 255);
+    }
+  } else if (currentColorPalette && currentColorPalette.length > 0) {
     const item = currentColorPalette.find(p => p.toolId === untexturedToolId);
     if (item) {
       const c = item.color || item.rgb;
@@ -4350,6 +4664,8 @@ function updatePreview() {
     textureAspectU: tmax / Math.max(tw, 1),
     textureAspectV: tmax / Math.max(th, 1),
     useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
+    colorSubMode: currentColorSubMode,
+    layerBlendMap: _layerBlendTextureCache,
     untexturedColor: untexturedColorVec,
   };
 
@@ -5095,16 +5411,18 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
 
       const untexturedTool = settings.untexturedToolId || 4;
       const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
+      const isLayerBlendMode = (currentColorSubMode === 1);
       const triTools = assignToolsToTriangles(
         finalGeometry,
         exportEntry.imageData,
         exportEntry.width,
         exportEntry.height,
-        settings,
+        { ...settings, colorSubMode: currentColorSubMode },
         currentBounds,
         currentColorPalette,
         untexturedTool,
-        excludedTris
+        excludedTris,
+        isLayerBlendMode ? currentLayerBlendLayers : null
       );
 
       // 2. Restore original model pose on the solid geometry
@@ -5112,7 +5430,18 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
 
       setProgress(0.98, 'Packaging 3MF with facet painting…');
       await yieldFrame();
-      exportMultiColor3MF(finalGeometry, triTools, currentColorPalette, `${baseName}_multicolor_${currentColorPalette.length}tools.3mf`);
+
+      const exportPalette = isLayerBlendMode
+        ? currentLayerBlendLayers.map(l => ({
+            id: l.toolId,
+            toolId: l.toolId,
+            hex: l.hex || rgbToHex(...l.color),
+            color: l.color
+          }))
+        : currentColorPalette;
+
+      const subModeLabel = isLayerBlendMode ? 'layerblend' : 'quantized';
+      exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
     } else {
       _restoreOriginalPose(result.positions, result.normals);
 

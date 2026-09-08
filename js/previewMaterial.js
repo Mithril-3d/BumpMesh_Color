@@ -49,6 +49,8 @@ const sharedGLSL = /* glsl */`
   uniform int       noDownwardZ;
   uniform int       useDisplacement;
   uniform int       useColorTexture;
+  uniform int       colorSubMode;
+  uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
 
@@ -115,6 +117,11 @@ const sharedGLSL = /* glsl */`
 
   // Compute color at a world-space point
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+    if (colorSubMode == 1) {
+      float hVal = computeHeightAtPoint(pos, projN, blendN);
+      return texture2D(layerBlendMap, vec2(clamp(hVal, 0.0, 1.0), 0.5)).rgb;
+    }
+
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
@@ -580,6 +587,12 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   u.useDisplacement.value         = settings.useDisplacement         ? 1 : 0;
   if (!u.useColorTexture) u.useColorTexture = { value: 0 };
   u.useColorTexture.value         = settings.useColorTexture         ? 1 : 0;
+  if (!u.colorSubMode) u.colorSubMode = { value: 0 };
+  u.colorSubMode.value            = settings.colorSubMode            ?? 0;
+  if (settings.layerBlendMap) {
+    if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
+    else u.layerBlendMap.value = settings.layerBlendMap;
+  }
   if (!u.untexturedColor) u.untexturedColor = { value: new THREE.Vector3(0.68, 0.08, 0.22) };
   if (settings.untexturedColor) u.untexturedColor.value.copy(settings.untexturedColor);
   u.textureAspect.value.set(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1);
@@ -601,6 +614,7 @@ function buildUniforms(tex, settings, colorTex = null) {
   return {
     displacementMap: { value: baseTex },
     colorMap:        { value: colorTex || baseTex },
+    layerBlendMap:   { value: settings.layerBlendMap || createFallbackTexture() },
     mappingMode:     { value: settings.mappingMode ?? MODE_TRIPLANAR },
     scaleUV:         { value: new THREE.Vector2(relScale.u, relScale.v) },
     amplitude:       { value: settings.amplitude ?? 1.0 },
@@ -623,6 +637,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     noDownwardZ:              { value: settings.noDownwardZ             ? 1 : 0 },
     useDisplacement:          { value: settings.useDisplacement         ? 1 : 0 },
     useColorTexture:          { value: settings.useColorTexture         ? 1 : 0 },
+    colorSubMode:             { value: settings.colorSubMode            ?? 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

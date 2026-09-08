@@ -252,16 +252,16 @@
         </div>
 
         <div id="color-multitool-controls">
-          <div class="form-row slider-row">
-            <label for="color-count-slider" title="減色する代表色の数（Extruder数）">Extruder数 (色数)</label>
-            <input type="range" id="color-count-slider" min="2" max="8" step="1" value="4" />
-            <span class="val" id="color-count-val">4</span>
+          <!-- Mode Tabs -->
+          <div class="color-mode-tabs" style="display:flex;gap:4px;margin-bottom:10px;background:rgba(0,0,0,0.25);padding:3px;border-radius:6px;border:1px solid var(--border,#333);">
+            <button type="button" id="tab-color-quantize" class="color-tab-btn active" style="flex:1;padding:5px 8px;font-size:11px;font-weight:600;background:var(--accent,#3b82f6);color:#fff;border:none;border-radius:4px;cursor:pointer;transition:all .15s ease;">カラー量子化</button>
+            <button type="button" id="tab-color-layerblend" class="color-tab-btn" style="flex:1;padding:5px 8px;font-size:11px;font-weight:600;background:transparent;color:var(--text-muted,#aaa);border:none;border-radius:4px;cursor:pointer;transition:all .15s ease;">振り重ね混色 (階調)</button>
           </div>
 
-          <div class="form-row" style="margin-top:6px;margin-bottom:8px;">
+          <div class="form-row" style="margin-top:2px;margin-bottom:8px;">
             <label class="checkbox-label" for="color-preview-toggle" style="font-size:11px;cursor:pointer;">
               <input type="checkbox" id="color-preview-toggle" checked />
-              <span>3Dプレビューでツール色を表示</span>
+              <span>3Dプレビューで色を表示</span>
             </label>
           </div>
 
@@ -275,8 +275,54 @@
             </select>
           </div>
 
-          <div class="palette-container" id="palette-list">
-            <!-- JSで動的にカラーパレットカードを生成 -->
+          <!-- Tab 1: Color Quantization Panel (Phase 1) -->
+          <div id="quantize-controls-container">
+            <div class="form-row slider-row" style="margin-top:6px;">
+              <label for="color-count-slider" title="減色する代表色の数（Extruder数）">Extruder数 (色数)</label>
+              <input type="range" id="color-count-slider" min="2" max="8" step="1" value="4" />
+              <span class="val" id="color-count-val">4</span>
+            </div>
+
+            <div class="palette-container" id="palette-list" style="margin-top:8px;">
+              <!-- JSで動的にカラーパレットカードを生成 -->
+            </div>
+          </div>
+
+          <!-- Tab 2: Layer Blending Panel (Phase 2) -->
+          <div id="layerblend-controls-container" class="hidden" style="margin-top:6px;">
+            <div class="form-row" style="margin-bottom:8px;">
+              <label for="layerblend-preset-select" style="font-size:11px;font-weight:600;">混色プリセット</label>
+              <select id="layerblend-preset-select" style="font-size:11px;">
+                <option value="cmyw">CMYW (黒 / シアン / 黄 / 白)</option>
+                <option value="warm_fire">夕焼け / 暖色 (黒 / 赤 / 橙 / 暖白)</option>
+                <option value="forest_green">森林 / ネイチャー (黒 / 紺緑 / 明緑 / 白)</option>
+                <option value="monochrome">モノクロ階調 (黒 / 濃灰 / 明灰 / 白)</option>
+                <option value="custom">カスタム順序・色</option>
+              </select>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;color:var(--text-muted,#aaa);font-weight:600;">積層順序 (底面 → 最上面)</span>
+              <button type="button" id="layerblend-add-tool-btn" class="icon-btn" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border,#444);background:rgba(255,255,255,0.06);cursor:pointer;" title="レイヤー（ツール）を追加">+ レイヤー追加</button>
+            </div>
+
+            <!-- Layer Stack Cards Container -->
+            <div id="layerblend-stack-list" class="layerblend-stack-container">
+              <!-- JSで動的にレイヤースタックカードを生成 -->
+            </div>
+
+            <!-- Slicing Guide Box -->
+            <div class="slicing-guide-box" style="margin-top:12px;background:rgba(0,0,0,0.3);border:1px solid var(--border,#333);border-radius:6px;padding:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:11px;font-weight:600;color:var(--accent,#3b82f6);display:flex;align-items:center;gap:4px;">
+                  📋 <span>スライサー交換ガイド (M600 / MMU)</span>
+                </span>
+                <button type="button" id="copy-slicing-guide-btn" style="font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid var(--border,#444);background:rgba(255,255,255,0.08);color:var(--text,#fff);cursor:pointer;" title="スライスガイドテキストをコピー">コピー</button>
+              </div>
+              <div id="slicing-guide-content" style="font-size:10px;line-height:1.4;color:var(--text-muted,#bbb);font-family:monospace;max-height:110px;overflow-y:auto;white-space:pre-wrap;">
+                <!-- JSで動的に交換手順を出力 -->
+              </div>
+            </div>
           </div>
         </div>
       </section>
