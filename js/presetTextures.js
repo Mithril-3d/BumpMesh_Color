@@ -27,6 +27,28 @@ function fitDimensions(imgW, imgH) {
 
 const IMAGE_PRESETS = [
   { name: 'Geometric 4-Color', url: 'textures/geometric_4color.png', thumb: 'textures/thumbs/geometric_4color.webp', defaultScale: 0.5 },
+  // 和風 (Japanese Traditional)
+  { name: '市松模様 (2-Color)',      url: 'textures/ichimatsu_2color.png',       thumb: 'textures/thumbs/ichimatsu_2color.webp',       defaultScale: 0.5 },
+  { name: '青海波 (2-Color)',        url: 'textures/seigaiha_2color.png',        thumb: 'textures/thumbs/seigaiha_2color.webp',        defaultScale: 0.5 },
+  { name: '矢絣 (2-Color)',          url: 'textures/yagasuri_2color.png',        thumb: 'textures/thumbs/yagasuri_2color.webp',        defaultScale: 0.5 },
+  { name: '麻の葉 (3-Color)',        url: 'textures/asanoha_3color.png',         thumb: 'textures/thumbs/asanoha_3color.webp',         defaultScale: 0.5 },
+  { name: '三つ巴タイル (3-Color)',   url: 'textures/tomoe_3color.png',           thumb: 'textures/thumbs/tomoe_3color.webp',           defaultScale: 0.5 },
+  { name: '亀甲花菱 (4-Color)',      url: 'textures/kikko_4color.png',           thumb: 'textures/thumbs/kikko_4color.webp',           defaultScale: 0.5 },
+  { name: '籠目錦 (8-Color)',        url: 'textures/kagome_8color.png',          thumb: 'textures/thumbs/kagome_8color.webp',          defaultScale: 0.5 },
+  // 洋風 (Western Patterns)
+  { name: '千鳥格子 (2-Color)',      url: 'textures/houndstooth_2color.png',     thumb: 'textures/thumbs/houndstooth_2color.webp',     defaultScale: 0.5 },
+  { name: 'シェブロン (2-Color)',    url: 'textures/chevron_2color.png',         thumb: 'textures/thumbs/chevron_2color.webp',         defaultScale: 0.5 },
+  { name: 'ヘリンボーン (3-Color)',  url: 'textures/herringbone_3color.png',     thumb: 'textures/thumbs/herringbone_3color.webp',     defaultScale: 0.5 },
+  { name: 'アーガイル (3-Color)',    url: 'textures/argyle_3color.png',          thumb: 'textures/thumbs/argyle_3color.webp',          defaultScale: 0.5 },
+  { name: 'モロッカン (4-Color)',    url: 'textures/moroccan_4color.png',        thumb: 'textures/thumbs/moroccan_4color.webp',        defaultScale: 0.5 },
+  { name: 'タータンチェック (4-Color)',url: 'textures/tartan_4color.png',        thumb: 'textures/thumbs/tartan_4color.webp',          defaultScale: 0.5 },
+  { name: 'ステンドグラス (8-Color)',url: 'textures/stained_glass_8color.png',   thumb: 'textures/thumbs/stained_glass_8color.webp',   defaultScale: 0.5 },
+  // 幾何学 (Geometric Mosaics)
+  { name: '六角ハニカム (2-Color)',  url: 'textures/honeycomb_2color.png',       thumb: 'textures/thumbs/honeycomb_2color.webp',       defaultScale: 0.5 },
+  { name: '三角モザイク (3-Color)',  url: 'textures/triangle_mosaic_3color.png', thumb: 'textures/thumbs/triangle_mosaic_3color.webp', defaultScale: 0.5 },
+  { name: '3Dキューブ (3-Color)',    url: 'textures/isometric_cubes_3color.png', thumb: 'textures/thumbs/isometric_cubes_3color.webp', defaultScale: 0.5 },
+  { name: '八角タイル (4-Color)',    url: 'textures/octagon_square_4color.png',  thumb: 'textures/thumbs/octagon_square_4color.webp',  defaultScale: 0.5 },
+  { name: '万華鏡 (8-Color)',        url: 'textures/kaleidoscope_8color.png',    thumb: 'textures/thumbs/kaleidoscope_8color.webp',    defaultScale: 0.5 },
   { name: 'Basket',       url: 'textures/basket.png',       thumb: 'textures/thumbs/basket.webp',       defaultScale: 0.5 },
   { name: 'Brick',        url: 'textures/brick.png',        thumb: 'textures/thumbs/brick.webp',        defaultScale: 0.5 },
   { name: 'Bubble',       url: 'textures/bubble.png',       thumb: 'textures/thumbs/bubble.webp',       defaultScale: 0.5 },

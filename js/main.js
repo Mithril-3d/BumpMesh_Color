@@ -14,8 +14,8 @@ import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260908d';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908d';
+import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260908e';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908e';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908d';
@@ -4282,16 +4282,13 @@ function getEffectiveMapEntry() {
     _effectiveMapCacheKey = null;
   }
 
-  // When color mode is enabled and 3D tool color preview is ON, use the quantized texture
-  if (colorModeToggle?.checked && colorPreviewToggle?.checked && _quantizedTextureCache) {
-    return {
-      ...baseEntry,
-      texture: _quantizedTextureCache,
-      imageData: activeMapEntry.imageData // Always retain original high-res imageData for displacement!
-    };
-  }
-
   return baseEntry;
+}
+
+function getPreviewColorTexture() {
+  return (colorModeToggle?.checked && colorPreviewToggle?.checked && _quantizedTextureCache)
+    ? _quantizedTextureCache
+    : null;
 }
 
 // Build the regularize.js opts object from current settings.  Centralised so
@@ -4362,12 +4359,13 @@ function updatePreview() {
   updateFaceMask(activeGeo);
 
   const effectiveEntry = getEffectiveMapEntry();
+  const colorTex = getPreviewColorTexture();
 
   if (!previewMaterial) {
-    previewMaterial = createPreviewMaterial(effectiveEntry.texture, fullSettings);
+    previewMaterial = createPreviewMaterial(effectiveEntry.texture, fullSettings, colorTex);
     loadGeometry(activeGeo, previewMaterial);
   } else {
-    updateMaterial(previewMaterial, effectiveEntry.texture, fullSettings);
+    updateMaterial(previewMaterial, effectiveEntry.texture, fullSettings, colorTex);
   }
   window.__previewMaterial = previewMaterial;
   window.__effectiveEntry = effectiveEntry;
@@ -4381,6 +4379,7 @@ function updatePreview() {
   }
   bakeBtn.disabled = isBaking;
   updateSmartResBtnState();
+  requestRender();
 }
 
 // ── Displacement preview ──────────────────────────────────────────────────────
@@ -4735,9 +4734,11 @@ async function toggleDisplacementPreview(enable) {
   if (!enable) {
     // Revert to original geometry with bump-only shading.
     if (currentGeometry && previewMaterial) {
-      updateMaterial(previewMaterial, getEffectiveMapEntry()?.texture, { ...settings, bounds: currentBounds });
+      const colorTex = getPreviewColorTexture();
+      updateMaterial(previewMaterial, getEffectiveMapEntry()?.texture, { ...settings, bounds: currentBounds }, colorTex);
       updateFaceMask(currentGeometry);
       setMeshGeometry(currentGeometry);
+      requestRender();
     }
     // Dispose the subdivided preview geometry (no longer on the mesh)
     if (dispPreviewGeometry) {
@@ -4839,10 +4840,29 @@ async function toggleDisplacementPreview(enable) {
       previewMaterial.dispose();
       previewMaterial = null;
     }
-    const fullSettings = { ...settings, bounds: currentBounds };
-    previewMaterial = createPreviewMaterial(getEffectiveMapEntry().texture, fullSettings);
+    const colorTex = getPreviewColorTexture();
+    const tw = activeMapEntry?.width ?? 1, th = activeMapEntry?.height ?? 1;
+    const tmax = Math.max(tw, th, 1);
+    const untexturedTool = settings.untexturedToolId || 4;
+    const untexturedColorVec = new THREE.Vector3(0.68, 0.08, 0.22);
+    if (currentColorPalette && currentColorPalette.length > 0) {
+      const item = currentColorPalette.find(p => p.toolId === untexturedTool);
+      if (item && item.rgb) {
+        untexturedColorVec.set(item.rgb[0] / 255, item.rgb[1] / 255, item.rgb[2] / 255);
+      }
+    }
+    const fullSettings = {
+      ...settings,
+      bounds: currentBounds,
+      textureAspectU: tmax / Math.max(tw, 1),
+      textureAspectV: tmax / Math.max(th, 1),
+      useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
+      untexturedColor: untexturedColorVec,
+    };
+    previewMaterial = createPreviewMaterial(getEffectiveMapEntry().texture, fullSettings, colorTex);
     setMeshGeometry(dispPreviewGeometry);
     setMeshMaterial(previewMaterial);
+    requestRender();
 
 
   } catch (err) {

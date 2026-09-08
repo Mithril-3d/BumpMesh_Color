@@ -29,6 +29,7 @@ export const MODE_CUBIC       = 6;
 
 const sharedGLSL = /* glsl */`
   uniform sampler2D displacementMap;
+  uniform sampler2D colorMap;
   uniform int       mappingMode;
   uniform vec2      scaleUV;
   uniform float     amplitude;
@@ -109,7 +110,7 @@ const sharedGLSL = /* glsl */`
     uv -= 0.5;
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
     uv += 0.5;
-    return texture2D(displacementMap, uv).rgb;
+    return texture2D(colorMap, uv).rgb;
   }
 
   // Compute color at a world-space point
@@ -518,11 +519,11 @@ const fragmentShader = /* glsl */`
  * @param {THREE.Texture|null} displacementTexture
  * @param {object} settings  – { mappingMode, scaleU, scaleV, amplitude, offsetU, offsetV, bounds }
  */
-export function createPreviewMaterial(displacementTexture, settings) {
+export function createPreviewMaterial(displacementTexture, settings, colorTexture = null) {
   const mat = new THREE.ShaderMaterial({
     vertexShader,
     fragmentShader,
-    uniforms: buildUniforms(displacementTexture, settings),
+    uniforms: buildUniforms(displacementTexture, settings, colorTexture),
     side: THREE.DoubleSide,
   });
   return mat;
@@ -531,10 +532,14 @@ export function createPreviewMaterial(displacementTexture, settings) {
 /**
  * Update existing ShaderMaterial uniforms in-place (no recreate).
  */
-export function updateMaterial(material, displacementTexture, settings) {
+export function updateMaterial(material, displacementTexture, settings, colorTexture = null) {
   const u = material.uniforms;
   if (displacementTexture && u.displacementMap.value !== displacementTexture) {
     u.displacementMap.value = displacementTexture;
+  }
+  const effectiveColorTex = colorTexture || displacementTexture || u.displacementMap.value;
+  if (u.colorMap && effectiveColorTex && u.colorMap.value !== effectiveColorTex) {
+    u.colorMap.value = effectiveColorTex;
   }
   u.mappingMode.value   = settings.mappingMode;
   // settings.scaleU/scaleV are absolute mm; the shader works in normalized
@@ -577,7 +582,7 @@ export function updateMaterial(material, displacementTexture, settings) {
 
 // ── Internal ──────────────────────────────────────────────────────────────────
 
-function buildUniforms(tex, settings) {
+function buildUniforms(tex, settings, colorTex = null) {
   const b = settings.bounds || {
     min:    new THREE.Vector3(),
     size:   new THREE.Vector3(1, 1, 1),
@@ -585,8 +590,10 @@ function buildUniforms(tex, settings) {
   };
   const relScale = scaleMmToRelative(settings.mappingMode ?? MODE_TRIPLANAR, settings, b);
   const uc = settings.untexturedColor || new THREE.Vector3(0.68, 0.08, 0.22);
+  const baseTex = tex || createFallbackTexture();
   return {
-    displacementMap: { value: tex || createFallbackTexture() },
+    displacementMap: { value: baseTex },
+    colorMap:        { value: colorTex || baseTex },
     mappingMode:     { value: settings.mappingMode ?? MODE_TRIPLANAR },
     scaleUV:         { value: new THREE.Vector2(relScale.u, relScale.v) },
     amplitude:       { value: settings.amplitude ?? 1.0 },
