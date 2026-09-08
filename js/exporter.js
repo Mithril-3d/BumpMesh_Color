@@ -237,17 +237,23 @@ export function export3MF(geometry, filename = 'textured.3mf') {
 
 /**
  * Multi-material 3MF exporter — builds a multi-volume 3MF package fully
- * compatible with Bambu Studio, OrcaSlicer, and PrusaSlicer.
+/**
+ * Multi-material 3MF exporter — builds a single watertight solid mesh with
+ * per-triangle tool/color attributes (facet painting) compatible with PrusaSlicer,
+ * Bambu Studio, and OrcaSlicer.
  *
- * Each tool/extruder is exported as an independent sub-mesh (volume) inside
- * a root assembly object, accompanied by color group metadata and slicer
- * configuration files (`Metadata/model_settings.config`).
+ * Slicing a single watertight manifold guarantees:
+ * - No "multipart object detected" prompt
+ * - 0 open edges, 0 non-manifold warnings (1 unified solid shell)
+ * - Perfect 1st-layer bed contact (no "nothing to extrude on first layer" error)
+ * - Automatic tool changes and multi-color perimeters/infill
  *
- * @param {Map<number, THREE.BufferGeometry>} subGeometries - Map of toolId -> BufferGeometry
+ * @param {THREE.BufferGeometry} geometry - Displaced watertight solid mesh
+ * @param {Int32Array|Array<number>} triTools - Tool ID (1..K) for each triangle
  * @param {Array<{ id: number, color: number[], hex: string, toolId: number }>} palette
  * @param {string} [filename]
  */
-export function exportMultiColor3MF(subGeometries, palette, filename = 'textured_multicolor.3mf') {
+export function exportMultiColor3MF(geometry, triTools, palette, filename = 'textured_multicolor.3mf') {
   const enc = new TextEncoder();
   const byteChunks = [];
   let totalBytes = 0;
@@ -272,7 +278,10 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
     return s;
   };
 
-  // Build tool -> palette index mapping and color map
+  const posArr = geometry.attributes.position.array;
+  const triCount = (posArr.length / 9) | 0;
+
+  // Build tool -> palette index mapping
   const toolToPalIndex = new Map();
   palette.forEach((p, idx) => {
     if (!toolToPalIndex.has(p.toolId)) {
@@ -280,12 +289,32 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
     }
   });
 
+  // Deduplicate vertices on a 1e4 grid (0.0001 mm) to form a continuous manifold
+  const indexMap = new QuantizedPointMap(1e4, Math.min(triCount * 3, 1 << 22));
+  const uniqueXYZ = [];
+  const triIdx = new Uint32Array(triCount * 3);
+
+  for (let i = 0; i < triCount; i++) {
+    for (let j = 0; j < 3; j++) {
+      const b = i * 9 + j * 3;
+      const x = posArr[b];
+      const y = posArr[b + 1];
+      const z = posArr[b + 2];
+      const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
+      if (indexMap.inserted) uniqueXYZ.push(x, y, z);
+      triIdx[i * 3 + j] = idx;
+    }
+  }
+
+  const vertCount = uniqueXYZ.length / 3;
+
   emit(
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
     'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
-    'xmlns:p="http://schemas.prusa3d.com/3mf/2020/01">\n' +
+    'xmlns:p="http://schemas.prusa3d.com/3mf/2020/01" ' +
+    'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
     '<metadata name="Application">BumpMesh Color</metadata>\n' +
     '<resources>\n'
   );
@@ -297,72 +326,34 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
   }
   emit('  </m:colorgroup>\n');
 
-  // 2. Sub-mesh objects for each tool (sorted ascending by toolId: 1, 2, 3, 4...)
-  const partObjects = []; // { objId, toolId, name }
-  let nextObjId = 10;
-  const sortedEntries = Array.from(subGeometries.entries()).sort((a, b) => a[0] - b[0]);
+  // 2. Single watertight object with facet painting
+  const rootObjectId = 1;
+  emit(`  <object id="${rootObjectId}" type="model" name="BumpMesh_Color">\n`);
+  emit('    <mesh>\n      <vertices>\n');
 
-  for (const [toolId, geometry] of sortedEntries) {
-    const posArr = geometry.attributes.position.array;
-    const triCount = (posArr.length / 9) | 0;
-    if (triCount === 0) continue;
+  for (let i = 0; i < vertCount; i++) {
+    const b = i * 3;
+    emit(`        <vertex x="${fmt(uniqueXYZ[b])}" y="${fmt(uniqueXYZ[b+1])}" z="${fmt(uniqueXYZ[b+2])}"/>\n`);
+  }
 
-    const objId = nextObjId++;
-    const partName = `Tool_${toolId}`;
-    partObjects.push({ objId, toolId, name: partName });
+  emit('      </vertices>\n      <triangles>\n');
 
-    // Deduplicate vertices
-    const indexMap = new QuantizedPointMap(1e4, Math.min(triCount * 3, 1 << 22));
-    const uniqueXYZ = [];
-    const triIdx = new Uint32Array(triCount * 3);
-
-    for (let i = 0; i < triCount; i++) {
-      for (let j = 0; j < 3; j++) {
-        const b = i * 9 + j * 3;
-        const x = posArr[b];
-        const y = posArr[b + 1];
-        const z = posArr[b + 2];
-        const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
-        if (indexMap.inserted) uniqueXYZ.push(x, y, z);
-        triIdx[i * 3 + j] = idx;
-      }
-    }
-
-    const vertCount = uniqueXYZ.length / 3;
+  for (let i = 0; i < triCount; i++) {
+    const b = i * 3;
+    const toolId = (triTools && triTools[i]) ? triTools[i] : 1;
     const palIdx = toolToPalIndex.get(toolId) ?? 0;
-
-    emit(`  <object id="${objId}" type="model" name="${partName}" p:extruder="${toolId}">\n`);
-    emit(`    <metadata type="prusa" key="extruder" value="${toolId}"/>\n`);
-    emit(`    <metadata name="extruder" value="${toolId}"/>\n`);
-    emit('    <mesh>\n      <vertices>\n');
-
-    for (let i = 0; i < vertCount; i++) {
-      const b = i * 3;
-      emit(`        <vertex x="${fmt(uniqueXYZ[b])}" y="${fmt(uniqueXYZ[b+1])}" z="${fmt(uniqueXYZ[b+2])}"/>\n`);
-    }
-
-    emit('      </vertices>\n      <triangles>\n');
-
-    for (let i = 0; i < triCount; i++) {
-      const b = i * 3;
-      emit(`        <triangle v1="${triIdx[b]}" v2="${triIdx[b+1]}" v3="${triIdx[b+2]}" pid="1" p1="${palIdx}"/>\n`);
-    }
-
-    emit('      </triangles>\n    </mesh>\n  </object>\n');
+    emit(
+      `        <triangle v1="${triIdx[b]}" v2="${triIdx[b+1]}" v3="${triIdx[b+2]}" ` +
+      `pid="1" p1="${palIdx}" paint_color="${toolId}" slic3rpe:mmu_segmentation="${toolId}"/>\n`
+    );
   }
 
-  // 3. Root assembly object
-  const rootAssemblyId = 1;
-  emit(`  <object id="${rootAssemblyId}" type="model" name="BumpMesh_MultiColor">\n    <components>\n`);
-  for (const part of partObjects) {
-    emit(`      <component objectid="${part.objId}" p:extruder="${part.toolId}"/>\n`);
-  }
-  emit('    </components>\n  </object>\n');
+  emit('      </triangles>\n    </mesh>\n  </object>\n');
 
   emit(
     '</resources>\n' +
     '<build>\n' +
-    `  <item objectid="${rootAssemblyId}"/>\n` +
+    `  <item objectid="${rootObjectId}"/>\n` +
     '</build>\n' +
     '</model>\n'
   );
@@ -375,35 +366,20 @@ export function exportMultiColor3MF(subGeometries, palette, filename = 'textured
   }
 
   // Bambu Studio & OrcaSlicer config
-  let bambuConfigXml =
+  const bambuConfigXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<config>\n' +
-    `  <object id="${rootAssemblyId}">\n` +
-    '    <metadata key="name" value="BumpMesh_MultiColor"/>\n';
-  for (const part of partObjects) {
-    bambuConfigXml +=
-      `    <part id="${part.objId}" subtype="normal_part">\n` +
-      `      <metadata key="name" value="${part.name}"/>\n` +
-      `      <metadata key="extruder" value="${part.toolId}"/>\n` +
-      '    </part>\n';
-  }
-  bambuConfigXml +=
+    `  <object id="${rootObjectId}">\n` +
+    '    <metadata key="name" value="BumpMesh_Color"/>\n' +
     '  </object>\n' +
     '</config>\n';
 
   // PrusaSlicer config
-  let prusaConfigXml =
+  const prusaConfigXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<config>\n' +
-    `  <object id="${rootAssemblyId}">\n`;
-  for (const part of partObjects) {
-    prusaConfigXml +=
-      `    <volume id="${part.objId}">\n` +
-      `      <metadata key="name" value="${part.name}"/>\n` +
-      `      <metadata key="extruder" value="${part.toolId}"/>\n` +
-      '    </volume>\n';
-  }
-  prusaConfigXml +=
+    `  <object id="${rootObjectId}">\n` +
+    '    <metadata key="name" value="BumpMesh_Color"/>\n' +
     '  </object>\n' +
     '</config>\n';
 

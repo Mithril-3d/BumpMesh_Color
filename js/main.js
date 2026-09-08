@@ -18,9 +18,9 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908f';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908e';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908f';
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
-import { partitionMeshByTool } from './meshPartition.js?v=20260908e';
+import { assignToolsToTriangles } from './meshPartition.js?v=20260908f';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
@@ -5084,7 +5084,7 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
     const baseName = `${currentStlName}_${texLabel}_amp${ampLabel}`;
 
     if (format === 'multicolor-3mf') {
-      setProgress(0.95, 'Splitting mesh by tool & writing multi-volume 3MF…');
+      setProgress(0.95, 'Assigning tools to triangles…');
       await yieldFrame();
       if (exportToken !== myToken) return;
 
@@ -5095,7 +5095,7 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
 
       const untexturedTool = settings.untexturedToolId || 4;
       const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
-      const subGeoms = partitionMeshByTool(
+      const triTools = assignToolsToTriangles(
         finalGeometry,
         exportEntry.imageData,
         exportEntry.width,
@@ -5107,16 +5107,12 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
         excludedTris
       );
 
-      // 2. Restore original model pose on each sub-geometry
-      for (const geom of subGeoms.values()) {
-        const pa = geom.attributes.position.array;
-        const na = geom.attributes.normal ? geom.attributes.normal.array : null;
-        _restoreOriginalPose(pa, na);
-      }
+      // 2. Restore original model pose on the solid geometry
+      _restoreOriginalPose(result.positions, result.normals);
 
-      setProgress(0.98, 'Packaging 3MF with Bambu / Orca / Prusa metadata…');
+      setProgress(0.98, 'Packaging 3MF with facet painting…');
       await yieldFrame();
-      exportMultiColor3MF(subGeoms, currentColorPalette, `${baseName}_multicolor_${currentColorPalette.length}tools.3mf`);
+      exportMultiColor3MF(finalGeometry, triTools, currentColorPalette, `${baseName}_multicolor_${currentColorPalette.length}tools.3mf`);
     } else {
       _restoreOriginalPose(result.positions, result.normals);
 
