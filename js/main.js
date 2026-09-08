@@ -4307,6 +4307,32 @@ function _regularizeOpts() {
   };
 }
 
+function getUntexturedColorVector(untexturedToolId) {
+  const DEFAULT_TOOL_COLORS = {
+    1: [0.04, 0.50, 0.71], // Tool 1: Blue
+    2: [0.93, 0.72, 0.03], // Tool 2: Yellow / Gold
+    3: [0.15, 0.68, 0.38], // Tool 3: Green
+    4: [0.85, 0.16, 0.16], // Tool 4: Red
+    5: [0.60, 0.20, 0.70], // Tool 5: Purple
+    6: [0.95, 0.45, 0.05], // Tool 6: Orange
+    7: [0.10, 0.80, 0.80], // Tool 7: Turquoise
+    8: [0.95, 0.95, 0.95], // Tool 8: White
+  };
+  const def = DEFAULT_TOOL_COLORS[untexturedToolId] || [0.85, 0.16, 0.16];
+  const vec = new THREE.Vector3(def[0], def[1], def[2]);
+
+  if (currentColorPalette && currentColorPalette.length > 0) {
+    const item = currentColorPalette.find(p => p.toolId === untexturedToolId);
+    if (item) {
+      const c = item.color || item.rgb;
+      if (c) {
+        vec.set(c[0] / 255, c[1] / 255, c[2] / 255);
+      }
+    }
+  }
+  return vec;
+}
+
 function updatePreview() {
   if (!currentGeometry || !currentBounds) return;
 
@@ -4317,13 +4343,7 @@ function updatePreview() {
   const tw = activeMapEntry?.width ?? 1, th = activeMapEntry?.height ?? 1;
   const tmax = Math.max(tw, th, 1);
   const untexturedTool = settings.untexturedToolId || 4;
-  const untexturedColorVec = new THREE.Vector3(0.68, 0.08, 0.22); // Default Tool 4 color
-  if (currentColorPalette && currentColorPalette.length > 0) {
-    const item = currentColorPalette.find(p => p.toolId === untexturedTool);
-    if (item && item.rgb) {
-      untexturedColorVec.set(item.rgb[0] / 255, item.rgb[1] / 255, item.rgb[2] / 255);
-    }
-  }
+  const untexturedColorVec = getUntexturedColorVector(untexturedTool);
   const fullSettings = {
     ...settings,
     bounds: currentBounds,
@@ -4844,13 +4864,7 @@ async function toggleDisplacementPreview(enable) {
     const tw = activeMapEntry?.width ?? 1, th = activeMapEntry?.height ?? 1;
     const tmax = Math.max(tw, th, 1);
     const untexturedTool = settings.untexturedToolId || 4;
-    const untexturedColorVec = new THREE.Vector3(0.68, 0.08, 0.22);
-    if (currentColorPalette && currentColorPalette.length > 0) {
-      const item = currentColorPalette.find(p => p.toolId === untexturedTool);
-      if (item && item.rgb) {
-        untexturedColorVec.set(item.rgb[0] / 255, item.rgb[1] / 255, item.rgb[2] / 255);
-      }
-    }
+    const untexturedColorVec = getUntexturedColorVector(untexturedTool);
     const fullSettings = {
       ...settings,
       bounds: currentBounds,
