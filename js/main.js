@@ -18,7 +18,7 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908f';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908f';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260908g';
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles } from './meshPartition.js?v=20260908f';
 import { buildAdjacency, bucketFill,

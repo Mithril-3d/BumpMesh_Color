@@ -312,23 +312,23 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
-    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
-    'xmlns:p="http://schemas.prusa3d.com/3mf/2020/01" ' +
-    'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
+    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">\n' +
     '<metadata name="Application">BumpMesh Color</metadata>\n' +
     '<resources>\n'
   );
 
-  // 1. Color group
+  // 1. Color group (standard 3MF Material Extension with 8-char RGBA hex)
   emit('  <m:colorgroup id="1">\n');
   for (const item of palette) {
-    emit(`    <m:color color="${item.hex.toUpperCase()}"/>\n`);
+    const raw = item.hex.startsWith('#') ? item.hex.slice(1) : item.hex;
+    const hex8 = '#' + raw.toUpperCase() + (raw.length === 6 ? 'FF' : '');
+    emit(`    <m:color color="${hex8}"/>\n`);
   }
   emit('  </m:colorgroup>\n');
 
-  // 2. Single watertight object with facet painting
+  // 2. Single watertight solid object with triangle material properties
   const rootObjectId = 1;
-  emit(`  <object id="${rootObjectId}" type="model" name="BumpMesh_Color">\n`);
+  emit(`  <object id="${rootObjectId}" type="model" name="BumpMesh_Color" pid="1" p1="0">\n`);
   emit('    <mesh>\n      <vertices>\n');
 
   for (let i = 0; i < vertCount; i++) {
@@ -343,8 +343,7 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     const toolId = (triTools && triTools[i]) ? triTools[i] : 1;
     const palIdx = toolToPalIndex.get(toolId) ?? 0;
     emit(
-      `        <triangle v1="${triIdx[b]}" v2="${triIdx[b+1]}" v3="${triIdx[b+2]}" ` +
-      `pid="1" p1="${palIdx}" paint_color="${toolId}" slic3rpe:mmu_segmentation="${toolId}"/>\n`
+      `        <triangle v1="${triIdx[b]}" v2="${triIdx[b+1]}" v3="${triIdx[b+2]}" pid="1" p1="${palIdx}"/>\n`
     );
   }
 
