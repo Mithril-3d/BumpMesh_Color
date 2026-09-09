@@ -122,14 +122,18 @@ export function simulateTransmissionColor(height, layers) {
 
     // Local thickness of this layer at this height
     const localThickness = Math.min(height, layer.endHeight) - layer.startHeight;
+    const span = Math.max(0.01, layer.endHeight - layer.startHeight);
     if (localThickness <= 0) continue;
 
-    // Transmission factor T = e^(-thickness / TD)
-    // When TD is small (opaque), T -> 0, layer dominates completely.
-    // When TD is large (translucent), T -> 1, underlying color shines through.
-    const td = Math.max(0.1, layer.td || 2.0);
-    const trans = Math.exp(-localThickness / td);
-    const alpha = 1.0 - trans;
+    // Normalized progress in this layer (0..1)
+    const t = Math.min(1.0, Math.max(0.0, localThickness / span));
+
+    // Optical transmission & coverage curve (Beer-Lambert / HueForge model):
+    // Standard filament reaches ~80-95% coverage across its layer span.
+    // Lower TD (e.g. 0.5-1.0) = opaque, rapidly covers the layer below.
+    // Higher TD (e.g. 4.0-6.0) = translucent, allows base layers to blend through.
+    const td = Math.max(0.2, layer.td || 2.0);
+    const alpha = 1.0 - Math.exp(-2.8 * t / (td / 2.0));
 
     curR = curR * (1.0 - alpha) + layer.color[0] * alpha;
     curG = curG * (1.0 - alpha) + layer.color[1] * alpha;
@@ -222,8 +226,12 @@ export function generateSlicingGuide(layers, layerHeight = 0.08, firstLayerHeigh
  */
 export function generateGradientLookupTable(layers, totalAmplitude = 2.0) {
   const table = new Uint8Array(256 * 4);
+  const maxHeight = (layers && layers.length > 0)
+    ? Math.max(layers[layers.length - 1].endHeight || 0, totalAmplitude, 0.05)
+    : Math.max(totalAmplitude, 0.05);
+
   for (let i = 0; i < 256; i++) {
-    const h = (i / 255.0) * totalAmplitude;
+    const h = (i / 255.0) * maxHeight;
     const [r, g, b] = simulateTransmissionColor(h, layers);
     const idx = i * 4;
     table[idx] = r;
