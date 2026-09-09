@@ -11,7 +11,7 @@ import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=2
 /**
  * Check if 3D point p is within triangle abc (projected along normal n)
  */
-function isPointInTri(p, a, b, c, n) {
+export function isPointInTri(p, a, b, c, n) {
   // Edge 0
   const ab = b.clone().sub(a);
   const ap = p.clone().sub(a);

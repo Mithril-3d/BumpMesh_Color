@@ -20,7 +20,7 @@ import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909d';
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
-import { assignToolsToTriangles } from './meshPartition.js?v=20260909d';
+import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {
   getLayerIndex,
   getInterleavedToolAtLayer,
@@ -5289,12 +5289,60 @@ async function handleExport(format = 'stl') {
           ? exportPalette.map(p => p.toolId)
           : [1, 2];
 
-        // 4. Assign strictly 1 tool per sliced triangle based on its layer index
+        const untexturedTool = settings.untexturedToolId || 4;
+        const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
+        const botLimit = settings.bottomAngleLimit ?? 0;
+        const topLimit = settings.topAngleLimit ?? 0;
+
+        const tmpNormal = new THREE.Vector3();
+        const tmpEdge1 = new THREE.Vector3();
+        const tmpEdge2 = new THREE.Vector3();
+        const tmpCentroid = new THREE.Vector3();
+
+        // 4. Assign tool per sliced triangle: untextured tool for masked/flat faces, interleaved tool for textured sides
         for (let i = 0; i < slicedTriCount; i++) {
           const b = i * 9;
-          const zCentroid = (sliced.positions[b + 2] + sliced.positions[b + 5] + sliced.positions[b + 8]) / 3;
-          const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor((zCentroid - minZ) / thickness)));
-          triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
+          const ax = sliced.positions[b],     ay = sliced.positions[b + 1], az = sliced.positions[b + 2];
+          const bx = sliced.positions[b + 3], by = sliced.positions[b + 4], bz = sliced.positions[b + 5];
+          const cx = sliced.positions[b + 6], cy = sliced.positions[b + 7], cz = sliced.positions[b + 8];
+
+          tmpCentroid.set((ax + bx + cx) / 3, (ay + by + cy) / 3, (az + bz + cz) / 3);
+          tmpEdge1.set(bx - ax, by - ay, bz - az);
+          tmpEdge2.set(cx - ax, cy - ay, cz - az);
+          tmpNormal.crossVectors(tmpEdge1, tmpEdge2).normalize();
+
+          let isMasked = false;
+
+          // 1. Angle limits (top and bottom flat faces)
+          const faceNzNorm = tmpNormal.z;
+          const faceAngle = Math.acos(Math.min(Math.max(Math.abs(faceNzNorm), 0), 1)) * (180 / Math.PI);
+          if (faceNzNorm < 0) {
+            if (botLimit >= 1.0 && faceAngle <= botLimit + 0.1) isMasked = true;
+          } else {
+            if (topLimit >= 1.0 && faceAngle <= topLimit + 0.1) isMasked = true;
+          }
+
+          // 2. User excluded faces
+          if (!isMasked && excludedTris && excludedTris.length > 0) {
+            const px = tmpCentroid.x, py = tmpCentroid.y, pz = tmpCentroid.z;
+            for (let k = 0; k < excludedTris.length; k++) {
+              const t = excludedTris[k];
+              if (px < t.minX || px > t.maxX || py < t.minY || py > t.maxY || pz < t.minZ || pz > t.maxZ) continue;
+              if (tmpNormal.dot(t.n) < 0.85) continue;
+              if (Math.abs(tmpNormal.dot(tmpCentroid) - t.planeD) > 0.4) continue;
+              if (isPointInTri(tmpCentroid, t.a, t.b, t.c, t.n)) {
+                isMasked = true;
+                break;
+              }
+            }
+          }
+
+          if (isMasked) {
+            triTools[i] = untexturedTool;
+          } else {
+            const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor((tmpCentroid.z - minZ) / thickness)));
+            triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
+          }
         }
 
         setProgress(0.98, 'Packaging 3MF with layer-aligned painting…');
