@@ -5,8 +5,8 @@
 
 import { THREE } from './threeCompat.js?v=20260908d';
 import { computeUV } from './mapping.js?v=20260908d';
-import { getToolAtUV, sampleLuminanceBilinear } from './colorQuantization.js?v=20260908d';
-import { getSurfaceToolAtHeight } from './layerBlending.js?v=20260908d';
+import { getToolAtUV } from './colorQuantization.js?v=20260908d';
+import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=20260908d';
 
 /**
  * Check if 3D point p is within triangle abc (projected along normal n)
@@ -64,7 +64,7 @@ export function assignToolsToTriangles(
   const triTool = new Int32Array(triCount);
   const botLimit = settings.bottomAngleLimit ?? 0;
   const topLimit = settings.topAngleLimit ?? 0;
-  const isLayerBlend = (settings.colorSubMode === 1 && layerBlendLayers && layerBlendLayers.length > 0);
+  const isLayerBlend = (settings.colorSubMode === 1);
   const amplitude = settings.amplitude ?? 1.0;
 
   for (let i = 0; i < triCount; i++) {
@@ -136,10 +136,11 @@ export function assignToolsToTriangles(
       }
 
       if (isLayerBlend) {
-        // Sample height / luminance at (u, v) and map to layer height
-        const lum = sampleLuminanceBilinear(imageData.data, imgWidth, imgHeight, u, v);
-        const h = lum * amplitude;
-        toolId = getSurfaceToolAtHeight(h, layerBlendLayers);
+        const minZ = bounds ? bounds.min.z : 0;
+        const thickness = settings.interleavedThickness || 0.20;
+        const toolIds = settings.interleavedToolIds || (palette && palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
+        const layerIdx = getLayerIndex(tmpCentroid.z, minZ, thickness);
+        toolId = getInterleavedToolAtLayer(layerIdx, toolIds);
       } else {
         toolId = getToolAtUV(imageData.data, imgWidth, imgHeight, u, v, palette);
       }

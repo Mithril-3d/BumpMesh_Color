@@ -13,6 +13,7 @@ import { QuantizedPointMap } from './meshIndex.js';
  * @param {string} [mime]
  */
 function triggerDownload(buffer, filename, mime = 'application/octet-stream') {
+  if (typeof document === 'undefined') return buffer;
   const blob = new Blob([buffer], { type: mime });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -23,6 +24,7 @@ function triggerDownload(buffer, filename, mime = 'application/octet-stream') {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return buffer;
 }
 
 /**
@@ -449,7 +451,7 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     'Metadata/Slic3r_PE.config':     strToU8(prusaConfigXml),
   }, { level: 6 });
 
-  triggerDownload(
+  return triggerDownload(
     zipped,
     filename,
     'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'

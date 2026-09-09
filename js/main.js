@@ -22,12 +22,10 @@ import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles } from './meshPartition.js?v=20260908f';
 import {
-  LAYER_BLENDING_PRESETS,
-  calculateDefaultLayerBounds,
-  generateSlicingGuide,
-  generateGradientLookupTable,
-  rgbToHex,
-  hexToRgb
+  getLayerIndex,
+  getInterleavedToolAtLayer,
+  computeInterleavedDisplacement,
+  generateInterleavedTable
 } from './layerBlending.js?v=20260909a';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -309,18 +307,26 @@ const tabColorQuantize           = document.getElementById('tab-color-quantize')
 const tabColorLayerBlend          = document.getElementById('tab-color-layerblend');
 const quantizeControlsContainer   = document.getElementById('quantize-controls-container');
 const layerblendControlsContainer = document.getElementById('layerblend-controls-container');
-const layerblendPresetSelect     = document.getElementById('layerblend-preset-select');
-const layerblendStackList        = document.getElementById('layerblend-stack-list');
-const layerblendAddToolBtn       = document.getElementById('layerblend-add-tool-btn');
-const slicingGuideContent        = document.getElementById('slicing-guide-content');
-const copySlicingGuideBtn        = document.getElementById('copy-slicing-guide-btn');
+
+// Phase 2 Interleaved Layer Blending DOM elements
+const interleavedLayerThicknessSlider = document.getElementById('interleaved-layer-thickness');
+const interleavedLayerThicknessVal    = document.getElementById('interleaved-layer-thickness-val');
+const interleavedConvexAmpSlider      = document.getElementById('interleaved-convex-amp');
+const interleavedConvexAmpVal         = document.getElementById('interleaved-convex-amp-val');
+const interleavedConcaveAmpSlider     = document.getElementById('interleaved-concave-amp');
+const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
+const interleavedToolList             = document.getElementById('interleaved-tool-list');
+const interleavedInfoText             = document.getElementById('interleaved-info-text');
 
 let currentColorPalette          = [];
 let currentQuantizedResult       = null;
 let _quantizedTextureCache       = null;
-let currentColorSubMode          = 0; // 0 = Quantize, 1 = Layer Blending
-let currentLayerBlendLayers      = calculateDefaultLayerBounds(LAYER_BLENDING_PRESETS[0].layers, 1.0);
-let _layerBlendTextureCache       = null;
+let currentColorSubMode          = 0; // 0 = Quantize, 1 = Interleaved Layer Blending
+let interleavedSettings          = {
+  layerThickness: 0.20,
+  convexAmp: 0.30,
+  concaveAmp: 0.00
+};
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
 const exportProgPct    = document.getElementById('export-progress-pct');
@@ -1321,6 +1327,7 @@ function runColorQuantization() {
 
   renderPaletteUI();
   updateUntexturedToolOptions(k);
+  renderInterleavedUI();
   _refreshQuantizedTexture();
 
   if (exportMultiColor3mfBtn) {
@@ -1396,6 +1403,7 @@ function renderPaletteUI() {
 
     select.addEventListener('change', (e) => {
       item.toolId = parseInt(e.target.value, 10);
+      renderInterleavedUI();
       updatePreview();
     });
 
@@ -1423,216 +1431,60 @@ function updateUntexturedToolOptions(k) {
   settings.untexturedToolId = chosen;
 }
 
-// ── Phase 2: Layer Blending (振り重ね混色) ───────────────────────────────────
+// ── Phase 2: Interleaved Layer Blending (交互積層マルチツール振り重ね) ──────────
 
-function _refreshLayerBlendGradientTexture() {
-  const amp = settings.amplitude || 1.0;
-  const table = generateGradientLookupTable(currentLayerBlendLayers, amp);
+function renderInterleavedUI() {
+  if (!interleavedToolList || !interleavedInfoText) return;
 
-  if (_layerBlendTextureCache) {
-    _layerBlendTextureCache.dispose();
-  }
-  _layerBlendTextureCache = new THREE.DataTexture(table, 256, 1, THREE.RGBAFormat);
-  _layerBlendTextureCache.wrapS = THREE.ClampToEdgeWrapping;
-  _layerBlendTextureCache.wrapT = THREE.ClampToEdgeWrapping;
-  _layerBlendTextureCache.minFilter = THREE.LinearFilter;
-  _layerBlendTextureCache.magFilter = THREE.LinearFilter;
-  _layerBlendTextureCache.needsUpdate = true;
-  _layerBlendTextureCache.name = 'layer_blend_gradient';
+  // Clear previous chips
+  interleavedToolList.innerHTML = '';
 
-  settings.layerBlendMap = _layerBlendTextureCache;
-  settings.colorSubMode = currentColorSubMode;
-}
+  const palette = (currentColorPalette && currentColorPalette.length > 0)
+    ? currentColorPalette
+    : [
+        { toolId: 1, hex: '#f0f0f0', color: [240, 240, 240] },
+        { toolId: 2, hex: '#d32f2f', color: [211, 47, 47] }
+      ];
 
-function renderSlicingGuideUI() {
-  if (!slicingGuideContent) return;
-  const guide = generateSlicingGuide(currentLayerBlendLayers, 0.08, 0.20);
-  if (!guide || guide.length === 0) {
-    slicingGuideContent.textContent = 'レイヤー情報なし';
-    return;
-  }
+  // Tool chips preview
+  palette.forEach((item) => {
+    const chip = document.createElement('div');
+    chip.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--border,#444);font-size:11px;';
+    
+    const colorDot = document.createElement('span');
+    colorDot.style.cssText = `width:12px;height:12px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);`;
 
-  let text = `【スライサー フィラメント交換指示 (初期層0.20mm / レイヤー高0.08mm)】\n`;
-  guide.forEach((g) => {
-    if (g.isStart) {
-      text += `• 開始 (0.00mm〜): Tool ${g.toolId} (${g.colorName} / ${g.hex})\n`;
-    } else {
-      text += `• Layer ${g.layerIndex} (${g.heightMm.toFixed(2)}mm): Tool ${g.toolId} (${g.colorName} / ${g.hex}) へ交換\n`;
-    }
-  });
-  slicingGuideContent.textContent = text.trim();
-}
+    const label = document.createElement('span');
+    label.style.cssText = 'font-weight:600;color:var(--text,#fff);';
+    label.textContent = `Tool ${item.toolId}`;
 
-function renderLayerBlendUI() {
-  if (!layerblendStackList) return;
-  layerblendStackList.innerHTML = '';
-  const amp = settings.amplitude || 1.0;
-
-  currentLayerBlendLayers.forEach((layer, idx) => {
-    const card = document.createElement('div');
-    card.className = 'layerblend-card';
-
-    // Header: color input + badge + name + order buttons
-    const header = document.createElement('div');
-    header.className = 'layerblend-card-header';
-
-    const hLeft = document.createElement('div');
-    hLeft.className = 'layerblend-header-left';
-
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.className = 'layerblend-color-input';
-    colorInput.value = layer.hex || rgbToHex(...layer.color);
-    colorInput.title = 'フィラメント色を選択';
-    colorInput.addEventListener('input', (e) => {
-      layer.hex = e.target.value;
-      layer.color = hexToRgb(e.target.value);
-      _refreshLayerBlendGradientTexture();
-      renderSlicingGuideUI();
-      updatePreview();
-    });
-
-    const badge = document.createElement('span');
-    badge.className = 'layerblend-tool-badge';
-    badge.textContent = `Tool ${layer.toolId}`;
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'layerblend-tool-name';
-    nameSpan.textContent = layer.name || `Layer ${idx + 1}`;
-
-    hLeft.appendChild(colorInput);
-    hLeft.appendChild(badge);
-    hLeft.appendChild(nameSpan);
-
-    const hRight = document.createElement('div');
-    hRight.className = 'layerblend-order-actions';
-
-    // Up button (moves layer down in height/earlier in stack)
-    const downBtn = document.createElement('button');
-    downBtn.type = 'button';
-    downBtn.className = 'layer-order-btn';
-    downBtn.textContent = '▼';
-    downBtn.title = '積層順序を下げる (底面側へ)';
-    downBtn.disabled = (idx === 0);
-    downBtn.addEventListener('click', () => {
-      if (idx > 0) {
-        const temp = currentLayerBlendLayers[idx];
-        currentLayerBlendLayers[idx] = currentLayerBlendLayers[idx - 1];
-        currentLayerBlendLayers[idx - 1] = temp;
-        // Re-assign default toolIds to keep 1..K in order
-        currentLayerBlendLayers.forEach((l, i) => l.toolId = i + 1);
-        currentLayerBlendLayers = calculateDefaultLayerBounds(currentLayerBlendLayers, amp);
-        renderLayerBlendUI();
-        _refreshLayerBlendGradientTexture();
-        renderSlicingGuideUI();
-        updatePreview();
-      }
-    });
-
-    // Down button (moves layer up in height/later in stack)
-    const upBtn = document.createElement('button');
-    upBtn.type = 'button';
-    upBtn.className = 'layer-order-btn';
-    upBtn.textContent = '▲';
-    upBtn.title = '積層順序を上げる (表面側へ)';
-    upBtn.disabled = (idx === currentLayerBlendLayers.length - 1);
-    upBtn.addEventListener('click', () => {
-      if (idx < currentLayerBlendLayers.length - 1) {
-        const temp = currentLayerBlendLayers[idx];
-        currentLayerBlendLayers[idx] = currentLayerBlendLayers[idx + 1];
-        currentLayerBlendLayers[idx + 1] = temp;
-        currentLayerBlendLayers.forEach((l, i) => l.toolId = i + 1);
-        currentLayerBlendLayers = calculateDefaultLayerBounds(currentLayerBlendLayers, amp);
-        renderLayerBlendUI();
-        _refreshLayerBlendGradientTexture();
-        renderSlicingGuideUI();
-        updatePreview();
-      }
-    });
-
-    hRight.appendChild(downBtn);
-    hRight.appendChild(upBtn);
-
-    header.appendChild(hLeft);
-    header.appendChild(hRight);
-    card.appendChild(header);
-
-    // Sliders: Start Height (for idx > 0) & TD (Transmission Distance)
-    const slidersGrid = document.createElement('div');
-    slidersGrid.className = 'layerblend-slider-grid';
-
-    // Start Height slider
-    if (idx > 0) {
-      const heightItem = document.createElement('div');
-      heightItem.className = 'layerblend-slider-item';
-
-      const hLabel = document.createElement('label');
-      hLabel.innerHTML = `<span>開始高さ:</span> <strong>${layer.startHeight.toFixed(2)}mm</strong>`;
-
-      const hRange = document.createElement('input');
-      hRange.type = 'range';
-      hRange.min = '0.04';
-      hRange.max = (amp).toFixed(2);
-      hRange.step = '0.04';
-      hRange.value = layer.startHeight.toFixed(2);
-
-      hRange.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        layer.startHeight = val;
-        if (currentLayerBlendLayers[idx - 1]) {
-          currentLayerBlendLayers[idx - 1].endHeight = val;
-        }
-        hLabel.innerHTML = `<span>開始高さ:</span> <strong>${val.toFixed(2)}mm</strong>`;
-        _refreshLayerBlendGradientTexture();
-        renderSlicingGuideUI();
-        updatePreview();
-      });
-
-      heightItem.appendChild(hLabel);
-      heightItem.appendChild(hRange);
-      slidersGrid.appendChild(heightItem);
-    } else {
-      const baseItem = document.createElement('div');
-      baseItem.className = 'layerblend-slider-item';
-      baseItem.innerHTML = `<label><span>基準底層:</span> <strong>0.00mm</strong></label><div style="font-size:9px;color:var(--text-muted);padding-top:4px;">最下層ベース</div>`;
-      slidersGrid.appendChild(baseItem);
-    }
-
-    // TD (Transmission Distance) slider
-    const tdItem = document.createElement('div');
-    tdItem.className = 'layerblend-slider-item';
-
-    const tdLabel = document.createElement('label');
-    tdLabel.innerHTML = `<span>透過度 (TD):</span> <strong>${(layer.td || 2.0).toFixed(1)}</strong>`;
-
-    const tdRange = document.createElement('input');
-    tdRange.type = 'range';
-    tdRange.min = '0.2';
-    tdRange.max = '10.0';
-    tdRange.step = '0.2';
-    tdRange.value = (layer.td || 2.0).toFixed(1);
-
-    tdRange.addEventListener('input', (e) => {
-      const val = parseFloat(e.target.value);
-      layer.td = val;
-      tdLabel.innerHTML = `<span>透過度 (TD):</span> <strong>${val.toFixed(1)}</strong>`;
-      _refreshLayerBlendGradientTexture();
-      renderSlicingGuideUI();
-      updatePreview();
-    });
-
-    tdItem.appendChild(tdLabel);
-    tdItem.appendChild(tdRange);
-    slidersGrid.appendChild(tdItem);
-
-    card.appendChild(slidersGrid);
-    layerblendStackList.appendChild(card);
+    chip.appendChild(colorDot);
+    chip.appendChild(label);
+    interleavedToolList.appendChild(chip);
   });
 
-  renderSlicingGuideUI();
+  // Layer slice info
+  const thickness = interleavedSettings.layerThickness || 0.20;
+  const toolIds = palette.map(p => p.toolId);
+  const minZ = currentBounds ? currentBounds.min.z : 0;
+  const maxZ = currentBounds ? currentBounds.max.z : 20;
+  const { table, totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
+
+  let info = `• 積層ピッチ: ${thickness.toFixed(2)} mm (総レイヤー数: 約${totalLayers}層)\n`;
+  info += `• 凸突出量: +${interleavedSettings.convexAmp.toFixed(2)} mm (目的色と一致)\n`;
+  info += `• 凹引込量: -${interleavedSettings.concaveAmp.toFixed(2)} mm (目的色と不一致)\n`;
+  info += `• 交互パターン: ${toolIds.map(t => 'Tool ' + t).join(' → ')} → …`;
+  interleavedInfoText.textContent = info;
+
+  // Pass parameters to settings for preview and export
+  settings.interleavedThickness = thickness;
+  settings.interleavedConvex    = interleavedSettings.convexAmp;
+  settings.interleavedConcave   = interleavedSettings.concaveAmp;
+  settings.interleavedToolIds   = toolIds;
+  settings.colorSubMode         = currentColorSubMode;
 }
 
-function initLayerBlendingEvents() {
+function initInterleavedEvents() {
   if (tabColorQuantize && tabColorLayerBlend) {
     tabColorQuantize.addEventListener('click', () => {
       currentColorSubMode = 0;
@@ -1651,53 +1503,38 @@ function initLayerBlendingEvents() {
       if (layerblendControlsContainer) layerblendControlsContainer.classList.remove('hidden');
       if (quantizeControlsContainer) quantizeControlsContainer.classList.add('hidden');
       settings.colorSubMode = 1;
-      _refreshLayerBlendGradientTexture();
-      renderLayerBlendUI();
+      renderInterleavedUI();
       updatePreview();
     });
   }
 
-  if (layerblendPresetSelect) {
-    layerblendPresetSelect.addEventListener('change', (e) => {
-      const presetId = e.target.value;
-      const found = LAYER_BLENDING_PRESETS.find(p => p.id === presetId);
-      if (found) {
-        currentLayerBlendLayers = calculateDefaultLayerBounds(found.layers, settings.amplitude || 1.0);
-        renderLayerBlendUI();
-        _refreshLayerBlendGradientTexture();
-        renderSlicingGuideUI();
-        updatePreview();
-      }
-    });
-  }
-
-  if (layerblendAddToolBtn) {
-    layerblendAddToolBtn.addEventListener('click', () => {
-      if (currentLayerBlendLayers.length >= 8) return;
-      const newToolId = currentLayerBlendLayers.length + 1;
-      const newLayer = {
-        toolId: newToolId,
-        name: `Tool ${newToolId}`,
-        hex: '#e2e8f0',
-        color: [226, 232, 240],
-        td: 5.0
-      };
-      currentLayerBlendLayers.push(newLayer);
-      currentLayerBlendLayers = calculateDefaultLayerBounds(currentLayerBlendLayers, settings.amplitude || 1.0);
-      renderLayerBlendUI();
-      _refreshLayerBlendGradientTexture();
-      renderSlicingGuideUI();
+  if (interleavedLayerThicknessSlider) {
+    interleavedLayerThicknessSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 0.20;
+      interleavedSettings.layerThickness = v;
+      if (interleavedLayerThicknessVal) interleavedLayerThicknessVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
       updatePreview();
     });
   }
 
-  if (copySlicingGuideBtn && slicingGuideContent) {
-    copySlicingGuideBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(slicingGuideContent.textContent).then(() => {
-        const orig = copySlicingGuideBtn.textContent;
-        copySlicingGuideBtn.textContent = 'コピー完了!';
-        setTimeout(() => copySlicingGuideBtn.textContent = orig, 1500);
-      });
+  if (interleavedConvexAmpSlider) {
+    interleavedConvexAmpSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 0.30;
+      interleavedSettings.convexAmp = v;
+      if (interleavedConvexAmpVal) interleavedConvexAmpVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedConcaveAmpSlider) {
+    interleavedConcaveAmpSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 0.00;
+      interleavedSettings.concaveAmp = v;
+      if (interleavedConcaveAmpVal) interleavedConcaveAmpVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
     });
   }
 }
@@ -1949,8 +1786,7 @@ function wireEvents() {
     settings.amplitude = (settings.invertDisplacement ? -1 : 1) * v;
     checkAmplitudeWarning();
     if (currentColorSubMode === 1) {
-      _refreshLayerBlendGradientTexture();
-      renderLayerBlendUI();
+      renderInterleavedUI();
     }
     return v.toFixed(2);
   });
@@ -2137,10 +1973,9 @@ function wireEvents() {
     });
   }
 
-  // Phase 2 Layer Blending initialization
-  initLayerBlendingEvents();
-  renderLayerBlendUI();
-  _refreshLayerBlendGradientTexture();
+  // Phase 2 Interleaved Layer Blending initialization
+  initInterleavedEvents();
+  renderInterleavedUI();
 
   // ── Advanced / Beta Features panel: collapse toggle + bake action ──
   advancedToggle.addEventListener('click', () => {
@@ -4658,6 +4493,23 @@ function updatePreview() {
   const tmax = Math.max(tw, th, 1);
   const untexturedTool = settings.untexturedToolId || 4;
   const untexturedColorVec = getUntexturedColorVector(untexturedTool);
+
+  const interleavedPaletteVecs = [];
+  const paletteSource = (currentColorPalette && currentColorPalette.length > 0)
+    ? currentColorPalette
+    : [
+        { toolId: 1, color: [240, 240, 240] },
+        { toolId: 2, color: [211, 47, 47] }
+      ];
+  for (let k = 0; k < 8; k++) {
+    if (k < paletteSource.length) {
+      const c = paletteSource[k].color || [255, 255, 255];
+      interleavedPaletteVecs.push(new THREE.Vector3(c[0]/255, c[1]/255, c[2]/255));
+    } else {
+      interleavedPaletteVecs.push(new THREE.Vector3(1, 1, 1));
+    }
+  }
+
   const fullSettings = {
     ...settings,
     bounds: currentBounds,
@@ -4665,6 +4517,11 @@ function updatePreview() {
     textureAspectV: tmax / Math.max(th, 1),
     useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
     colorSubMode: currentColorSubMode,
+    interleavedThickness: interleavedSettings.layerThickness || 0.20,
+    interleavedConvex: interleavedSettings.convexAmp ?? 0.30,
+    interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+    interleavedToolCount: paletteSource.length,
+    interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: _layerBlendTextureCache,
     untexturedColor: untexturedColorVec,
   };
@@ -5321,15 +5178,22 @@ async function handleExport(format = 'stl') {
     // bottom snaps → repair), preferably in the export worker so the UI stays
     // responsive and background-tab throttling can't stall it. Falls back to
     // running inline if the worker can't initialise. See exportPipeline.js.
-    const exportEntry = getEffectiveMapEntry();
-    const isStale = () => exportToken !== myToken;
+    const effectiveSettings = {
+      ...settings,
+      colorSubMode: currentColorSubMode,
+      palette: currentColorPalette,
+      interleavedThickness: interleavedSettings.layerThickness || 0.20,
+      interleavedConvex: interleavedSettings.convexAmp ?? 0.30,
+      interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+      interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
+    };
     const result = await runPipeline({
       positions: currentGeometry.attributes.position.array,
       faceWeights,
       imageData: exportEntry.imageData,
       imgWidth: exportEntry.width,
       imgHeight: exportEntry.height,
-      settings,
+      settings: effectiveSettings,
       bounds: currentBounds,
       regularizeOpts: _regularizeOpts(),
       mode: 'export',
@@ -5417,12 +5281,12 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
         exportEntry.imageData,
         exportEntry.width,
         exportEntry.height,
-        { ...settings, colorSubMode: currentColorSubMode },
+        effectiveSettings,
         currentBounds,
         currentColorPalette,
         untexturedTool,
         excludedTris,
-        isLayerBlendMode ? currentLayerBlendLayers : null
+        null
       );
 
       // 2. Restore original model pose on the solid geometry
@@ -5431,16 +5295,8 @@ function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settin
       setProgress(0.98, 'Packaging 3MF with facet painting…');
       await yieldFrame();
 
-      const exportPalette = isLayerBlendMode
-        ? currentLayerBlendLayers.map(l => ({
-            id: l.toolId,
-            toolId: l.toolId,
-            hex: l.hex || rgbToHex(...l.color),
-            color: l.color
-          }))
-        : currentColorPalette;
-
-      const subModeLabel = isLayerBlendMode ? 'layerblend' : 'quantized';
+      const exportPalette = currentColorPalette;
+      const subModeLabel = isLayerBlendMode ? 'interleaved' : 'quantized';
       exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
     } else {
       _restoreOriginalPose(result.positions, result.normals);
@@ -5702,13 +5558,22 @@ async function bakeTextures() {
     // to remap user exclusions onto the baked output). Worker-first with
     // inline fallback, same as handleExport.
     const exportEntry = getEffectiveMapEntry();
+    const effectiveSettings = {
+      ...settings,
+      colorSubMode: currentColorSubMode,
+      palette: currentColorPalette,
+      interleavedThickness: interleavedSettings.layerThickness || 0.20,
+      interleavedConvex: interleavedSettings.convexAmp ?? 0.30,
+      interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+      interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
+    };
     const result = await runPipeline({
       positions: currentGeometry.attributes.position.array,
       faceWeights,
       imageData: exportEntry.imageData,
       imgWidth: exportEntry.width,
       imgHeight: exportEntry.height,
-      settings,
+      settings: effectiveSettings,
       bounds: currentBounds,
       regularizeOpts: _regularizeOpts(),
       mode: 'bake',

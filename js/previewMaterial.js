@@ -50,6 +50,11 @@ const sharedGLSL = /* glsl */`
   uniform int       useDisplacement;
   uniform int       useColorTexture;
   uniform int       colorSubMode;
+  uniform float     interleavedThickness;
+  uniform float     interleavedConvex;
+  uniform float     interleavedConcave;
+  uniform int       interleavedToolCount;
+  uniform vec3      interleavedPalette[8];
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
@@ -60,6 +65,7 @@ const sharedGLSL = /* glsl */`
 
   // Forward declarations
   float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN);
+  vec3 computeRawColorAtPoint(vec3 pos, vec3 projN, vec3 blendN);
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN);
 
   int dominantCubicAxis(vec3 n) {
@@ -123,6 +129,31 @@ const sharedGLSL = /* glsl */`
   // projN  = face-stable projection normal (for axis selection)
   // blendN = smooth / interpolated normal  (for blend weights)
   float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+    if (colorSubMode == 1) {
+      vec3 cTarget = computeRawColorAtPoint(pos, projN, blendN);
+      int bestK = 0;
+      float bestDist = 1e6;
+      for (int k = 0; k < 8; k++) {
+        if (k >= interleavedToolCount) break;
+        vec3 diff = cTarget - interleavedPalette[k];
+        float d = dot(diff, diff);
+        if (d < bestDist) {
+          bestDist = d;
+          bestK = k;
+        }
+      }
+      float zRel = max(0.0, pos.z - boundsMin.z);
+      float t = max(0.01, interleavedThickness);
+      int layerIdx = int(floor(zRel / t));
+      int numTools = max(1, interleavedToolCount);
+      int activeK = int(mod(float(layerIdx), float(numTools)));
+      if (activeK == bestK) {
+        return interleavedConvex;
+      } else {
+        return -interleavedConcave;
+      }
+    }
+
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
@@ -224,13 +255,8 @@ const sharedGLSL = /* glsl */`
     }
   }
 
-  // Compute color at a world-space point
-  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
-    if (colorSubMode == 1) {
-      float hVal = computeHeightAtPoint(pos, projN, blendN);
-      return texture2D(layerBlendMap, vec2(clamp(hVal, 0.0, 1.0), 0.5)).rgb;
-    }
-
+  // Compute raw texture color at a world-space point
+  vec3 computeRawColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
@@ -314,6 +340,22 @@ const sharedGLSL = /* glsl */`
       return cYZ * wts.x + cXZ * wts.y + cXY * wts.z;
     }
   }
+
+  // Compute final surface color at a world-space point
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+    if (colorSubMode == 1) {
+      float zRel = max(0.0, pos.z - boundsMin.z);
+      float t = max(0.01, interleavedThickness);
+      int layerIdx = int(floor(zRel / t));
+      int numTools = max(1, interleavedToolCount);
+      int activeK = int(mod(float(layerIdx), float(numTools)));
+      for (int k = 0; k < 8; k++) {
+        if (k == activeK) return interleavedPalette[k];
+      }
+      return interleavedPalette[0];
+    }
+    return computeRawColorAtPoint(pos, projN, blendN);
+  }
 `;
 
 const vertexShader = /* glsl */`
@@ -356,13 +398,14 @@ const vertexShader = /* glsl */`
 
     if (useDisplacement == 1) {
       float h = computeHeightAtPoint(position, safeN, safeN);
-      if (symmetricDisplacement == 1) h = h - 0.5;
+      if (colorSubMode != 1 && symmetricDisplacement == 1) h = h - 0.5;
       h *= totalMask;
 
       // Displace along smooth normal so all copies of the same position
       // arrive at the same point (watertight, no cracks).
       vec3 sN = length(smoothNormal) > 1e-6 ? normalize(smoothNormal) : safeN;
-      pos = position + sN * h * amplitude;
+      float dispVal = (colorSubMode == 1) ? h : (h * amplitude);
+      pos = position + sN * dispVal;
       // Overhang protection: never move a vertex below its original Z.
       if (noDownwardZ == 1 && pos.z < position.z) pos.z = position.z;
     }
@@ -412,7 +455,7 @@ const fragmentShader = /* glsl */`
     // Flip normal for back faces so flipped-winding geometry still lights correctly.
     vec3 N = normalize(vNormal) * (gl_FrontFacing ? 1.0 : -1.0);
     float h = getHeight();
-    if (symmetricDisplacement == 1) h = h - 0.5;
+    if (colorSubMode != 1 && symmetricDisplacement == 1) h = h - 0.5;
 
     // ── Bump mapping via screen-space height derivatives ──────────────────
     // Compute derivatives on the RAW (unmasked) height so that screen-space
@@ -464,12 +507,11 @@ const fragmentShader = /* glsl */`
     B = lenB > 1e-5 ? B / lenB : vec3(0.0, 1.0, 0.0);
 
     // When vertex displacement is active, reduce bump strength: the macro shape
-    // is already physical; bump only adds sub-vertex fine detail.
-    // Use soft compression so bump never hard-saturates at amplitude >= 1.0.
+    float effAmp   = (colorSubMode == 1) ? 1.0 : amplitude;
     float posScale = max(length(dp1) + length(dp2), 1e-6);
-    float rawBump  = amplitude * 4.0 / posScale;
+    float rawBump  = effAmp * 4.0 / posScale;
     float bumpStr  = useDisplacement == 1
-      ? amplitude * 1.8 / posScale
+      ? effAmp * 1.8 / posScale
       : rawBump / (1.0 + abs(rawBump) * 0.15);
 
     vec3 bumpVec = N - bumpStr * (dhx * T + dhy * B);
@@ -505,7 +547,8 @@ const fragmentShader = /* glsl */`
     // Depth cavity darkening: as amplitude increases (> 1.0), crevices and gradient valleys
     // receive deeper self-shadowing, preventing optical saturation and dynamically enhancing 3D relief.
     float gradMag = abs(dhx) + abs(dhy);
-    float cavity = clamp(1.0 - abs(amplitude) * gradMag * 0.65, 0.15, 1.0);
+    float effCavAmp = (colorSubMode == 1) ? 1.0 : abs(amplitude);
+    float cavity = clamp(1.0 - effCavAmp * gradMag * 0.65, 0.15, 1.0);
 
     // Lit surface
     vec3 litSurface = (baseColor * 0.55
@@ -593,6 +636,32 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   u.useColorTexture.value         = settings.useColorTexture         ? 1 : 0;
   if (!u.colorSubMode) u.colorSubMode = { value: 0 };
   u.colorSubMode.value            = settings.colorSubMode            ?? 0;
+
+  if (!u.interleavedThickness) u.interleavedThickness = { value: 0.20 };
+  u.interleavedThickness.value = settings.interleavedThickness ?? 0.20;
+
+  if (!u.interleavedConvex) u.interleavedConvex = { value: 0.30 };
+  u.interleavedConvex.value = settings.interleavedConvex ?? 0.30;
+
+  if (!u.interleavedConcave) u.interleavedConcave = { value: 0.00 };
+  u.interleavedConcave.value = settings.interleavedConcave ?? 0.00;
+
+  if (!u.interleavedToolCount) u.interleavedToolCount = { value: 2 };
+  u.interleavedToolCount.value = settings.interleavedToolCount ?? (settings.interleavedPalette ? settings.interleavedPalette.length : 2);
+
+  if (!u.interleavedPalette) {
+    const defaultPal = [];
+    for (let i = 0; i < 8; i++) defaultPal.push(new THREE.Vector3(1, 1, 1));
+    u.interleavedPalette = { value: defaultPal };
+  }
+  if (settings.interleavedPalette && Array.isArray(settings.interleavedPalette)) {
+    for (let i = 0; i < 8; i++) {
+      if (i < settings.interleavedPalette.length && settings.interleavedPalette[i]) {
+        u.interleavedPalette.value[i].copy(settings.interleavedPalette[i]);
+      }
+    }
+  }
+
   if (settings.layerBlendMap) {
     if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
     else u.layerBlendMap.value = settings.layerBlendMap;
@@ -615,6 +684,14 @@ function buildUniforms(tex, settings, colorTex = null) {
   const relScale = scaleMmToRelative(settings.mappingMode ?? MODE_TRIPLANAR, settings, b);
   const uc = settings.untexturedColor || new THREE.Vector3(0.68, 0.08, 0.22);
   const baseTex = tex || createFallbackTexture();
+  const initPalette = [];
+  for (let i = 0; i < 8; i++) {
+    if (settings.interleavedPalette && settings.interleavedPalette[i]) {
+      initPalette.push(settings.interleavedPalette[i].clone ? settings.interleavedPalette[i].clone() : new THREE.Vector3(1, 1, 1));
+    } else {
+      initPalette.push(new THREE.Vector3(1, 1, 1));
+    }
+  }
   return {
     displacementMap: { value: baseTex },
     colorMap:        { value: colorTex || baseTex },
@@ -642,6 +719,11 @@ function buildUniforms(tex, settings, colorTex = null) {
     useDisplacement:          { value: settings.useDisplacement         ? 1 : 0 },
     useColorTexture:          { value: settings.useColorTexture         ? 1 : 0 },
     colorSubMode:             { value: settings.colorSubMode            ?? 0 },
+    interleavedThickness:     { value: settings.interleavedThickness ?? 0.20 },
+    interleavedConvex:        { value: settings.interleavedConvex ?? 0.30 },
+    interleavedConcave:       { value: settings.interleavedConcave ?? 0.00 },
+    interleavedToolCount:     { value: settings.interleavedToolCount ?? 2 },
+    interleavedPalette:       { value: initPalette },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

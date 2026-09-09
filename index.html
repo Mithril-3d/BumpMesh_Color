@@ -288,39 +288,44 @@
             </div>
           </div>
 
-          <!-- Tab 2: Layer Blending Panel (Phase 2) -->
+          <!-- Tab 2: Interleaved Layer Blending Panel (Phase 2) -->
           <div id="layerblend-controls-container" class="hidden" style="margin-top:6px;">
-            <div class="form-row" style="margin-bottom:8px;">
-              <label for="layerblend-preset-select" style="font-size:11px;font-weight:600;">混色プリセット</label>
-              <select id="layerblend-preset-select" style="font-size:11px;">
-                <option value="cmyw">CMYW (黒 / シアン / 黄 / 白)</option>
-                <option value="warm_fire">夕焼け / 暖色 (黒 / 赤 / 橙 / 暖白)</option>
-                <option value="forest_green">森林 / ネイチャー (黒 / 紺緑 / 明緑 / 白)</option>
-                <option value="monochrome">モノクロ階調 (黒 / 濃灰 / 明灰 / 白)</option>
-                <option value="custom">カスタム順序・色</option>
-              </select>
+            <div style="font-size:11px;color:var(--text-muted,#aaa);margin-bottom:8px;line-height:1.4;">
+              カラー量子化の各ツールを一定厚みで交互に積層し、目的色の領域で凸、非目的色の領域で凹を生成します。
             </div>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <span style="font-size:11px;color:var(--text-muted,#aaa);font-weight:600;">積層順序 (底面 → 最上面)</span>
-              <button type="button" id="layerblend-add-tool-btn" class="icon-btn" style="font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--border,#444);background:rgba(255,255,255,0.06);cursor:pointer;" title="レイヤー（ツール）を追加">+ レイヤー追加</button>
+            <div class="form-row slider-row" style="margin-bottom:8px;">
+              <label for="interleaved-layer-thickness" title="各ツールの1層あたりの厚み（スライサーの積層ピッチに合わせます）">積層厚み (mm)</label>
+              <input type="range" id="interleaved-layer-thickness" min="0.08" max="0.40" step="0.04" value="0.20" />
+              <span class="val" id="interleaved-layer-thickness-val">0.20</span>
             </div>
 
-            <!-- Layer Stack Cards Container -->
-            <div id="layerblend-stack-list" class="layerblend-stack-container">
-              <!-- JSで動的にレイヤースタックカードを生成 -->
+            <div class="form-row slider-row" style="margin-bottom:8px;">
+              <label for="interleaved-convex-amp" title="目的色と一致する層の突出量（凸量）">凸量 / 突出 (mm)</label>
+              <input type="range" id="interleaved-convex-amp" min="0.05" max="1.00" step="0.05" value="0.30" />
+              <span class="val" id="interleaved-convex-amp-val">0.30</span>
             </div>
 
-            <!-- Slicing Guide Box -->
-            <div class="slicing-guide-box" style="margin-top:12px;background:rgba(0,0,0,0.3);border:1px solid var(--border,#333);border-radius:6px;padding:8px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <span style="font-size:11px;font-weight:600;color:var(--accent,#3b82f6);display:flex;align-items:center;gap:4px;">
-                  📋 <span>スライサー交換ガイド (M600 / MMU)</span>
-                </span>
-                <button type="button" id="copy-slicing-guide-btn" style="font-size:10px;padding:2px 6px;border-radius:3px;border:1px solid var(--border,#444);background:rgba(255,255,255,0.08);color:var(--text,#fff);cursor:pointer;" title="スライスガイドテキストをコピー">コピー</button>
+            <div class="form-row slider-row" style="margin-bottom:8px;">
+              <label for="interleaved-concave-amp" title="目的色と一致しない層の引っ込み量（凹量）">凹量 / 引込 (mm)</label>
+              <input type="range" id="interleaved-concave-amp" min="0.00" max="0.50" step="0.05" value="0.00" />
+              <span class="val" id="interleaved-concave-amp-val">0.00</span>
+            </div>
+
+            <div style="margin-top:10px;">
+              <span style="font-size:11px;color:var(--text-muted,#aaa);font-weight:600;">交互積層ツール</span>
+              <div id="interleaved-tool-list" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                <!-- JSでカラー量子化パレットのツールチップを表示 -->
               </div>
-              <div id="slicing-guide-content" style="font-size:10px;line-height:1.4;color:var(--text-muted,#bbb);font-family:monospace;max-height:110px;overflow-y:auto;white-space:pre-wrap;">
-                <!-- JSで動的に交換手順を出力 -->
+            </div>
+
+            <!-- Interleaved Slicing Preview / Info -->
+            <div style="margin-top:12px;background:rgba(0,0,0,0.25);border:1px solid var(--border,#333);border-radius:6px;padding:8px;">
+              <div style="font-size:11px;font-weight:600;color:var(--accent,#3b82f6);margin-bottom:4px;">
+                🔄 交互積層スライス構造
+              </div>
+              <div id="interleaved-info-text" style="font-size:10px;line-height:1.4;color:var(--text-muted,#bbb);">
+                <!-- JSで積層情報（総レイヤー数や交互パターン）を表示 -->
               </div>
             </div>
           </div>

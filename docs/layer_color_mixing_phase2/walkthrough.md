@@ -1,69 +1,67 @@
-# 実装完了レポート (Walkthrough): 【Phase 2】「振り重ね」による積層混色・マルチツール階調表現
+# Walkthrough: 【 Phase 2 】交互積層（インターリーブ）マルチツール振り重ね積層
 
-## 1. 概要
-「**振り重ね積層混色 (Layer Blending / HueForge-style)**」機能を実装しました。
-FDM 3Dプリンタのフィラメントが持つ光透過性（Transmission Distance / 透過度）を活用し、特定順序でフィラメントを層状に重ねることで、限られたツール数（2〜8色）から滑らかな中間調やグラデーション表現を可能にしました。
-
----
-
-## 2. 実施した変更内容
-
-### ① 混色・厚み計算モジュール (`js/layerBlending.js`) の新設
-- **光学透過混色モデル (Beer-Lambert 則)**: 各層の局所厚み $d_k$ と透過距離 $TD_k$ から光の透過率 $T_k = \exp(-d_k / TD_k)$ を算出し、下層色の上に上層色が重なるリアルな透過混色を計算。
-- **レイヤー境界・厚み計算**: 変位振幅（amplitude）に応じた各レイヤーの開始・終了高さ自動算出。
-- **4種の即戦力プリセット**:
-  - `CMYW 4-Color` (黒 / シアン / 黄 / 白)
-  - `Sunset / Warm` (黒 / 赤 / 橙 / 暖白)
-  - `Forest Nature` (黒 / 紺緑 / 明緑 / 白)
-  - `Monochrome Grayscale` (黒 / 濃灰 / 明灰 / 白)
-- **スライサー交換ガイド生成**: 初期層 0.20mm、積層ピッチ 0.08mm / 0.16mm に応じた「何レイヤー目（何mm）でどのツール/色に交換するか」の手順テーブルを自動生成。
-
-### ② GUI コンポーネントの実装 (`index.html`, `style.css`, `js/main.js`)
-- **モード切り替えタブ**:
-  - `[カラー量子化 (離散色)]` (Phase 1)
-  - `[振り重ね混色 (階調)]` (Phase 2)
-- **レイヤースタックカード**:
-  - カラーピッカーによる自由な色変更
-  - 順序変更ボタン（▲ / ▼）
-  - 各ツールの開始高さスライダー & 透過度（TD）スライダー
-  - 「+ レイヤー追加」ボタン（最大8色）
-- **スライサー交換ガイドボックス**:
-  - スライサー設定指示テキストをワンクリックでクリップボードへコピー可能。
-
-### ③ 3Dビューポート・シェーダーの拡張 (`js/previewMaterial.js`)
-- `colorSubMode` uniform と 256x1 の RGBA 透過混色グラデーションテクスチャ (`layerBlendMap`) をシェーダーにバインド。
-- 変位高さ $h$ に応じたリアルタイムの透過積層混色グラデーションを3Dメッシュ上にレンダリング。
-
-### ④ 3MF エクスポート (`js/meshPartition.js`, `js/exporter.js`, `js/main.js`)
-- 変位高さから最表面ツールを判定し、TriangleSelector（`slic3rpe:mmu_segmentation` / `paint_color`）に書き出し。
-- **0 オープンエッジ・100% 水密マニホールド** を保証し、スライサーのマルチマテリアル機能と完全連動。
+## 概要
+ユーザーからの指示に基づき、HueForge式の混色・透過（TD/Beer-Lambert）ロジックおよび混色プリセットを全廃し、**「カラー量子化で作った色パレットをそのまま用い、各レイヤーを一定厚みで交互に積層し、目的色と一致する層を凸・不一致の層を凹にする」インターリーブ積層（交互積層）マルチツール方式**へ完全移行しました。
 
 ---
 
-## 3. 検証結果
+## 主な変更内容
 
-### PrusaSlicer CLI による解析結果
-```
-[test_layerblend.3mf]
-size_x = 10.000000
-size_y = 10.000000
-size_z = 2.000000
-manifold = yes
-number_of_parts = 1
-volume = 199.999985
-```
-- **オープンエッジ**: **0**
-- **マニホールド判定**: **`yes`**（水密）
-- **パーツ数**: **1**（単一ソリッド、スライサー側でのマルチパーツ分離プロンプトなし）
+### 1. コアロジック (`js/layerBlending.js`)
+- 混色プリセット（Cyan, Magenta, Yellow, White 等のTD値スタック）を完全削除。
+- 以下のインターリーブ積層コア関数を実装：
+  - `getLayerIndex(z, minZ, thickness)`: Z高さからレイヤーインデックス（0-based）を算出。
+  - `getInterleavedToolAtLayer(layerIndex, toolIds)`: レイヤーインデックスに応じたアクティブツールIDを算出（$T_{active} = \text{toolIds}[m \pmod K]$）。
+  - `computeInterleavedDisplacement(...)`: 目的ツールとアクティブツールの一致判定に基づき、凸変位（$+A_{convex}$）または凹変位（$-A_{concave}$）を算出。
+  - `generateInterleavedTable(...)`: スライス層情報（層番号、高さmm、ツールID、色）のテーブル生成。
 
-### スライシングおよび G-code 出力テスト
-PrusaSlicer CLI (`-g`) で実際に G-code を生成：
-```
-10 => Processing triangulated mesh
-20 => Generating perimeters
-30 => Preparing infill
-90 => Exporting G-code to scratch/test_layerblend.gcode
-Slicing result exported to scratch/test_layerblend.gcode
-```
-エラーなく正常にスライス完了。
-シングルノズル手動フィラメント交換（M600）およびマルチツール（Bambu AMS / Prusa MMU）の両方で即座に印刷可能なデータであることが実証されました。
+### 2. メッシュ分割とツール割り当て (`js/meshPartition.js`)
+- `assignToolsToTriangles()` において、インターリーブモード（`colorSubMode === 1`）時は各三角形の重心Z座標から層インデックスを割り出し、その層のアクティブツールIDを三角形に割り当て。
+- スライサー上で各層ごとにツールが綺麗に交互に切り替わるファセットペイント（`slic3rpe:mmu_segmentation` / `paint_color`）を実現。
+
+### 3. メッシュ変位パイプライン (`js/displacement.js`)
+- `applyDisplacement()` に `colorSubMode === 1` の処理を追加：
+  - 頂点のUV座標から画像テクスチャの目的ツールID $T_{target}$ をサンプリング。
+  - 頂点Z高さからレイヤーのアクティブツール $T_{active}$ を特定。
+  - $T_{active} == T_{target}$ ならば凸量 $+A_{convex}$、不一致ならば凹量 $-A_{concave}$ で頂点を法線方向に変位。
+  - これにより、物理メッシュ上で白領域は白層が凸・赤層が凹、赤領域は赤層が凸・白層が凹となる立体形状を正確に成形。
+
+### 4. リアルタイム 3D プレビュー (`js/previewMaterial.js`)
+- シェーダーユニフォームに `interleavedThickness`, `interleavedConvex`, `interleavedConcave`, `interleavedToolCount`, `interleavedPalette` を追加。
+- `computeHeightAtPoint()`: 画面上のプレビューでも同様に層ごとの凸凹変位およびバンプ陰影をレンダリング。
+- `computeColorAtPoint()`: 層ごとにアクティブツールの色（白・赤・白・赤…）を描画し、実際の積層フィラメントの重なり合いとコントラストを視覚化。
+
+### 5. GUI の刷新 (`index.html`, `style.css`, `js/main.js`)
+- 混色プリセット選択・TDスライダー等を全廃。
+- 直感的な設定UIを追加：
+  - **積層厚み (mm)**: スライサーのレイヤー高さ（デフォルト: 0.20 mm）
+  - **凸突出量 (mm)**: 目的色と一致する層の押し出し量（デフォルト: +0.30 mm）
+  - **凹引込量 (mm)**: 目的色と異なる層の引っ込み量（デフォルト: 0.00 mm）
+  - **ツール一覧**: カラー量子化タブで作成したツールIDと色チップをそのまま同期表示。
+  - **スライス情報表示**: 総レイヤー数、層ごとの交互パターン案内を表示。
+
+---
+
+## 検証結果
+
+### 1. 単体テスト (`test-interleaved.mjs`)
+- `getLayerIndex`: 0.00mm, 0.19mm, 0.20mm, 0.40mm の境界テストすべて合格。
+- `getInterleavedToolAtLayer`: Tool 1, Tool 2 の交互切り替えテスト合格。
+- `computeInterleavedDisplacement`: 白領域・赤領域それぞれの凸凹反転テスト合格。
+- `assignToolsToTriangles`: Z高さに応じた三角形へのツール割り当てテスト合格。
+
+### 2. エンドツーエンド検証・PrusaSlicer CLI (`test-e2e-interleaved.mjs`)
+- 2色画像（白背景・赤丸）とボックスモデルを用いて、サブディビジョン → インターリーブ変位 → デシメーション → 3MFパッケージングを実行。
+- **三角形割り当て**: Tool 1 (白) 21,616 triangles / Tool 2 (赤) 19,344 triangles。
+- **形状変位**: 元サイズ 20mm に対して凸変位により 20.60mm に正確に変形。
+- **マニホールド性**: `manifold = yes`、オープンエッジ 0。
+- **PrusaSlicer CLI によるスライス**:
+  ```
+  10 => Processing triangulated mesh
+  20 => Generating perimeters
+  30 => Preparing infill
+  45 => Making infill
+  90 => Exporting G-code to ./interleaved_test.gcode
+  Slicing result exported to ./interleaved_test.gcode
+  ```
+  エラー・警告なく正常にG-code出力が完了。

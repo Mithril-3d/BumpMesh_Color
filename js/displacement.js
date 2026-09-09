@@ -6,6 +6,8 @@
 import { THREE } from './threeCompat.js';
 import { computeUV, getDominantCubicAxis, getCubicBlendWeights, scaleMmToRelative } from './mapping.js';
 import { QuantizedPointMap } from './meshIndex.js';
+import { getToolAtUV } from './colorQuantization.js';
+import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js';
 
 /**
  * Apply displacement to every vertex of a non-indexed BufferGeometry.
@@ -475,13 +477,13 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
           const uv = _cubicUV(rawU, (tmpPos.z-bounds.min.z)/md, relScale, settings, rotRad, aspectU, aspectV);
           grey += sampleBilinear(imageData.data, imgWidth, imgHeight, uv.u, uv.v) * wX;
         }
-        if (wY > 0) { // Y-dominant â†’ XZ projection
+        if (wY > 0) { // Y-dominant → XZ projection
           let rawU = (tmpPos.x-bounds.min.x)/md;
           if (smoothNrmY[vid] > 0) rawU = -rawU;
           const uv = _cubicUV(rawU, (tmpPos.z-bounds.min.z)/md, relScale, settings, rotRad, aspectU, aspectV);
           grey += sampleBilinear(imageData.data, imgWidth, imgHeight, uv.u, uv.v) * wY;
         }
-        if (wZ > 0) { // Z-dominant â†’ XY projection
+        if (wZ > 0) { // Z-dominant → XY projection
           let rawU = (tmpPos.x-bounds.min.x)/md;
           if (smoothNrmZ[vid] < 0) rawU = -rawU;
           const uv = _cubicUV(rawU, (tmpPos.y-bounds.min.y)/md, relScale, settings, rotRad, aspectU, aspectV);
@@ -496,23 +498,46 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     // adjacent vertices in a blend zone don't see jittery weights driven by
     // mesh-noise. Other modes ignore the normal for blending, so this is a
     // no-op there. Displacement direction (Pass 3) stays on the unsmoothed
-    // smooth normal â€” only blend weights change here.
+    // smooth normal — only blend weights change here.
     tmpNrm.set(blendNrmX[vid], blendNrmY[vid], blendNrmZ[vid]);
 
     const uvResult = computeUV(tmpPos, tmpNrm, settings.mappingMode, settingsWithAspect, bounds);
-    let grey;
-    if (uvResult.triplanar) {
-      grey = 0;
-      for (const s of uvResult.samples) {
-        grey += sampleBilinear(imageData.data, imgWidth, imgHeight, s.u, s.v) * s.w;
+    if (settings.colorSubMode === 1) {
+      let u = 0, v = 0;
+      if (uvResult.triplanar) {
+        let maxW = -1;
+        for (const s of uvResult.samples) {
+          if (s.w > maxW) { maxW = s.w; u = s.u; v = s.v; }
+        }
+      } else {
+        u = uvResult.u;
+        v = uvResult.v;
       }
+      const palette = settings.palette || [];
+      const targetTool = (palette.length > 0) ? getToolAtUV(imageData.data, imgWidth, imgHeight, u, v, palette) : 1;
+      const minZ = bounds ? bounds.min.z : 0;
+      const thickness = settings.interleavedThickness || 0.20;
+      const toolIds = settings.interleavedToolIds || (palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
+      const layerIdx = getLayerIndex(tmpPos.z, minZ, thickness);
+      const activeTool = getInterleavedToolAtLayer(layerIdx, toolIds);
+      const convexVal = settings.interleavedConvex ?? 0.30;
+      const concaveVal = settings.interleavedConcave ?? 0.00;
+      dispCacheVal[vid] = (activeTool === targetTool) ? convexVal : -concaveVal;
     } else {
-      grey = sampleBilinear(imageData.data, imgWidth, imgHeight, uvResult.u, uvResult.v);
+      let grey;
+      if (uvResult.triplanar) {
+        grey = 0;
+        for (const s of uvResult.samples) {
+          grey += sampleBilinear(imageData.data, imgWidth, imgHeight, s.u, s.v) * s.w;
+        }
+      } else {
+        grey = sampleBilinear(imageData.data, imgWidth, imgHeight, uvResult.u, uvResult.v);
+      }
+      dispCacheVal[vid] = grey;
     }
-    dispCacheVal[vid] = grey;
   }
 
-  // â”€â”€ Pass 3: displace every vertex copy by the same vector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pass 3: displace every vertex copy by the same vector ─────────────────
   // Using the smooth normal for the displacement direction ensures all copies
   // of the same position land at exactly the same 3-D point.
 
@@ -534,9 +559,14 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     const isSealedBoundary = !isFaceExcluded && excludedPos && excludedPos[vid] === 1;
     const mfTotal = maskedFracTotal[vid];
     const maskedFrac = mfTotal > 0 ? maskedFracMasked[vid] / mfTotal : 0;
-    const centeredGrey = settings.symmetricDisplacement ? (grey - 0.5) : grey;
     const falloffFactor = falloffArr ? falloffArr[vid] : 1.0;
-    const disp = (isFaceExcluded || isSealedBoundary) ? 0 : falloffFactor * (1 - maskedFrac) * centeredGrey * settings.amplitude;
+    let disp;
+    if (settings.colorSubMode === 1) {
+      disp = (isFaceExcluded || isSealedBoundary) ? 0 : falloffFactor * (1 - maskedFrac) * grey;
+    } else {
+      const centeredGrey = settings.symmetricDisplacement ? (grey - 0.5) : grey;
+      disp = (isFaceExcluded || isSealedBoundary) ? 0 : falloffFactor * (1 - maskedFrac) * centeredGrey * settings.amplitude;
+    }
 
     const newX = tmpPos.x + smoothNrmX[vid] * disp;
     const newY = tmpPos.y + smoothNrmY[vid] * disp;
