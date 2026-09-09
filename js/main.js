@@ -4477,13 +4477,7 @@ function getUntexturedColorVector(untexturedToolId) {
   return vec;
 }
 
-function updatePreview() {
-  if (!currentGeometry || !currentBounds) return;
-
-  // Texture aspect correction so non-square textures keep their proportions.
-  // A 512×279 texture needs aspectV = 512/279 ≈ 1.84 so V tiles faster (more
-  // repetitions), making each tile shorter in world-space to match the texture's
-  // wider-than-tall content.  The wider axis gets aspect = 1 (unchanged).
+function getFullPreviewSettings() {
   const tw = activeMapEntry?.width ?? 1, th = activeMapEntry?.height ?? 1;
   const tmax = Math.max(tw, th, 1);
   const untexturedTool = settings.untexturedToolId || 4;
@@ -4505,7 +4499,7 @@ function updatePreview() {
     }
   }
 
-  const fullSettings = {
+  return {
     ...settings,
     bounds: currentBounds,
     textureAspectU: tmax / Math.max(tw, 1),
@@ -4520,6 +4514,11 @@ function updatePreview() {
     layerBlendMap: null,
     untexturedColor: untexturedColorVec,
   };
+}
+
+function updatePreview() {
+  if (!currentGeometry || !currentBounds) return;
+  const fullSettings = getFullPreviewSettings();
 
   if (!activeMapEntry) {
     // No map yet — plain material
@@ -4921,19 +4920,17 @@ async function toggleDisplacementPreview(enable) {
 
   if (!enable) {
     // Revert to original geometry with bump-only shading.
-    if (currentGeometry && previewMaterial) {
-      const colorTex = getPreviewColorTexture();
-      updateMaterial(previewMaterial, getEffectiveMapEntry()?.texture, { ...settings, bounds: currentBounds }, colorTex);
-      updateFaceMask(currentGeometry);
-      setMeshGeometry(currentGeometry);
-      requestRender();
-    }
-    // Dispose the subdivided preview geometry (no longer on the mesh)
     if (dispPreviewGeometry) {
       dispPreviewGeometry.dispose();
       dispPreviewGeometry = null;
     }
     dispPreviewParentMap = null;
+    if (currentGeometry) {
+      setMeshGeometry(currentGeometry);
+      updateFaceMask(currentGeometry);
+      updatePreview();
+      requestRender();
+    }
     return;
   }
 
@@ -5029,18 +5026,7 @@ async function toggleDisplacementPreview(enable) {
       previewMaterial = null;
     }
     const colorTex = getPreviewColorTexture();
-    const tw = activeMapEntry?.width ?? 1, th = activeMapEntry?.height ?? 1;
-    const tmax = Math.max(tw, th, 1);
-    const untexturedTool = settings.untexturedToolId || 4;
-    const untexturedColorVec = getUntexturedColorVector(untexturedTool);
-    const fullSettings = {
-      ...settings,
-      bounds: currentBounds,
-      textureAspectU: tmax / Math.max(tw, 1),
-      textureAspectV: tmax / Math.max(th, 1),
-      useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
-      untexturedColor: untexturedColorVec,
-    };
+    const fullSettings = getFullPreviewSettings();
     previewMaterial = createPreviewMaterial(getEffectiveMapEntry().texture, fullSettings, colorTex);
     setMeshGeometry(dispPreviewGeometry);
     setMeshMaterial(previewMaterial);
