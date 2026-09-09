@@ -4465,12 +4465,7 @@ function getUntexturedColorVector(untexturedToolId) {
   const def = DEFAULT_TOOL_COLORS[untexturedToolId] || [0.85, 0.16, 0.16];
   const vec = new THREE.Vector3(def[0], def[1], def[2]);
 
-  if (currentColorSubMode === 1 && currentLayerBlendLayers && currentLayerBlendLayers.length > 0) {
-    const item = currentLayerBlendLayers.find(l => l.toolId === untexturedToolId);
-    if (item && item.color) {
-      vec.set(item.color[0] / 255, item.color[1] / 255, item.color[2] / 255);
-    }
-  } else if (currentColorPalette && currentColorPalette.length > 0) {
+  if (currentColorPalette && currentColorPalette.length > 0) {
     const item = currentColorPalette.find(p => p.toolId === untexturedToolId);
     if (item) {
       const c = item.color || item.rgb;
@@ -4522,7 +4517,7 @@ function updatePreview() {
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
-    layerBlendMap: _layerBlendTextureCache,
+    layerBlendMap: null,
     untexturedColor: untexturedColorVec,
   };
 
