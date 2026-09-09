@@ -15,18 +15,18 @@ import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
 import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260908e';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260908f';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260909d';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909a';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909d';
 import { quantizeImage } from './colorQuantization.js?v=20260908d';
-import { assignToolsToTriangles } from './meshPartition.js?v=20260908f';
+import { assignToolsToTriangles } from './meshPartition.js?v=20260909d';
 import {
   getLayerIndex,
   getInterleavedToolAtLayer,
   computeInterleavedDisplacement,
   generateInterleavedTable
-} from './layerBlending.js?v=20260909a';
+} from './layerBlending.js?v=20260909d';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,

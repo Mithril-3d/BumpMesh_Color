@@ -6,7 +6,7 @@
 import { THREE } from './threeCompat.js?v=20260908d';
 import { computeUV } from './mapping.js?v=20260908d';
 import { getToolAtUV } from './colorQuantization.js?v=20260908d';
-import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=20260908d';
+import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=20260909d';
 
 /**
  * Check if 3D point p is within triangle abc (projected along normal n)
