@@ -1329,7 +1329,7 @@ function runColorQuantization() {
   currentColorPalette = currentQuantizedResult.palette;
 
   renderPaletteUI();
-  updateUntexturedToolOptions(k);
+  updateUntexturedToolOptions();
   renderInterleavedUI();
   _refreshQuantizedTexture();
 
@@ -1406,6 +1406,7 @@ function renderPaletteUI() {
 
     select.addEventListener('change', (e) => {
       item.toolId = parseInt(e.target.value, 10);
+      updateUntexturedToolOptions();
       renderInterleavedUI();
       updatePreview();
     });
@@ -1419,17 +1420,36 @@ function renderPaletteUI() {
   });
 }
 
-function updateUntexturedToolOptions(k) {
+function getOptimalUntexturedTool(availableTools) {
+  if (!availableTools || availableTools.length === 0) return 1;
+  let bestTool = availableTools[0];
+  let bestDist = Math.abs(bestTool - 4);
+  for (let i = 1; i < availableTools.length; i++) {
+    const t = availableTools[i];
+    const dist = Math.abs(t - 4);
+    if (dist < bestDist || (dist === bestDist && t < bestTool)) {
+      bestTool = t;
+      bestDist = dist;
+    }
+  }
+  return bestTool;
+}
+
+function updateUntexturedToolOptions() {
   if (!untexturedToolSelect) return;
-  const currentVal = parseInt(untexturedToolSelect.value, 10) || settings.untexturedToolId || 4;
+  const availableTools = (currentColorPalette && currentColorPalette.length > 0)
+    ? Array.from(new Set(currentColorPalette.map(p => p.toolId))).sort((a, b) => a - b)
+    : [1];
+
+  const currentVal = parseInt(untexturedToolSelect.value, 10) || settings.untexturedToolId;
   untexturedToolSelect.innerHTML = '';
-  for (let i = 1; i <= Math.max(k, 4); i++) {
+  for (const t of availableTools) {
     const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = `Tool ${i}`;
+    opt.value = t;
+    opt.textContent = `Tool ${t}`;
     untexturedToolSelect.appendChild(opt);
   }
-  const chosen = Math.min(Math.max(1, currentVal), Math.max(k, 4));
+  const chosen = availableTools.includes(currentVal) ? currentVal : getOptimalUntexturedTool(availableTools);
   untexturedToolSelect.value = chosen;
   settings.untexturedToolId = chosen;
 }
@@ -5277,21 +5297,25 @@ async function handleExport(format = 'stl') {
         // 1. Restore original model pose so Z cuts strictly align with the print build plate
         _restoreOriginalPose(result.positions, result.normals);
 
-        // 2. Find minZ and maxZ in export space
-        let minZ = Infinity;
-        let maxZ = -Infinity;
+        // 2. Align base minZ strictly with the original model bottom and ground to Z=0.
+        // This guarantees 100% exact synchronization with slicer layer heights (0.20, 0.40...)
+        // and eliminates periodic aliasing (horizontal striping / moiré artifacts).
+        const originMinZ = currentBounds ? (currentBounds.min.z - currentPoseTrans.z) : 0;
+        const originMaxZ = currentBounds ? (currentBounds.max.z - currentPoseTrans.z) : 50;
+
         const pos = result.positions;
         for (let i = 2; i < pos.length; i += 3) {
-          const z = pos[i];
-          if (z < minZ) minZ = z;
-          if (z > maxZ) maxZ = z;
+          pos[i] -= originMinZ;
         }
 
+        const groundedMinZ = 0.0;
+        const groundedMaxZ = originMaxZ - originMinZ;
+
         const thickness = effectiveSettings.layerThickness || settings.interleavedThickness || 0.20;
-        const totalLayers = Math.max(1, Math.ceil((maxZ - minZ) / thickness) + 1);
+        const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
 
         // 3. Slice all triangles at exact layer boundaries to eliminate diagonal color bleeding
-        const sliced = sliceMeshWatertight(pos, result.normals, minZ, thickness, totalLayers);
+        const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ, thickness, totalLayers);
 
         finalGeometry = new THREE.BufferGeometry();
         finalGeometry.setAttribute('position', new THREE.BufferAttribute(sliced.positions, 3));
@@ -5304,7 +5328,7 @@ async function handleExport(format = 'stl') {
           ? exportPalette.map(p => p.toolId)
           : [1, 2];
 
-        const untexturedTool = settings.untexturedToolId || 4;
+        const untexturedTool = settings.untexturedToolId || getOptimalUntexturedTool(toolIds);
         const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
         const botLimit = settings.bottomAngleLimit ?? 0;
         const topLimit = settings.topAngleLimit ?? 0;
@@ -5328,18 +5352,18 @@ async function handleExport(format = 'stl') {
 
           let isMasked = false;
 
-          // 1. Angle limits (top and bottom flat faces)
+          // 1. Angle limits (strictly top and bottom flat boundary caps, never interior 45° louver side overhangs)
           const faceNzNorm = tmpNormal.z;
           const faceAngle = Math.acos(Math.min(Math.max(Math.abs(faceNzNorm), 0), 1)) * (180 / Math.PI);
-          if (faceNzNorm < 0) {
+          if (faceNzNorm < 0 && tmpCentroid.z <= groundedMinZ + thickness * 0.6) {
             if (botLimit >= 1.0 && faceAngle <= botLimit + 0.1) isMasked = true;
-          } else {
+          } else if (faceNzNorm > 0 && tmpCentroid.z >= groundedMaxZ - thickness * 0.6) {
             if (topLimit >= 1.0 && faceAngle <= topLimit + 0.1) isMasked = true;
           }
 
           // 2. User excluded faces
           if (!isMasked && excludedTris && excludedTris.length > 0) {
-            const px = tmpCentroid.x, py = tmpCentroid.y, pz = tmpCentroid.z;
+            const px = tmpCentroid.x, py = tmpCentroid.y, pz = tmpCentroid.z + originMinZ;
             for (let k = 0; k < excludedTris.length; k++) {
               const t = excludedTris[k];
               if (px < t.minX || px > t.maxX || py < t.minY || py > t.maxY || pz < t.minZ || pz > t.maxZ) continue;
@@ -5355,7 +5379,7 @@ async function handleExport(format = 'stl') {
           if (isMasked) {
             triTools[i] = untexturedTool;
           } else {
-            const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor((tmpCentroid.z - minZ) / thickness)));
+            const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor(tmpCentroid.z / thickness)));
             triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
           }
         }
@@ -5375,7 +5399,10 @@ async function handleExport(format = 'stl') {
         finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
         if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
 
-        const untexturedTool = settings.untexturedToolId || 4;
+        const availableExportTools = (currentColorPalette && currentColorPalette.length > 0)
+          ? currentColorPalette.map(p => p.toolId)
+          : [1];
+        const untexturedTool = settings.untexturedToolId || getOptimalUntexturedTool(availableExportTools);
         const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
         const triTools = assignToolsToTriangles(
           finalGeometry,
