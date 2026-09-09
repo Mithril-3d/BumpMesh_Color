@@ -5123,9 +5123,47 @@ function _restoreOriginalPose(positions, normals = null) {
   }
 }
 
+function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settings) {
+  const weights = buildCombinedFaceWeights(geometry, excludedFaces, selectionMode, settings);
+  if (!weights) return [];
+  const pos = geometry.attributes.position.array;
+  const count = (pos.length / 9) | 0;
+  const list = [];
+  const pA = new THREE.Vector3(), pB = new THREE.Vector3(), pC = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
+
+  for (let i = 0; i < count; i++) {
+    if (weights[i * 3] > 0.99) {
+      const b = i * 9;
+      pA.set(pos[b],   pos[b+1], pos[b+2]);
+      pB.set(pos[b+3], pos[b+4], pos[b+5]);
+      pC.set(pos[b+6], pos[b+7], pos[b+8]);
+      ab.subVectors(pB, pA);
+      ac.subVectors(pC, pA);
+      n.crossVectors(ab, ac).normalize();
+      const planeD = n.dot(pA);
+      list.push({
+        a: pA.clone(),
+        b: pB.clone(),
+        c: pC.clone(),
+        n: n.clone(),
+        planeD,
+        minX: Math.min(pA.x, pB.x, pC.x) - 0.3,
+        maxX: Math.max(pA.x, pB.x, pC.x) + 0.3,
+        minY: Math.min(pA.y, pB.y, pC.y) - 0.3,
+        maxY: Math.max(pA.y, pB.y, pC.y) + 0.3,
+        minZ: Math.min(pA.z, pB.z, pC.z) - 0.3,
+        maxZ: Math.max(pA.z, pB.z, pC.z) + 0.3,
+      });
+    }
+  }
+  return list;
+}
+
 async function handleExport(format = 'stl') {
   if (!currentGeometry || !activeMapEntry || isExporting || isBaking) return;
   const myToken = ++exportToken;
+  const isStale = () => exportToken !== myToken;
   isExporting = true;
   exportBtn.classList.add('busy');
   export3mfBtn.classList.add('busy');
@@ -5136,6 +5174,9 @@ async function handleExport(format = 'stl') {
   let exportSucceeded = false; // set true only after exportSTL so finally can clean up on abort/error
 
   try {
+    const exportEntry = getEffectiveMapEntry();
+    if (!exportEntry) throw new Error('No active texture entry found');
+
     // If precision masking is active, bake the refined mesh before exporting.
     // Inside the try so a failure here still releases the busy state in finally.
     if (precisionMaskingEnabled) {
@@ -5187,42 +5228,7 @@ async function handleExport(format = 'stl') {
     triLimitWarning.classList.toggle('hidden', exportWarnings.length === 0);
     triLimitWarning.textContent = exportWarnings.join(' ');
 
-function extractExcludedTriangles(geometry, excludedFaces, selectionMode, settings) {
-  const weights = buildCombinedFaceWeights(geometry, excludedFaces, selectionMode, settings);
-  if (!weights) return [];
-  const pos = geometry.attributes.position.array;
-  const count = (pos.length / 9) | 0;
-  const list = [];
-  const pA = new THREE.Vector3(), pB = new THREE.Vector3(), pC = new THREE.Vector3();
-  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), n = new THREE.Vector3();
 
-  for (let i = 0; i < count; i++) {
-    if (weights[i * 3] > 0.99) {
-      const b = i * 9;
-      pA.set(pos[b],   pos[b+1], pos[b+2]);
-      pB.set(pos[b+3], pos[b+4], pos[b+5]);
-      pC.set(pos[b+6], pos[b+7], pos[b+8]);
-      ab.subVectors(pB, pA);
-      ac.subVectors(pC, pA);
-      n.crossVectors(ab, ac).normalize();
-      const planeD = n.dot(pA);
-      list.push({
-        a: pA.clone(),
-        b: pB.clone(),
-        c: pC.clone(),
-        n: n.clone(),
-        planeD,
-        minX: Math.min(pA.x, pB.x, pC.x) - 0.3,
-        maxX: Math.max(pA.x, pB.x, pC.x) + 0.3,
-        minY: Math.min(pA.y, pB.y, pC.y) - 0.3,
-        maxY: Math.max(pA.y, pB.y, pC.y) + 0.3,
-        minZ: Math.min(pA.z, pB.z, pC.z) - 0.3,
-        maxZ: Math.max(pA.z, pB.z, pC.z) + 0.3,
-      });
-    }
-  }
-  return list;
-}
 
     if (result.repairStats) {
       const rs = result.repairStats;
