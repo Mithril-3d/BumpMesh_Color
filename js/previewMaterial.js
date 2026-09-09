@@ -148,7 +148,10 @@ const sharedGLSL = /* glsl */`
       int numTools = max(1, interleavedToolCount);
       int activeK = int(mod(float(layerIdx), float(numTools)));
       if (activeK == bestK) {
-        return interleavedConvex;
+        float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
+        float slope = min(interleavedConvex, t);
+        float base = max(0.0, interleavedConvex - slope);
+        return base + zFrac * slope;
       } else {
         return -interleavedConcave;
       }

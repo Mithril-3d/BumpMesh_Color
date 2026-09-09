@@ -7,7 +7,7 @@ import { THREE } from './threeCompat.js';
 import { computeUV, getDominantCubicAxis, getCubicBlendWeights, scaleMmToRelative } from './mapping.js';
 import { QuantizedPointMap } from './meshIndex.js';
 import { getToolAtUV } from './colorQuantization.js';
-import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js';
+import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement } from './layerBlending.js';
 
 /**
  * Apply displacement to every vertex of a non-indexed BufferGeometry.
@@ -518,11 +518,19 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const minZ = bounds ? bounds.min.z : 0;
       const thickness = settings.interleavedThickness || 0.20;
       const toolIds = settings.interleavedToolIds || (palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
-      const layerIdx = getLayerIndex(tmpPos.z, minZ, thickness);
-      const activeTool = getInterleavedToolAtLayer(layerIdx, toolIds);
-      const convexVal = settings.interleavedConvex ?? 0.30;
+      const convexVal = settings.interleavedConvex ?? 0.35;
       const concaveVal = settings.interleavedConcave ?? 0.00;
-      dispCacheVal[vid] = (activeTool === targetTool) ? convexVal : -concaveVal;
+      const profileMode = settings.interleavedProfileMode ?? 1; // 1 = 45° Louver (eaves shield)
+      dispCacheVal[vid] = computeLouverDisplacement(
+        targetTool,
+        tmpPos.z,
+        minZ,
+        thickness,
+        toolIds,
+        convexVal,
+        concaveVal,
+        profileMode
+      );
     } else {
       let grey;
       if (uvResult.triplanar) {

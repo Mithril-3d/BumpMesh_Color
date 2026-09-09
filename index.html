@@ -312,6 +312,14 @@
               <span class="val" id="interleaved-concave-amp-val">0.00</span>
             </div>
 
+            <div class="form-row" style="margin-bottom:8px;">
+              <label for="interleaved-profile-mode" title="層ごとの断面形状。45°ルーバー庇にすると上層が下層を覆い隠し、多色時の他色透過・くすみを物理的に遮蔽します。">断面形状 (遮蔽)</label>
+              <select id="interleaved-profile-mode" class="dropdown-select" style="font-size:11px;padding:3px 6px;background:var(--bg-input,#222);color:var(--text,#fff);border:1px solid var(--border,#444);border-radius:4px;">
+                <option value="1" selected>45° ルーバー庇（他色シールド）</option>
+                <option value="0">フラット段差（標準ステップ）</option>
+              </select>
+            </div>
+
             <div style="margin-top:10px;">
               <span style="font-size:11px;color:var(--text-muted,#aaa);font-weight:600;">交互積層ツール</span>
               <div id="interleaved-tool-list" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">

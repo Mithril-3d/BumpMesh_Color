@@ -58,6 +58,46 @@ export function computeInterleavedDisplacement(
 }
 
 /**
+ * Compute louver (shingle/eaves) displacement with 45-degree overhang shield
+ *
+ * @param {number} targetToolId - target tool from texture UV
+ * @param {number} z - absolute Z height (mm)
+ * @param {number} minZ - base Z (mm)
+ * @param {number} thickness - layer thickness (mm, e.g. 0.2)
+ * @param {Array<number>} toolIds - list of participating tool IDs
+ * @param {number} convexAmp - maximum protrusion (mm, e.g. 0.35)
+ * @param {number} concaveAmp - retraction for non-matching (mm, e.g. 0.0)
+ * @param {number} profileMode - 0 = Flat, 1 = Louver 45°
+ * @returns {number} displacement (mm)
+ */
+export function computeLouverDisplacement(
+  targetToolId,
+  z,
+  minZ = 0,
+  thickness = 0.2,
+  toolIds = [1, 2],
+  convexAmp = 0.35,
+  concaveAmp = 0.0,
+  profileMode = 1
+) {
+  const t = Math.max(0.01, thickness);
+  const zRel = Math.max(0, z - minZ);
+  const layerIdx = Math.floor(zRel / t);
+  const activeTool = getInterleavedToolAtLayer(layerIdx, toolIds);
+  const isMatch = (activeTool === targetToolId);
+
+  if (profileMode === 0 || !isMatch) {
+    return isMatch ? convexAmp : -concaveAmp;
+  }
+
+  // ProfileMode 1: 45° Louver (eaves/shield)
+  const zFrac = Math.max(0, Math.min(1, (zRel - layerIdx * t) / t));
+  const slope = Math.min(convexAmp, t);
+  const base = Math.max(0, convexAmp - slope);
+  return base + zFrac * slope;
+}
+
+/**
  * Generate slicing layer table for display
  */
 export function generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette) {

@@ -316,6 +316,7 @@ const interleavedConvexAmpSlider      = document.getElementById('interleaved-con
 const interleavedConvexAmpVal         = document.getElementById('interleaved-convex-amp-val');
 const interleavedConcaveAmpSlider     = document.getElementById('interleaved-concave-amp');
 const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
+const interleavedProfileModeSelect    = document.getElementById('interleaved-profile-mode');
 const interleavedToolList             = document.getElementById('interleaved-tool-list');
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
 
@@ -325,8 +326,9 @@ let _quantizedTextureCache       = null;
 let currentColorSubMode          = 0; // 0 = Quantize, 1 = Interleaved Layer Blending
 let interleavedSettings          = {
   layerThickness: 0.20,
-  convexAmp: 0.30,
-  concaveAmp: 0.00
+  convexAmp: 0.35,
+  concaveAmp: 0.00,
+  profileMode: 1 // 1 = 45° Louver (eaves shield), 0 = Flat
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -1471,18 +1473,21 @@ function renderInterleavedUI() {
   const maxZ = currentBounds ? currentBounds.max.z : 20;
   const { table, totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
 
+  const isLouver = (interleavedSettings.profileMode === 1);
   let info = `• 積層ピッチ: ${thickness.toFixed(2)} mm (総レイヤー数: 約${totalLayers}層)\n`;
   info += `• 凸突出量: +${interleavedSettings.convexAmp.toFixed(2)} mm (目的色と一致)\n`;
   info += `• 凹引込量: -${interleavedSettings.concaveAmp.toFixed(2)} mm (目的色と不一致)\n`;
+  info += `• 断面プロファイル: ${isLouver ? '45° ルーバー庇（他色シールド）' : 'フラット段差'}\n`;
   info += `• 交互パターン: ${toolIds.map(t => 'Tool ' + t).join(' → ')} → …`;
   interleavedInfoText.textContent = info;
 
   // Pass parameters to settings for preview and export
-  settings.interleavedThickness = thickness;
-  settings.interleavedConvex    = interleavedSettings.convexAmp;
-  settings.interleavedConcave   = interleavedSettings.concaveAmp;
-  settings.interleavedToolIds   = toolIds;
-  settings.colorSubMode         = currentColorSubMode;
+  settings.interleavedThickness   = thickness;
+  settings.interleavedConvex      = interleavedSettings.convexAmp;
+  settings.interleavedConcave     = interleavedSettings.concaveAmp;
+  settings.interleavedProfileMode = interleavedSettings.profileMode;
+  settings.interleavedToolIds     = toolIds;
+  settings.colorSubMode           = currentColorSubMode;
 }
 
 function initInterleavedEvents() {
@@ -1534,6 +1539,14 @@ function initInterleavedEvents() {
       const v = parseFloat(e.target.value) || 0.00;
       interleavedSettings.concaveAmp = v;
       if (interleavedConcaveAmpVal) interleavedConcaveAmpVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedProfileModeSelect) {
+    interleavedProfileModeSelect.addEventListener('change', (e) => {
+      interleavedSettings.profileMode = parseInt(e.target.value, 10) || 1;
       renderInterleavedUI();
       updatePreview();
     });
@@ -4508,8 +4521,9 @@ function getFullPreviewSettings() {
     useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
     colorSubMode: currentColorSubMode,
     interleavedThickness: interleavedSettings.layerThickness || 0.20,
-    interleavedConvex: interleavedSettings.convexAmp ?? 0.30,
+    interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+    interleavedProfileMode: interleavedSettings.profileMode ?? 1,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: null,
@@ -5206,8 +5220,9 @@ async function handleExport(format = 'stl') {
       colorSubMode: currentColorSubMode,
       palette: currentColorPalette,
       interleavedThickness: interleavedSettings.layerThickness || 0.20,
-      interleavedConvex: interleavedSettings.convexAmp ?? 0.30,
+      interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+      interleavedProfileMode: interleavedSettings.profileMode ?? 1,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
     const result = await runPipeline({
@@ -5650,8 +5665,9 @@ async function bakeTextures() {
       colorSubMode: currentColorSubMode,
       palette: currentColorPalette,
       interleavedThickness: interleavedSettings.layerThickness || 0.20,
-      interleavedConvex: interleavedSettings.convexAmp ?? 0.30,
+      interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+      interleavedProfileMode: interleavedSettings.profileMode ?? 1,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
     const result = await runPipeline({
