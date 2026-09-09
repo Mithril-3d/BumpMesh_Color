@@ -12,4 +12,5 @@ test-fixtures/
 .codegraph
 __pycache__/
 *.pyc
-.DS_Store
+scratch/
+*.gcode

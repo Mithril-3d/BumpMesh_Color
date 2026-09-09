@@ -27,6 +27,7 @@ import {
   computeInterleavedDisplacement,
   generateInterleavedTable
 } from './layerBlending.js?v=20260909d';
+import { sliceMeshWatertight } from './layerSlicing.js?v=20260909h';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
@@ -5251,40 +5252,91 @@ async function handleExport(format = 'stl') {
     const baseName = `${currentStlName}_${texLabel}_amp${ampLabel}`;
 
     if (format === 'multicolor-3mf') {
-      setProgress(0.95, 'Assigning tools to triangles…');
-      await yieldFrame();
-      if (exportToken !== myToken) return;
-
-      // 1. Build geometry in working space for UV & angle alignment
-      finalGeometry = new THREE.BufferGeometry();
-      finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
-      if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
-
-      const untexturedTool = settings.untexturedToolId || 4;
-      const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
       const isLayerBlendMode = (currentColorSubMode === 1);
-      const triTools = assignToolsToTriangles(
-        finalGeometry,
-        exportEntry.imageData,
-        exportEntry.width,
-        exportEntry.height,
-        effectiveSettings,
-        currentBounds,
-        currentColorPalette,
-        untexturedTool,
-        excludedTris,
-        null
-      );
 
-      // 2. Restore original model pose on the solid geometry
-      _restoreOriginalPose(result.positions, result.normals);
+      if (isLayerBlendMode) {
+        setProgress(0.94, 'Slicing mesh at layer boundaries…');
+        await yieldFrame();
+        if (exportToken !== myToken) return;
 
-      setProgress(0.98, 'Packaging 3MF with facet painting…');
-      await yieldFrame();
+        // 1. Restore original model pose so Z cuts strictly align with the print build plate
+        _restoreOriginalPose(result.positions, result.normals);
 
-      const exportPalette = currentColorPalette;
-      const subModeLabel = isLayerBlendMode ? 'interleaved' : 'quantized';
-      exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
+        // 2. Find minZ and maxZ in export space
+        let minZ = Infinity;
+        let maxZ = -Infinity;
+        const pos = result.positions;
+        for (let i = 2; i < pos.length; i += 3) {
+          const z = pos[i];
+          if (z < minZ) minZ = z;
+          if (z > maxZ) maxZ = z;
+        }
+
+        const thickness = effectiveSettings.layerThickness || settings.interleavedThickness || 0.20;
+        const totalLayers = Math.max(1, Math.ceil((maxZ - minZ) / thickness) + 1);
+
+        // 3. Slice all triangles at exact layer boundaries to eliminate diagonal color bleeding
+        const sliced = sliceMeshWatertight(pos, result.normals, minZ, thickness, totalLayers);
+
+        finalGeometry = new THREE.BufferGeometry();
+        finalGeometry.setAttribute('position', new THREE.BufferAttribute(sliced.positions, 3));
+        if (sliced.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(sliced.normals, 3));
+
+        const slicedTriCount = (sliced.positions.length / 9) | 0;
+        const triTools = new Int32Array(slicedTriCount);
+        const exportPalette = currentColorPalette;
+        const toolIds = exportPalette && exportPalette.length > 0
+          ? exportPalette.map(p => p.toolId)
+          : [1, 2];
+
+        // 4. Assign strictly 1 tool per sliced triangle based on its layer index
+        for (let i = 0; i < slicedTriCount; i++) {
+          const b = i * 9;
+          const zCentroid = (sliced.positions[b + 2] + sliced.positions[b + 5] + sliced.positions[b + 8]) / 3;
+          const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor((zCentroid - minZ) / thickness)));
+          triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
+        }
+
+        setProgress(0.98, 'Packaging 3MF with layer-aligned painting…');
+        await yieldFrame();
+
+        const subModeLabel = 'interleaved';
+        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
+      } else {
+        setProgress(0.95, 'Assigning tools to triangles…');
+        await yieldFrame();
+        if (exportToken !== myToken) return;
+
+        // 1. Build geometry in working space for UV & angle alignment
+        finalGeometry = new THREE.BufferGeometry();
+        finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
+        if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+
+        const untexturedTool = settings.untexturedToolId || 4;
+        const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
+        const triTools = assignToolsToTriangles(
+          finalGeometry,
+          exportEntry.imageData,
+          exportEntry.width,
+          exportEntry.height,
+          effectiveSettings,
+          currentBounds,
+          currentColorPalette,
+          untexturedTool,
+          excludedTris,
+          null
+        );
+
+        // 2. Restore original model pose on the solid geometry
+        _restoreOriginalPose(result.positions, result.normals);
+
+        setProgress(0.98, 'Packaging 3MF with facet painting…');
+        await yieldFrame();
+
+        const exportPalette = currentColorPalette;
+        const subModeLabel = 'quantized';
+        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
+      }
     } else {
       _restoreOriginalPose(result.positions, result.normals);
 
