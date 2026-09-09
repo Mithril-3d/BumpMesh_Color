@@ -58,6 +58,10 @@ const sharedGLSL = /* glsl */`
   const float TWO_PI = 6.28318530717959;
   const float CUBIC_AXIS_EPSILON = 1e-4;
 
+  // Forward declarations
+  float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN);
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN);
+
   int dominantCubicAxis(vec3 n) {
     vec3 absN = abs(n);
     if (absN.x >= absN.y - CUBIC_AXIS_EPSILON && absN.x >= absN.z - CUBIC_AXIS_EPSILON) return 0;
@@ -113,97 +117,6 @@ const sharedGLSL = /* glsl */`
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
     uv += 0.5;
     return texture2D(colorMap, uv).rgb;
-  }
-
-  // Compute color at a world-space point
-  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
-    if (colorSubMode == 1) {
-      float hVal = computeHeightAtPoint(pos, projN, blendN);
-      return texture2D(layerBlendMap, vec2(clamp(hVal, 0.0, 1.0), 0.5)).rgb;
-    }
-
-    vec3 rel = pos - boundsCenter;
-    float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
-    float md = max(maxDim, 1e-4);
-
-    if (mappingMode == 0) {
-      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.y - boundsMin.y) / md));
-    } else if (mappingMode == 1) {
-      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.z - boundsMin.z) / md));
-    } else if (mappingMode == 2) {
-      return sampleMapColor(vec2((pos.y - boundsMin.y) / md, (pos.z - boundsMin.z) / md));
-    } else if (mappingMode == 3) {
-      vec2 cylRel2 = pos.xy - cylinderCenter;
-      float r = max(cylinderRadius, 1e-4);
-      float C = TWO_PI * r;
-      float u_cyl = atan(cylRel2.y, cylRel2.x) / TWO_PI + 0.5;
-      float v_cyl = (pos.z - boundsMin.z) / C;
-      float seamBand = seamBandWidth * 0.1;
-      float seamDist = min(u_cyl, 1.0 - u_cyl);
-      vec3 cSide;
-      if (seamBand > 0.001 && seamDist < seamBand) {
-        float d = u_cyl < 0.5 ? u_cyl : u_cyl - 1.0;
-        float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
-        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_cyl));
-        vec3 cRight = sampleMapColor(vec2(d, v_cyl));
-        cSide = mix(cLeft, cRight, t);
-      } else {
-        cSide = sampleMapColor(vec2(u_cyl, v_cyl));
-      }
-      if (mappingBlend < 0.001) return cSide;
-      float capThreshold = cos(radians(capAngle));
-      float blendHalf = seamBandWidth * 0.5;
-      float capW = smoothstep(capThreshold - blendHalf, capThreshold + blendHalf, abs(blendN.z));
-      vec3 cCap = sampleMapColor(vec2(cylRel2.x / C + 0.5, cylRel2.y / C + 0.5));
-      return mix(cSide, cCap, capW);
-    } else if (mappingMode == 4) {
-      float r     = length(rel);
-      float phi   = acos(clamp(rel.z / max(r, 1e-4), -1.0, 1.0));
-      float u_sph = atan(rel.y, rel.x) / TWO_PI + 0.5;
-      float v_sph = phi / PI;
-      float seamBand = seamBandWidth * 0.1;
-      float seamDist = min(u_sph, 1.0 - u_sph);
-      if (seamBand > 0.001 && seamDist < seamBand) {
-        float d = u_sph < 0.5 ? u_sph : u_sph - 1.0;
-        float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
-        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_sph));
-        vec3 cRight = sampleMapColor(vec2(d, v_sph));
-        return mix(cLeft, cRight, t);
-      }
-      return sampleMapColor(vec2(u_sph, v_sph));
-    } else if (mappingMode == 5) {
-      vec3 blend = abs(projN);
-      blend = pow(blend, vec3(4.0));
-      blend /= dot(blend, vec3(1.0)) + 1e-4;
-      float yzU = (pos.y - boundsMin.y) / md;
-      if (projN.x < 0.0) yzU = -yzU;
-      float xzU = (pos.x - boundsMin.x) / md;
-      if (projN.y > 0.0) xzU = -xzU;
-      float xyU = (pos.x - boundsMin.x) / md;
-      if (projN.z < 0.0) xyU = -xyU;
-      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
-      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
-      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
-      return cXY * blend.z + cXZ * blend.y + cYZ * blend.x;
-    } else {
-      float yzU = (pos.y - boundsMin.y) / md;
-      if (projN.x < 0.0) yzU = -yzU;
-      float xzU = (pos.x - boundsMin.x) / md;
-      if (projN.y > 0.0) xzU = -xzU;
-      float xyU = (pos.x - boundsMin.x) / md;
-      if (projN.z < 0.0) xyU = -xyU;
-      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
-      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
-      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
-      vec3 bN = blendN;
-      vec3 absFaceN = abs(projN);
-      float facePrimary = max(absFaceN.x, max(absFaceN.y, absFaceN.z));
-      float faceSecondary = absFaceN.x + absFaceN.y + absFaceN.z - facePrimary
-                          - min(absFaceN.x, min(absFaceN.y, absFaceN.z));
-      if (facePrimary - faceSecondary <= CUBIC_AXIS_EPSILON) bN = projN;
-      vec3 wts = cubicBlendWeights(bN);
-      return cYZ * wts.x + cXZ * wts.y + cXY * wts.z;
-    }
   }
 
   // Compute displacement height at a world-space point.
@@ -308,6 +221,97 @@ const sharedGLSL = /* glsl */`
       if (facePrimary - faceSecondary <= CUBIC_AXIS_EPSILON) bN = projN;
       vec3 wts = cubicBlendWeights(bN);
       return hYZ * wts.x + hXZ * wts.y + hXY * wts.z;
+    }
+  }
+
+  // Compute color at a world-space point
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+    if (colorSubMode == 1) {
+      float hVal = computeHeightAtPoint(pos, projN, blendN);
+      return texture2D(layerBlendMap, vec2(clamp(hVal, 0.0, 1.0), 0.5)).rgb;
+    }
+
+    vec3 rel = pos - boundsCenter;
+    float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
+    float md = max(maxDim, 1e-4);
+
+    if (mappingMode == 0) {
+      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.y - boundsMin.y) / md));
+    } else if (mappingMode == 1) {
+      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.z - boundsMin.z) / md));
+    } else if (mappingMode == 2) {
+      return sampleMapColor(vec2((pos.y - boundsMin.y) / md, (pos.z - boundsMin.z) / md));
+    } else if (mappingMode == 3) {
+      vec2 cylRel2 = pos.xy - cylinderCenter;
+      float r = max(cylinderRadius, 1e-4);
+      float C = TWO_PI * r;
+      float u_cyl = atan(cylRel2.y, cylRel2.x) / TWO_PI + 0.5;
+      float v_cyl = (pos.z - boundsMin.z) / C;
+      float seamBand = seamBandWidth * 0.1;
+      float seamDist = min(u_cyl, 1.0 - u_cyl);
+      vec3 cSide;
+      if (seamBand > 0.001 && seamDist < seamBand) {
+        float d = u_cyl < 0.5 ? u_cyl : u_cyl - 1.0;
+        float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
+        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_cyl));
+        vec3 cRight = sampleMapColor(vec2(d, v_cyl));
+        cSide = mix(cLeft, cRight, t);
+      } else {
+        cSide = sampleMapColor(vec2(u_cyl, v_cyl));
+      }
+      if (mappingBlend < 0.001) return cSide;
+      float capThreshold = cos(radians(capAngle));
+      float blendHalf = seamBandWidth * 0.5;
+      float capW = smoothstep(capThreshold - blendHalf, capThreshold + blendHalf, abs(blendN.z));
+      vec3 cCap = sampleMapColor(vec2(cylRel2.x / C + 0.5, cylRel2.y / C + 0.5));
+      return mix(cSide, cCap, capW);
+    } else if (mappingMode == 4) {
+      float r     = length(rel);
+      float phi   = acos(clamp(rel.z / max(r, 1e-4), -1.0, 1.0));
+      float u_sph = atan(rel.y, rel.x) / TWO_PI + 0.5;
+      float v_sph = phi / PI;
+      float seamBand = seamBandWidth * 0.1;
+      float seamDist = min(u_sph, 1.0 - u_sph);
+      if (seamBand > 0.001 && seamDist < seamBand) {
+        float d = u_sph < 0.5 ? u_sph : u_sph - 1.0;
+        float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
+        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_sph));
+        vec3 cRight = sampleMapColor(vec2(d, v_sph));
+        return mix(cLeft, cRight, t);
+      }
+      return sampleMapColor(vec2(u_sph, v_sph));
+    } else if (mappingMode == 5) {
+      vec3 blend = abs(projN);
+      blend = pow(blend, vec3(4.0));
+      blend /= dot(blend, vec3(1.0)) + 1e-4;
+      float yzU = (pos.y - boundsMin.y) / md;
+      if (projN.x < 0.0) yzU = -yzU;
+      float xzU = (pos.x - boundsMin.x) / md;
+      if (projN.y > 0.0) xzU = -xzU;
+      float xyU = (pos.x - boundsMin.x) / md;
+      if (projN.z < 0.0) xyU = -xyU;
+      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
+      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
+      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
+      return cXY * blend.z + cXZ * blend.y + cYZ * blend.x;
+    } else {
+      float yzU = (pos.y - boundsMin.y) / md;
+      if (projN.x < 0.0) yzU = -yzU;
+      float xzU = (pos.x - boundsMin.x) / md;
+      if (projN.y > 0.0) xzU = -xzU;
+      float xyU = (pos.x - boundsMin.x) / md;
+      if (projN.z < 0.0) xyU = -xyU;
+      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
+      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
+      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
+      vec3 bN = blendN;
+      vec3 absFaceN = abs(projN);
+      float facePrimary = max(absFaceN.x, max(absFaceN.y, absFaceN.z));
+      float faceSecondary = absFaceN.x + absFaceN.y + absFaceN.z - facePrimary
+                          - min(absFaceN.x, min(absFaceN.y, absFaceN.z));
+      if (facePrimary - faceSecondary <= CUBIC_AXIS_EPSILON) bN = projN;
+      vec3 wts = cubicBlendWeights(bN);
+      return cYZ * wts.x + cXZ * wts.y + cXY * wts.z;
     }
   }
 `;
