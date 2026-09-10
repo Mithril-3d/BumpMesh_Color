@@ -314,7 +314,7 @@
 
             <div class="form-row" style="margin-bottom:8px;">
               <label for="interleaved-profile-mode" title="層ごとの断面形状。45°ルーバー庇にすると上層が下層を覆い隠し、多色時の他色透過・くすみを物理的に遮蔽します。">断面形状 (遮蔽)</label>
-              <select id="interleaved-profile-mode" class="dropdown-select" style="font-size:11px;padding:3px 6px;background:var(--bg-input,#222);color:var(--text,#fff);border:1px solid var(--border,#444);border-radius:4px;">
+              <select id="interleaved-profile-mode" class="interleaved-select">
                 <option value="1" selected>45° ルーバー庇（他色シールド）</option>
                 <option value="0">フラット段差（標準ステップ）</option>
               </select>
@@ -322,7 +322,7 @@
 
             <div class="form-row" style="margin-bottom:8px;">
               <label for="interleaved-shading-mode" title="色の階調表現。シャープはくっきりした二値、グラデーションは元画像の連続階調に応じて出っ張り量を無段階制御します。">階調表現</label>
-              <select id="interleaved-shading-mode" class="dropdown-select" style="font-size:11px;padding:3px 6px;background:var(--bg-input,#222);color:var(--text,#fff);border:1px solid var(--border,#444);border-radius:4px;">
+              <select id="interleaved-shading-mode" class="interleaved-select">
                 <option value="0" selected>シャープ (二値 / 0-1)</option>
                 <option value="1">グラデーション (連続階調)</option>
               </select>
@@ -336,7 +336,7 @@
             </div>
 
             <!-- Interleaved Slicing Preview / Info -->
-            <div style="margin-top:12px;background:rgba(0,0,0,0.25);border:1px solid var(--border,#333);border-radius:6px;padding:8px;">
+            <div class="slicing-guide-box" style="margin-top:12px;border-radius:6px;padding:8px;">
               <div style="font-size:11px;font-weight:600;color:var(--accent,#3b82f6);margin-bottom:4px;">
                 🔄 交互積層スライス構造
               </div>
