@@ -149,7 +149,16 @@ const sharedGLSL = /* glsl */`
           float proj = dot(cTarget - p0, ab) / ab2;
           w = clamp(1.0 - proj, 0.0, 1.0);
         }
-        float targetPeak = (activeK == 0) ? (interleavedConvex * w) : (interleavedConvex * (1.0 - w));
+        float ratio = 0.0;
+        if (w >= 0.5) {
+          ratio = (activeK == 0) ? (w - 0.5) * 2.0 : 0.0;
+        } else {
+          ratio = (activeK != 0) ? (0.5 - w) * 2.0 : 0.0;
+        }
+        if (ratio <= 0.0) {
+          return -interleavedConcave;
+        }
+        float targetPeak = interleavedConvex * ratio;
         float slope = min(targetPeak, t);
         float base = max(0.0, targetPeak - slope);
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);

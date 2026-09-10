@@ -130,13 +130,27 @@ export function computeLouverDisplacement(
   }
 
   // Mode 1: Gradient (continuous exposure ratio)
-  let ratio;
+  // In 2-color interleaved mode, at any gradient level, only the dominant color protrudes
+  // (凸), while the non-dominant color stays recessed (凹: -concaveAmp).
+  // BlendWeight 1.0 = 100% Tool 0 (Tool 0 max convex, Tool 1 recessed)
+  // BlendWeight 0.5 = 50/50 balance (both at -concaveAmp, equal striped exposure)
+  // BlendWeight 0.0 = 100% Tool 1 (Tool 1 max convex, Tool 0 recessed)
+  let ratio = 0.0;
   if (toolIds.length >= 2) {
-    ratio = (activeTool === toolIds[0]) ? blendWeight : (1.0 - blendWeight);
+    const isTool0 = (activeTool === toolIds[0]);
+    if (blendWeight >= 0.5) {
+      ratio = isTool0 ? (blendWeight - 0.5) * 2.0 : 0.0;
+    } else {
+      ratio = !isTool0 ? (0.5 - blendWeight) * 2.0 : 0.0;
+    }
   } else {
     ratio = (activeTool === targetToolId) ? 1.0 : 0.0;
   }
   ratio = Math.max(0, Math.min(1, ratio));
+
+  if (ratio <= 0.0) {
+    return -concaveAmp;
+  }
 
   const effAmp = convexAmp * ratio;
 
