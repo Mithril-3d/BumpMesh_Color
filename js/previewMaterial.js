@@ -55,6 +55,7 @@ const sharedGLSL = /* glsl */`
   uniform float     interleavedConcave;
   uniform int       interleavedToolCount;
   uniform vec3      interleavedPalette[8];
+  uniform int       interleavedShadingMode;
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
@@ -131,29 +132,48 @@ const sharedGLSL = /* glsl */`
   float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
     if (colorSubMode == 1) {
       vec3 cTarget = computeRawColorAtPoint(pos, projN, blendN);
-      int bestK = 0;
-      float bestDist = 1e6;
-      for (int k = 0; k < 8; k++) {
-        if (k >= interleavedToolCount) break;
-        vec3 diff = cTarget - interleavedPalette[k];
-        float d = dot(diff, diff);
-        if (d < bestDist) {
-          bestDist = d;
-          bestK = k;
-        }
-      }
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
       int layerIdx = int(floor(zRel / t));
       int numTools = max(1, interleavedToolCount);
       int activeK = int(mod(float(layerIdx), float(numTools)));
-      if (activeK == bestK) {
+
+      if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
+        // Continuous gradient blending between Palette 0 and Palette 1
+        vec3 p0 = interleavedPalette[0];
+        vec3 p1 = interleavedPalette[1];
+        vec3 ab = p1 - p0;
+        float ab2 = dot(ab, ab);
+        float w = 1.0;
+        if (ab2 > 1e-6) {
+          float proj = dot(cTarget - p0, ab) / ab2;
+          w = clamp(1.0 - proj, 0.0, 1.0);
+        }
+        float targetPeak = (activeK == 0) ? (interleavedConvex * w) : (interleavedConvex * (1.0 - w));
+        float slope = min(targetPeak, t);
+        float base = max(0.0, targetPeak - slope);
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
-        float slope = min(interleavedConvex, t);
-        float base = max(0.0, interleavedConvex - slope);
         return base + zFrac * slope;
       } else {
-        return -interleavedConcave;
+        int bestK = 0;
+        float bestDist = 1e6;
+        for (int k = 0; k < 8; k++) {
+          if (k >= interleavedToolCount) break;
+          vec3 diff = cTarget - interleavedPalette[k];
+          float d = dot(diff, diff);
+          if (d < bestDist) {
+            bestDist = d;
+            bestK = k;
+          }
+        }
+        if (activeK == bestK) {
+          float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
+          float slope = min(interleavedConvex, t);
+          float base = max(0.0, interleavedConvex - slope);
+          return base + zFrac * slope;
+        } else {
+          return -interleavedConcave;
+        }
       }
     }
 
@@ -665,6 +685,9 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
     }
   }
 
+  if (!u.interleavedShadingMode) u.interleavedShadingMode = { value: 0 };
+  u.interleavedShadingMode.value = settings.interleavedShadingMode ?? 0;
+
   if (settings.layerBlendMap) {
     if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
     else u.layerBlendMap.value = settings.layerBlendMap;
@@ -727,6 +750,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedConcave:       { value: settings.interleavedConcave ?? 0.00 },
     interleavedToolCount:     { value: settings.interleavedToolCount ?? 2 },
     interleavedPalette:       { value: initPalette },
+    interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

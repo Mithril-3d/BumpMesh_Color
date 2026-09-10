@@ -58,6 +58,34 @@ export function computeInterleavedDisplacement(
 }
 
 /**
+ * Compute continuous blend weight (0.0 to 1.0) of a color along the line between colorA and colorB in RGB space.
+ * 1.0 means 100% colorA, 0.0 means 100% colorB.
+ *
+ * @param {Array<number>} rgb - [r, g, b] (0..255)
+ * @param {Array<number>} colorA - [r, g, b] (0..255)
+ * @param {Array<number>} colorB - [r, g, b] (0..255)
+ * @returns {number} weight of colorA (0.0..1.0)
+ */
+export function computeColorBlendWeight(rgb, colorA = [255, 255, 255], colorB = [0, 0, 0]) {
+  const dr = colorB[0] - colorA[0];
+  const dg = colorB[1] - colorA[1];
+  const db = colorB[2] - colorA[2];
+  const lenSq = dr * dr + dg * dg + db * db;
+
+  if (lenSq < 1e-4) {
+    const lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+    return Math.max(0, Math.min(1, lum));
+  }
+
+  const pr = rgb[0] - colorA[0];
+  const pg = rgb[1] - colorA[1];
+  const pb = rgb[2] - colorA[2];
+  const t = (pr * dr + pg * dg + pb * db) / lenSq;
+
+  return Math.max(0, Math.min(1, 1.0 - t));
+}
+
+/**
  * Compute louver (shingle/eaves) displacement with 45-degree overhang shield
  *
  * @param {number} targetToolId - target tool from texture UV
@@ -68,6 +96,8 @@ export function computeInterleavedDisplacement(
  * @param {number} convexAmp - maximum protrusion (mm, e.g. 0.35)
  * @param {number} concaveAmp - retraction for non-matching (mm, e.g. 0.0)
  * @param {number} profileMode - 0 = Flat, 1 = Louver 45°
+ * @param {number} blendWeight - 0.0..1.0 ratio (1.0 = 100% Tool 1, 0.0 = 100% Tool 2)
+ * @param {number} shadingMode - 0 = Step (discrete), 1 = Gradient (continuous)
  * @returns {number} displacement (mm)
  */
 export function computeLouverDisplacement(
@@ -78,22 +108,46 @@ export function computeLouverDisplacement(
   toolIds = [1, 2],
   convexAmp = 0.35,
   concaveAmp = 0.0,
-  profileMode = 1
+  profileMode = 1,
+  blendWeight = 1.0,
+  shadingMode = 0
 ) {
   const t = Math.max(0.01, thickness);
   const zRel = Math.max(0, z - minZ);
   const layerIdx = Math.floor(zRel / t);
   const activeTool = getInterleavedToolAtLayer(layerIdx, toolIds);
-  const isMatch = (activeTool === targetToolId);
 
-  if (profileMode === 0 || !isMatch) {
-    return isMatch ? convexAmp : -concaveAmp;
+  // Mode 0: Step (discrete 0 / 1)
+  if (shadingMode === 0) {
+    const isMatch = (activeTool === targetToolId);
+    if (profileMode === 0 || !isMatch) {
+      return isMatch ? convexAmp : -concaveAmp;
+    }
+    const zFrac = Math.max(0, Math.min(1, (zRel - layerIdx * t) / t));
+    const slope = Math.min(convexAmp, t);
+    const base = Math.max(0, convexAmp - slope);
+    return base + zFrac * slope;
   }
 
-  // ProfileMode 1: 45° Louver (eaves/shield)
+  // Mode 1: Gradient (continuous exposure ratio)
+  let ratio;
+  if (toolIds.length >= 2) {
+    ratio = (activeTool === toolIds[0]) ? blendWeight : (1.0 - blendWeight);
+  } else {
+    ratio = (activeTool === targetToolId) ? 1.0 : 0.0;
+  }
+  ratio = Math.max(0, Math.min(1, ratio));
+
+  const effAmp = convexAmp * ratio;
+
+  if (profileMode === 0) {
+    return effAmp;
+  }
+
+  // ProfileMode 1: 45° Louver (eaves shield with scaled protrusion)
   const zFrac = Math.max(0, Math.min(1, (zRel - layerIdx * t) / t));
-  const slope = Math.min(convexAmp, t);
-  const base = Math.max(0, convexAmp - slope);
+  const slope = Math.min(effAmp, t);
+  const base = Math.max(0, effAmp - slope);
   return base + zFrac * slope;
 }
 

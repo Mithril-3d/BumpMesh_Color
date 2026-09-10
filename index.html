@@ -320,6 +320,14 @@
               </select>
             </div>
 
+            <div class="form-row" style="margin-bottom:8px;">
+              <label for="interleaved-shading-mode" title="色の階調表現。シャープはくっきりした二値、グラデーションは元画像の連続階調に応じて出っ張り量を無段階制御します。">階調表現</label>
+              <select id="interleaved-shading-mode" class="dropdown-select" style="font-size:11px;padding:3px 6px;background:var(--bg-input,#222);color:var(--text,#fff);border:1px solid var(--border,#444);border-radius:4px;">
+                <option value="0" selected>シャープ (二値 / 0-1)</option>
+                <option value="1">グラデーション (連続階調)</option>
+              </select>
+            </div>
+
             <div style="margin-top:10px;">
               <span style="font-size:11px;color:var(--text-muted,#aaa);font-weight:600;">交互積層ツール</span>
               <div id="interleaved-tool-list" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">

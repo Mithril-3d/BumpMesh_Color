@@ -317,6 +317,7 @@ const interleavedConvexAmpVal         = document.getElementById('interleaved-con
 const interleavedConcaveAmpSlider     = document.getElementById('interleaved-concave-amp');
 const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
 const interleavedProfileModeSelect    = document.getElementById('interleaved-profile-mode');
+const interleavedShadingModeSelect    = document.getElementById('interleaved-shading-mode');
 const interleavedToolList             = document.getElementById('interleaved-tool-list');
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
 
@@ -328,7 +329,8 @@ let interleavedSettings          = {
   layerThickness: 0.20,
   convexAmp: 0.35,
   concaveAmp: 0.00,
-  profileMode: 1 // 1 = 45° Louver (eaves shield), 0 = Flat
+  profileMode: 1, // 1 = 45° Louver (eaves shield), 0 = Flat
+  shadingMode: 0  // 0 = Step (discrete), 1 = Gradient (continuous)
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -1494,10 +1496,12 @@ function renderInterleavedUI() {
   const { table, totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
 
   const isLouver = (interleavedSettings.profileMode === 1);
+  const isGradient = (interleavedSettings.shadingMode === 1);
   let info = `• 積層ピッチ: ${thickness.toFixed(2)} mm (総レイヤー数: 約${totalLayers}層)\n`;
   info += `• 凸突出量: +${interleavedSettings.convexAmp.toFixed(2)} mm (目的色と一致)\n`;
   info += `• 凹引込量: -${interleavedSettings.concaveAmp.toFixed(2)} mm (目的色と不一致)\n`;
   info += `• 断面プロファイル: ${isLouver ? '45° ルーバー庇（他色シールド）' : 'フラット段差'}\n`;
+  info += `• 階調表現: ${isGradient ? 'グラデーション (連続階調)' : 'シャープ (二値 / 0-1)'}\n`;
   info += `• 交互パターン: ${toolIds.map(t => 'Tool ' + t).join(' → ')} → …`;
   interleavedInfoText.textContent = info;
 
@@ -1506,6 +1510,7 @@ function renderInterleavedUI() {
   settings.interleavedConvex      = interleavedSettings.convexAmp;
   settings.interleavedConcave     = interleavedSettings.concaveAmp;
   settings.interleavedProfileMode = interleavedSettings.profileMode;
+  settings.interleavedShadingMode = interleavedSettings.shadingMode;
   settings.interleavedToolIds     = toolIds;
   settings.colorSubMode           = currentColorSubMode;
 }
@@ -1567,6 +1572,14 @@ function initInterleavedEvents() {
   if (interleavedProfileModeSelect) {
     interleavedProfileModeSelect.addEventListener('change', (e) => {
       interleavedSettings.profileMode = parseInt(e.target.value, 10) || 1;
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedShadingModeSelect) {
+    interleavedShadingModeSelect.addEventListener('change', (e) => {
+      interleavedSettings.shadingMode = parseInt(e.target.value, 10) || 0;
       renderInterleavedUI();
       updatePreview();
     });
@@ -4544,6 +4557,7 @@ function getFullPreviewSettings() {
     interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
     interleavedProfileMode: interleavedSettings.profileMode ?? 1,
+    interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: null,
@@ -5243,6 +5257,7 @@ async function handleExport(format = 'stl') {
       interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
       interleavedProfileMode: interleavedSettings.profileMode ?? 1,
+      interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
     const result = await runPipeline({
@@ -5695,6 +5710,7 @@ async function bakeTextures() {
       interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
       interleavedProfileMode: interleavedSettings.profileMode ?? 1,
+      interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
     const result = await runPipeline({

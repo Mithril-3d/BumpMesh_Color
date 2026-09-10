@@ -7,7 +7,7 @@ import { THREE } from './threeCompat.js';
 import { computeUV, getDominantCubicAxis, getCubicBlendWeights, scaleMmToRelative } from './mapping.js';
 import { QuantizedPointMap } from './meshIndex.js';
 import { getToolAtUV } from './colorQuantization.js';
-import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement } from './layerBlending.js';
+import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement, computeColorBlendWeight } from './layerBlending.js';
 
 /**
  * Apply displacement to every vertex of a non-indexed BufferGeometry.
@@ -521,6 +521,16 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const convexVal = settings.interleavedConvex ?? 0.35;
       const concaveVal = settings.interleavedConcave ?? 0.00;
       const profileMode = settings.interleavedProfileMode ?? 1; // 1 = 45° Louver (eaves shield)
+      const shadingMode = settings.interleavedShadingMode ?? 0; // 0 = Step, 1 = Gradient
+
+      let blendWeight = 1.0;
+      if (shadingMode === 1 && palette.length >= 2) {
+        const rgb = sampleRGBBilinear(imageData.data, imgWidth, imgHeight, u, v);
+        const colorA = palette[0].color || [255, 255, 255];
+        const colorB = palette[1].color || [0, 0, 0];
+        blendWeight = computeColorBlendWeight(rgb, colorA, colorB);
+      }
+
       dispCacheVal[vid] = computeLouverDisplacement(
         targetTool,
         tmpPos.z,
@@ -529,7 +539,9 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
         toolIds,
         convexVal,
         concaveVal,
-        profileMode
+        profileMode,
+        blendWeight,
+        shadingMode
       );
     } else {
       let grey;
@@ -690,6 +702,43 @@ function sampleBilinear(data, w, h, u, v) {
        + v10 * tx * (1-ty)
        + v01 * (1-tx) * ty
        + v11 * tx * ty;
+}
+
+/**
+ * Bilinear sampling of RGB values [0..255] from ImageData buffer.
+ * Returns [r, g, b] as floats.
+ */
+export function sampleRGBBilinear(data, w, h, u, v) {
+  u = ((u % 1) + 1) % 1;
+  v = ((v % 1) + 1) % 1;
+  v = 1 - v;
+
+  const fx = u * w - 0.5;
+  const fy = v * h - 0.5;
+  let x0 = Math.floor(fx);
+  let y0 = Math.floor(fy);
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const x1 = (x0 + 1 + w) % w;
+  const y1 = (y0 + 1 + h) % h;
+  x0 = ((x0 % w) + w) % w;
+  y0 = ((y0 % h) + h) % h;
+
+  const i00 = (y0 * w + x0) * 4;
+  const i10 = (y0 * w + x1) * 4;
+  const i01 = (y1 * w + x0) * 4;
+  const i11 = (y1 * w + x1) * 4;
+
+  const w00 = (1 - tx) * (1 - ty);
+  const w10 = tx * (1 - ty);
+  const w01 = (1 - tx) * ty;
+  const w11 = tx * ty;
+
+  return [
+    data[i00] * w00 + data[i10] * w10 + data[i01] * w01 + data[i11] * w11,
+    data[i00 + 1] * w00 + data[i10 + 1] * w10 + data[i01 + 1] * w01 + data[i11 + 1] * w11,
+    data[i00 + 2] * w00 + data[i10 + 2] * w10 + data[i01 + 2] * w01 + data[i11 + 2] * w11
+  ];
 }
 
 /** Apply scale/offset/rotation to raw UV for cubic projection.
