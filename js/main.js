@@ -3356,7 +3356,8 @@ function createPresetGeometry(type) {
     return nonIndexed;
   } else {
     // デフォルト: 立方体 (50×50×50 mm)
-    const box = new THREE.BoxGeometry(50, 50, 50);
+    // 50分割 (各分割 1.00mm = 0.20mm層のちょうど5層分)
+    const box = new THREE.BoxGeometry(50, 50, 50, 50, 50, 50);
     const nonIndexed = box.toNonIndexed();
     box.dispose();
     return nonIndexed;
