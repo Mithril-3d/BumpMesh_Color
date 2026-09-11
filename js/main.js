@@ -1638,6 +1638,14 @@ function trapFocus(overlay) {
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
 function wireEvents() {
+  // ── Preset Model buttons ──
+  document.querySelectorAll('.model-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const presetKey = btn.dataset.preset;
+      if (presetKey) loadPresetModel(presetKey);
+    });
+  });
+
   // ── Model loading ──
   stlFileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -3290,12 +3298,77 @@ function formatM(n) {
        : String(n);
 }
 
-// ── STL loading ───────────────────────────────────────────────────────────────
+// ── STL loading & Presets ─────────────────────────────────────────────────────
 
-function loadDefaultCube() {
-  // Create a 50×50×50 mm box; convert to non-indexed so it behaves like a
-  // real STL (buildAdjacency and displacement expect non-indexed geometry).
-  let geo = new THREE.BoxGeometry(50, 50, 50).toNonIndexed();
+function createPresetGeometry(type) {
+  if (type === 'cylinder') {
+    // 直径80mm (半径40mm), 高さ100mm の円柱 (ソリッド)
+    const cyl = new THREE.CylinderGeometry(40, 40, 100, 64, 32, false);
+    // Z-up（3Dプリント座標系）で直立するように回転
+    cyl.rotateX(Math.PI / 2);
+    const nonIndexed = cyl.toNonIndexed();
+    cyl.dispose();
+    return nonIndexed;
+  } else if (type === 'bowl') {
+    // 直径80mm, 高さ45mm のお椀型立体 (ソリッド)
+    // 中は埋まっており、上部に浅いくぼみ（深さ12mm）を持つ美しいお椀プロファイル
+    const points = [];
+    const R_outer = 40;       // 外径80mm (半径40mm)
+    const H_total = 45;       // 高さ45mm
+    const R_base = 15;        // 底面の平らな座面 半径15mm (直径30mm)
+    const R_inner_rim = 37;   // フチの厚み 3mm
+    const H_inner_depth = 12; // 内側のくぼみの深さ 12mm
+
+    // 1. 底面中心 (0, 0)
+    points.push(new THREE.Vector2(0, 0));
+    // 2. 底面の平らな座面縁 (R_base, 0)
+    points.push(new THREE.Vector2(R_base, 0));
+
+    // 3. 外側カーブ: 座面から上縁へ滑らかに立ち上がる
+    const outerSteps = 24;
+    for (let i = 1; i <= outerSteps; i++) {
+      const t = i / outerSteps;
+      const theta = t * (Math.PI / 2);
+      const r = R_base + (R_outer - R_base) * Math.sin(theta);
+      const z = H_total * (1 - Math.cos(theta));
+      points.push(new THREE.Vector2(r, z));
+    }
+
+    // 4. フチ (上端リム)
+    points.push(new THREE.Vector2(R_inner_rim, H_total));
+
+    // 5. 内側のくぼみカーブ: フチから中心へ滑らかな凹み
+    const innerSteps = 16;
+    for (let i = 1; i <= innerSteps; i++) {
+      const t = i / innerSteps;
+      const r = R_inner_rim * (1 - t);
+      const z = (H_total - H_inner_depth) + H_inner_depth * Math.pow(r / R_inner_rim, 2);
+      points.push(new THREE.Vector2(r, z));
+    }
+
+    const lathe = new THREE.LatheGeometry(points, 64);
+    // Z-up 空間に合わせる
+    lathe.rotateX(Math.PI / 2);
+    lathe.center();
+    const nonIndexed = lathe.toNonIndexed();
+    lathe.dispose();
+    return nonIndexed;
+  } else {
+    // デフォルト: 立方体 (50×50×50 mm)
+    const box = new THREE.BoxGeometry(50, 50, 50);
+    const nonIndexed = box.toNonIndexed();
+    box.dispose();
+    return nonIndexed;
+  }
+}
+
+function loadPresetModel(presetKey = 'cube') {
+  // Update active state on preset buttons
+  document.querySelectorAll('.model-preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === presetKey);
+  });
+
+  const geo = createPresetGeometry(presetKey);
   geo.computeBoundingBox();
   geo.computeVertexNormals();
 
@@ -3303,14 +3376,38 @@ function loadDefaultCube() {
   precisionToken++;
   dispPreviewToken++;
   exportToken++;
+  diagToken++;
 
   currentGeometry = geo;
   currentBounds   = computeBounds(geo);
   currentPoseRot   = new THREE.Quaternion(); // authored at the origin — nothing to restore
   currentPoseTrans = new THREE.Vector3();
-  currentStlName  = 'cube_50x50x50';
+
+  if (presetKey === 'cylinder') {
+    currentStlName = 'cylinder_d80_h100';
+    // シリンダー投影の初期軸設定（中心 (0, 0)、半径40mm）
+    settings.cylinderCenterX = 0;
+    settings.cylinderCenterY = 0;
+    settings.cylinderRadius = 40;
+  } else if (presetKey === 'bowl') {
+    currentStlName = 'bowl_d80_h45';
+    settings.cylinderCenterX = 0;
+    settings.cylinderCenterY = 0;
+    settings.cylinderRadius = 40;
+  } else {
+    currentStlName = 'cube_50x50x50';
+    settings.cylinderCenterX = null;
+    settings.cylinderCenterY = null;
+    settings.cylinderRadius = null;
+  }
   currentStlExt   = '.stl';
   checkAmplitudeWarning();
+
+  // Dispose old preview material if needed
+  if (previewMaterial) {
+    previewMaterial.dispose();
+    previewMaterial = null;
+  }
 
   loadGeometry(geo);
   dropHint.classList.add('hidden');
@@ -3376,7 +3473,12 @@ function loadDefaultCube() {
   export3mfBtn.disabled = (activeMapEntry === null);
   bakeBtn.disabled = (activeMapEntry === null);
   updateSmartResBtnState();
+  updateCylinderUIVisibility();
   updatePreview();
+}
+
+function loadDefaultCube() {
+  loadPresetModel('cube');
 }
 
 // Import-progress bar (STEP tessellation runs in a worker and can take a
@@ -3471,6 +3573,7 @@ async function handleModelFile(file, stepSettings = null) {
     diagToken++;
 
     currentGeometry = geometry;
+    document.querySelectorAll('.model-preset-btn').forEach(btn => btn.classList.remove('active'));
     currentBounds   = bounds;
     currentPoseRot   = new THREE.Quaternion();
     currentPoseTrans = originOffset ? originOffset.clone().negate() : new THREE.Vector3(); // mem = orig − centre

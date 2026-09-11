@@ -342,6 +342,64 @@ main {
   cursor: pointer;
   user-select: none;
 }
+/* ── Model Presets ──────────────────────────────────────────────────── */
+.model-presets-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.model-presets-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.model-preset-btns {
+  display: flex;
+  gap: 4px;
+}
+.model-preset-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.model-preset-btn svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: opacity 0.15s ease;
+}
+.model-preset-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.model-preset-btn:hover svg {
+  opacity: 1;
+}
+.model-preset-btn.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.model-preset-btn.active svg {
+  opacity: 1;
+  stroke: #fff;
+}
 
 .place-on-face-btn {
   display: flex;
