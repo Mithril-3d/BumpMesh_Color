@@ -14,8 +14,8 @@ import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260908e';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260909d';
+import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260911a';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260911a';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909d';

@@ -28,7 +28,7 @@ function fitDimensions(imgW, imgH) {
 const IMAGE_PRESETS = [
   { name: 'Geometric 4-Color', url: 'textures/geometric_4color.png', thumb: 'textures/thumbs/geometric_4color.webp', defaultScale: 0.5 },
   // 和風 (Japanese Traditional)
-  { name: '染付陶磁器 (青花グラデーション)', url: 'textures/porcelain_blue_gradient.jpg', thumb: 'textures/thumbs/porcelain_blue_gradient.webp', defaultScale: 0.5 },
+  { name: '染付陶磁器 (青花グラデーション)', url: 'textures/porcelain_blue_gradient.jpg', thumb: 'textures/thumbs/porcelain_blue_gradient.webp', defaultScale: 1.0 },
   { name: '市松模様 (2-Color)',      url: 'textures/ichimatsu_2color.png',       thumb: 'textures/thumbs/ichimatsu_2color.webp',       defaultScale: 0.5 },
   { name: '青海波 (2-Color)',        url: 'textures/seigaiha_2color.png',        thumb: 'textures/thumbs/seigaiha_2color.webp',        defaultScale: 0.5 },
   { name: '矢絣 (2-Color)',          url: 'textures/yagasuri_2color.png',        thumb: 'textures/thumbs/yagasuri_2color.webp',        defaultScale: 0.5 },

@@ -375,17 +375,8 @@ const sharedGLSL = /* glsl */`
 
   // Compute final surface color at a world-space point
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
-    if (colorSubMode == 1) {
-      float zRel = max(0.0, pos.z - boundsMin.z);
-      float t = max(0.01, interleavedThickness);
-      int layerIdx = int(floor(zRel / t));
-      int numTools = max(1, interleavedToolCount);
-      int activeK = int(mod(float(layerIdx), float(numTools)));
-      for (int k = 0; k < 8; k++) {
-        if (k == activeK) return interleavedPalette[k];
-      }
-      return interleavedPalette[0];
-    }
+    // In interleaved mode, render the true texture color so the pattern is clearly visible,
+    // combined with the 45° louver displacement geometry and shading.
     return computeRawColorAtPoint(pos, projN, blendN);
   }
 `;
