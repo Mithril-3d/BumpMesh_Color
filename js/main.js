@@ -3310,21 +3310,18 @@ function createPresetGeometry(type) {
     cyl.dispose();
     return nonIndexed;
   } else if (type === 'bowl') {
-    // 直径80mm, 高さ45mm のお椀型立体 (ソリッド)
-    // 中は埋まっており、上部に浅いくぼみ（深さ12mm）を持つ美しいお椀プロファイル
+    // 直径80mm, 高さ45mm のお椀型立体 (ソリッド・上面完全フラット)
     const points = [];
     const R_outer = 40;       // 外径80mm (半径40mm)
     const H_total = 45;       // 高さ45mm
     const R_base = 15;        // 底面の平らな座面 半径15mm (直径30mm)
-    const R_inner_rim = 37;   // フチの厚み 3mm
-    const H_inner_depth = 12; // 内側のくぼみの深さ 12mm
 
     // 1. 底面中心 (0, 0)
     points.push(new THREE.Vector2(0, 0));
     // 2. 底面の平らな座面縁 (R_base, 0)
     points.push(new THREE.Vector2(R_base, 0));
 
-    // 3. 外側カーブ: 座面から上縁へ滑らかに立ち上がる
+    // 3. 外側カーブ: 座面から上縁へ滑らかに立ち上がるお椀の丸み
     const outerSteps = 24;
     for (let i = 1; i <= outerSteps; i++) {
       const t = i / outerSteps;
@@ -3334,16 +3331,12 @@ function createPresetGeometry(type) {
       points.push(new THREE.Vector2(r, z));
     }
 
-    // 4. フチ (上端リム)
-    points.push(new THREE.Vector2(R_inner_rim, H_total));
-
-    // 5. 内側のくぼみカーブ: フチから中心へ滑らかな凹み
-    const innerSteps = 16;
-    for (let i = 1; i <= innerSteps; i++) {
-      const t = i / innerSteps;
-      const r = R_inner_rim * (1 - t);
-      const z = (H_total - H_inner_depth) + H_inner_depth * Math.pow(r / R_inner_rim, 2);
-      points.push(new THREE.Vector2(r, z));
+    // 4. 上面: 完全に水平フラットに中心まで閉じる (z = H_total 一定)
+    const topSteps = 8;
+    for (let i = 1; i <= topSteps; i++) {
+      const t = i / topSteps;
+      const r = R_outer * (1 - t);
+      points.push(new THREE.Vector2(r, H_total));
     }
 
     const lathe = new THREE.LatheGeometry(points, 64);
