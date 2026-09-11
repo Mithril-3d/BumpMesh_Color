@@ -27,7 +27,7 @@ import {
   computeInterleavedDisplacement,
   generateInterleavedTable
 } from './layerBlending.js?v=20260909d';
-import { sliceMeshWatertight } from './layerSlicing.js?v=20260909h';
+import { sliceMeshWatertight } from './layerSlicing.js?v=20260909i';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
@@ -3303,7 +3303,11 @@ function formatM(n) {
 function createPresetGeometry(type) {
   if (type === 'cylinder') {
     // 直径80mm (半径40mm), 高さ100mm の円柱 (ソリッド)
-    const cyl = new THREE.CylinderGeometry(40, 40, 100, 64, 32, false);
+    // heightSegments = 100 (1セグメント=1.00mm) にすることで、
+    // レイヤー厚み 0.20mm (5層分) や 0.10mm (10層分) と完全な整数比になり、
+    // 周期ズレによるモアレ干渉縞（規則的な横筋）を物理的に根絶。
+    // radialSegments = 128 で円周のポリゴンも極めて滑らかに。
+    const cyl = new THREE.CylinderGeometry(40, 40, 100, 128, 100, false);
     // Z-up（3Dプリント座標系）で直立するように回転
     cyl.rotateX(Math.PI / 2);
     const nonIndexed = cyl.toNonIndexed();
@@ -3321,8 +3325,8 @@ function createPresetGeometry(type) {
     // 2. 底面の平らな座面縁 (R_base, 0)
     points.push(new THREE.Vector2(R_base, 0));
 
-    // 3. 外側カーブ: 座面から上縁へ滑らかに立ち上がるお椀の丸み
-    const outerSteps = 24;
+    // 3. 外側カーブ: 座面から上縁へ滑らかに立ち上がるお椀の丸み (45ステップで1mmピッチ)
+    const outerSteps = 45;
     for (let i = 1; i <= outerSteps; i++) {
       const t = i / outerSteps;
       const theta = t * (Math.PI / 2);
@@ -3339,7 +3343,7 @@ function createPresetGeometry(type) {
       points.push(new THREE.Vector2(r, H_total));
     }
 
-    const lathe = new THREE.LatheGeometry(points, 64);
+    const lathe = new THREE.LatheGeometry(points, 128);
     // Z-up 空間に合わせる
     lathe.rotateX(Math.PI / 2);
     lathe.center();
@@ -5447,14 +5451,10 @@ async function handleExport(format = 'stl') {
         // 4. Assign tool per sliced triangle:
         // In interleaved mode, every triangle in layer k (including flat caps and interior)
         // MUST be assigned the layer's active tool to ensure 100% pure single-tool layers.
+        // Using sliced.layers strictly generated during slicing eliminates all floating-point
+        // boundary rounding errors (zero dot noise / stray triangles).
         for (let i = 0; i < slicedTriCount; i++) {
-          const b = i * 9;
-          const az = sliced.positions[b + 2];
-          const bz = sliced.positions[b + 5];
-          const cz = sliced.positions[b + 8];
-          const centroidZ = (az + bz + cz) / 3;
-
-          const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor((centroidZ - cutOffset) / thickness)));
+          const layerIdx = sliced.layers ? sliced.layers[i] : 0;
           triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
         }
 

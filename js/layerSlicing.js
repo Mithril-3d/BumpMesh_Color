@@ -95,12 +95,17 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     return cutId;
   }
 
-  // Step 3: Recursively slice triangles against zCuts
-  const outTris = []; // array of [id0, id1, id2]
+  const outTris = [];
+  const outLayers = [];
+
+  function emitTri(id0, id1, id2, layerIdx) {
+    outTris.push([id0, id1, id2]);
+    outLayers.push(Math.max(0, Math.min(totalLayers - 1, layerIdx)));
+  }
 
   function sliceTriangle(v0, v1, v2, cutIdx) {
     if (cutIdx >= zCuts.length) {
-      outTris.push([v0, v1, v2]);
+      emitTri(v0, v1, v2, zCuts.length);
       return;
     }
 
@@ -111,7 +116,14 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     const min = Math.min(z0, z1, z2);
     const max = Math.max(z0, z1, z2);
 
-    if (max <= zCut + 1e-6 || min >= zCut - 1e-6) {
+    // If completely below cut plane, this triangle strictly belongs to layer cutIdx
+    if (max <= zCut + 1e-6) {
+      emitTri(v0, v1, v2, cutIdx);
+      return;
+    }
+
+    // If completely above cut plane, test against next higher cut plane
+    if (min >= zCut - 1e-6) {
       sliceTriangle(v0, v1, v2, cutIdx + 1);
       return;
     }
@@ -121,7 +133,11 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     const above2 = z2 > zCut;
     const countAbove = (above0 ? 1 : 0) + (above1 ? 1 : 0) + (above2 ? 1 : 0);
 
-    if (countAbove === 0 || countAbove === 3) {
+    if (countAbove === 0) {
+      emitTri(v0, v1, v2, cutIdx);
+      return;
+    }
+    if (countAbove === 3) {
       sliceTriangle(v0, v1, v2, cutIdx + 1);
       return;
     }
@@ -132,22 +148,22 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
       const cutTopB0 = getEdgeCut(top, b0, cutIdx);
       const cutTopB1 = getEdgeCut(top, b1, cutIdx);
 
-      // Top triangle: top -> cutTopB0 -> cutTopB1
+      // Top triangle: strictly above cutIdx -> continue to cutIdx + 1
       sliceTriangle(top, cutTopB0, cutTopB1, cutIdx + 1);
 
-      // Bottom quad: cutTopB0 -> b0 -> b1 -> cutTopB1
-      sliceTriangle(cutTopB0, b0, b1, cutIdx + 1);
-      sliceTriangle(cutTopB0, b1, cutTopB1, cutIdx + 1);
+      // Bottom quad: strictly in layer cutIdx
+      emitTri(cutTopB0, b0, b1, cutIdx);
+      emitTri(cutTopB0, b1, cutTopB1, cutIdx);
     } else {
       // 2 above, 1 below. Order: bot -> a0 -> a1
       const [bot, a0, a1] = !above0 ? [v0, v1, v2] : (!above1 ? [v1, v2, v0] : [v2, v0, v1]);
       const cutBotA0 = getEdgeCut(bot, a0, cutIdx);
       const cutBotA1 = getEdgeCut(bot, a1, cutIdx);
 
-      // Bottom triangle: bot -> cutBotA0 -> cutBotA1
-      sliceTriangle(bot, cutBotA0, cutBotA1, cutIdx + 1);
+      // Bottom triangle: strictly in layer cutIdx
+      emitTri(bot, cutBotA0, cutBotA1, cutIdx);
 
-      // Top quad: cutBotA0 -> a0 -> a1 -> cutBotA1
+      // Top quad: strictly above cutIdx -> continue to cutIdx + 1
       sliceTriangle(cutBotA0, a0, a1, cutIdx + 1);
       sliceTriangle(cutBotA0, a1, cutBotA1, cutIdx + 1);
     }
@@ -162,10 +178,11 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     sliceTriangle(v0, v1, v2, startCut);
   }
 
-  // Convert outTris to flat Float32Array positions and normals
+  // Convert outTris to flat Float32Array positions and normals, and Int32Array layers
   const finalCount = outTris.length;
   const outPos = new Float32Array(finalCount * 9);
   const outNrm = new Float32Array(finalCount * 9);
+  const outLay = new Int32Array(outLayers);
 
   for (let i = 0; i < finalCount; i++) {
     const [i0, i1, i2] = outTris[i];
@@ -181,5 +198,5 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     outNrm[b+6] = n2[0]; outNrm[b+7] = n2[1]; outNrm[b+8] = n2[2];
   }
 
-  return { positions: outPos, normals: outNrm };
+  return { positions: outPos, normals: outNrm, layers: outLay };
 }
