@@ -1551,7 +1551,8 @@ function initInterleavedEvents() {
 
   if (interleavedConvexAmpSlider) {
     interleavedConvexAmpSlider.addEventListener('input', (e) => {
-      const v = parseFloat(e.target.value) || 0.30;
+      const parsed = parseFloat(e.target.value);
+      const v = isNaN(parsed) ? 0.30 : parsed;
       interleavedSettings.convexAmp = v;
       if (interleavedConvexAmpVal) interleavedConvexAmpVal.textContent = v.toFixed(2);
       renderInterleavedUI();
@@ -1561,7 +1562,8 @@ function initInterleavedEvents() {
 
   if (interleavedConcaveAmpSlider) {
     interleavedConcaveAmpSlider.addEventListener('input', (e) => {
-      const v = parseFloat(e.target.value) || 0.00;
+      const parsed = parseFloat(e.target.value);
+      const v = isNaN(parsed) ? 0.00 : parsed;
       interleavedSettings.concaveAmp = v;
       if (interleavedConcaveAmpVal) interleavedConcaveAmpVal.textContent = v.toFixed(2);
       renderInterleavedUI();
@@ -1571,7 +1573,8 @@ function initInterleavedEvents() {
 
   if (interleavedProfileModeSelect) {
     interleavedProfileModeSelect.addEventListener('change', (e) => {
-      interleavedSettings.profileMode = parseInt(e.target.value, 10) || 1;
+      const parsed = parseInt(e.target.value, 10);
+      interleavedSettings.profileMode = isNaN(parsed) ? 1 : parsed;
       renderInterleavedUI();
       updatePreview();
     });
@@ -1579,7 +1582,8 @@ function initInterleavedEvents() {
 
   if (interleavedShadingModeSelect) {
     interleavedShadingModeSelect.addEventListener('change', (e) => {
-      interleavedSettings.shadingMode = parseInt(e.target.value, 10) || 0;
+      const parsed = parseInt(e.target.value, 10);
+      interleavedSettings.shadingMode = isNaN(parsed) ? 0 : parsed;
       renderInterleavedUI();
       updatePreview();
     });
