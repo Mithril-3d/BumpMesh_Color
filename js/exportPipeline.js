@@ -43,7 +43,6 @@ import { regularizeMesh } from './regularize.js';
 import { applyDisplacement } from './displacement.js';
 import { decimate } from './decimation.js';
 import { resolveTJunctions, countEdgeDefects, countAreaSlivers } from './meshRepair.js';
-import { sliceMeshWatertight } from './layerSlicing.js?v=20260909i';
 
 const yieldFrame = () => new Promise(r => setTimeout(r, 0));
 
@@ -251,31 +250,6 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     }
     if (shouldAbort()) return null;
 
-    // For interleaved layer blending mode (colorSubMode === 1):
-    // Pre-slice the subdivided mesh at exact layer boundaries Z = minZ + k * thickness BEFORE displacement.
-    // This guarantees that across ANY input model (cubes, cylinders, bowls, or imported STLs),
-    // every triangle lies strictly within a single layer thickness (0.20mm).
-    // Eliminates multi-layer spanning edges that cause sampling aliasing and periodic moiré lines.
-    if (settings.colorSubMode === 1) {
-      const thickness = settings.interleavedThickness || 0.20;
-      const minZ = bounds.min.z;
-      const maxZ = bounds.max.z;
-      const totalLayers = Math.max(1, Math.ceil((maxZ - minZ) / thickness) + 1);
-      const preSliced = sliceMeshWatertight(
-        subdivided.attributes.position.array,
-        subdivided.attributes.normal.array,
-        minZ,
-        thickness,
-        totalLayers
-      );
-      subdivided.dispose();
-      subdivided = new THREE.BufferGeometry();
-      subdivided.setAttribute('position', new THREE.BufferAttribute(preSliced.positions, 3));
-      if (preSliced.normals) {
-        subdivided.setAttribute('normal', new THREE.BufferAttribute(preSliced.normals, 3));
-      }
-    }
-
     const subTriCount = subdivided.attributes.position.count / 3;
     onEvent('displace', 0, { triCount: subTriCount });
     await yieldFrame();
@@ -314,11 +288,10 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     const needsDecimation = dispTriCount > settings.maxTriangles;
     finalGeometry = displaced;
 
-    // Decimation runs only in export mode: when over the target OR when flat-face harvesting
-    // alone is wanted. In interleaved mode, harvestFlatFaces is disabled so it doesn't collapse
-    // layer-aligned horizontal edges back into multi-layer diagonals.
-    const harvestFlat = (settings.colorSubMode === 1) ? false : settings.harvestFlatFaces;
-    const runDecimation = mode === 'export' && (needsDecimation || harvestFlat);
+    // Decimation runs only in export mode (bake keeps the parent-face map,
+    // which decimate drops): when over the target OR when flat-face harvesting
+    // alone is wanted.
+    const runDecimation = mode === 'export' && (needsDecimation || settings.harvestFlatFaces);
     let lockedOverBudget = false;
     if (runDecimation) {
       onEvent('decimate', 0, { from: dispTriCount, needsDecimation });
@@ -327,7 +300,7 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
         displaced,
         settings.maxTriangles,
         (p) => onEvent('decimate', p, { from: dispTriCount, needsDecimation }),
-        harvestFlat,
+        settings.harvestFlatFaces,
         settings.harvestTol,
         lockedFaces
       );
