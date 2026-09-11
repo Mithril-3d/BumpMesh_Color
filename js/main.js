@@ -5422,11 +5422,16 @@ async function handleExport(format = 'stl') {
         const groundedMinZ = 0.0;
         const groundedMaxZ = originMaxZ - originMinZ;
 
-        const thickness = effectiveSettings.layerThickness || settings.interleavedThickness || 0.20;
+        const thickness = effectiveSettings.interleavedThickness || settings.interleavedThickness || 0.20;
         const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
 
-        // 3. Slice all triangles at exact layer boundaries to eliminate diagonal color bleeding
-        const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ, thickness, totalLayers);
+        // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm)
+        // Offsetting cut planes by +0.005mm eliminates coplanar intersection collision
+        // with slicer cutting planes (which slice exactly at Z = k * thickness).
+        // This guarantees the slicer plane passes strictly inside a single layer block,
+        // ensuring 100% pure 1-tool layers without within-layer tool changes.
+        const cutOffset = 0.005;
+        const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers);
 
         finalGeometry = new THREE.BufferGeometry();
         finalGeometry.setAttribute('position', new THREE.BufferAttribute(sliced.positions, 3));
@@ -5439,60 +5444,18 @@ async function handleExport(format = 'stl') {
           ? exportPalette.map(p => p.toolId)
           : [1, 2];
 
-        const untexturedTool = settings.untexturedToolId || getOptimalUntexturedTool(toolIds);
-        const excludedTris = extractExcludedTriangles(currentGeometry, excludedFaces, selectionMode, settings);
-        const botLimit = settings.bottomAngleLimit ?? 0;
-        const topLimit = settings.topAngleLimit ?? 0;
-
-        const tmpNormal = new THREE.Vector3();
-        const tmpEdge1 = new THREE.Vector3();
-        const tmpEdge2 = new THREE.Vector3();
-        const tmpCentroid = new THREE.Vector3();
-
-        // 4. Assign tool per sliced triangle: untextured tool for masked/flat faces, interleaved tool for textured sides
+        // 4. Assign tool per sliced triangle:
+        // In interleaved mode, every triangle in layer k (including flat caps and interior)
+        // MUST be assigned the layer's active tool to ensure 100% pure single-tool layers.
         for (let i = 0; i < slicedTriCount; i++) {
           const b = i * 9;
-          const ax = sliced.positions[b],     ay = sliced.positions[b + 1], az = sliced.positions[b + 2];
-          const bx = sliced.positions[b + 3], by = sliced.positions[b + 4], bz = sliced.positions[b + 5];
-          const cx = sliced.positions[b + 6], cy = sliced.positions[b + 7], cz = sliced.positions[b + 8];
+          const az = sliced.positions[b + 2];
+          const bz = sliced.positions[b + 5];
+          const cz = sliced.positions[b + 8];
+          const centroidZ = (az + bz + cz) / 3;
 
-          tmpCentroid.set((ax + bx + cx) / 3, (ay + by + cy) / 3, (az + bz + cz) / 3);
-          tmpEdge1.set(bx - ax, by - ay, bz - az);
-          tmpEdge2.set(cx - ax, cy - ay, cz - az);
-          tmpNormal.crossVectors(tmpEdge1, tmpEdge2).normalize();
-
-          let isMasked = false;
-
-          // 1. Angle limits (strictly top and bottom flat boundary caps, never interior 45° louver side overhangs)
-          const faceNzNorm = tmpNormal.z;
-          const faceAngle = Math.acos(Math.min(Math.max(Math.abs(faceNzNorm), 0), 1)) * (180 / Math.PI);
-          if (faceNzNorm < 0 && tmpCentroid.z <= groundedMinZ + thickness * 0.6) {
-            if (botLimit >= 1.0 && faceAngle <= botLimit + 0.1) isMasked = true;
-          } else if (faceNzNorm > 0 && tmpCentroid.z >= groundedMaxZ - thickness * 0.6) {
-            if (topLimit >= 1.0 && faceAngle <= topLimit + 0.1) isMasked = true;
-          }
-
-          // 2. User excluded faces
-          if (!isMasked && excludedTris && excludedTris.length > 0) {
-            const px = tmpCentroid.x, py = tmpCentroid.y, pz = tmpCentroid.z + originMinZ;
-            for (let k = 0; k < excludedTris.length; k++) {
-              const t = excludedTris[k];
-              if (px < t.minX || px > t.maxX || py < t.minY || py > t.maxY || pz < t.minZ || pz > t.maxZ) continue;
-              if (tmpNormal.dot(t.n) < 0.85) continue;
-              if (Math.abs(tmpNormal.dot(tmpCentroid) - t.planeD) > 0.4) continue;
-              if (isPointInTri(tmpCentroid, t.a, t.b, t.c, t.n)) {
-                isMasked = true;
-                break;
-              }
-            }
-          }
-
-          if (isMasked) {
-            triTools[i] = untexturedTool;
-          } else {
-            const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor(tmpCentroid.z / thickness)));
-            triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
-          }
+          const layerIdx = Math.max(0, Math.min(totalLayers - 1, Math.floor((centroidZ - cutOffset) / thickness)));
+          triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
         }
 
         setProgress(0.98, 'Packaging 3MF with layer-aligned painting…');
