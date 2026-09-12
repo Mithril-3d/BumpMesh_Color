@@ -347,15 +347,8 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   const posArr = geometry.attributes.position.array;
   const triCount = (posArr.length / 9) | 0;
 
-  // Build tool -> palette index mapping
-  const toolToPalIndex = new Map();
-  palette.forEach((p, idx) => {
-    if (!toolToPalIndex.has(p.toolId)) {
-      toolToPalIndex.set(p.toolId, idx);
-    }
-  });
-
   // Deduplicate vertices using TolerantPointMap (1 µm tolerance)
+
   // Guarantees zero open edges across cut planes and grid boundaries
   const welder = new TolerantPointMap(0.001);
   const triIdx = new Uint32Array(triCount * 3);
@@ -374,25 +367,15 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
-    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
     'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
     '<metadata name="Application">BumpMesh Color</metadata>\n' +
     (thumbBytes ? '<metadata name="Thumbnail">/Metadata/thumbnail.png</metadata>\n' : '') +
     '<resources>\n'
   );
 
-  // 1. Color group (standard 3MF Material Extension with 8-char RGBA hex)
-  emit('  <m:colorgroup id="1">\n');
-  for (const item of palette) {
-    const raw = item.hex.startsWith('#') ? item.hex.slice(1) : item.hex;
-    const hex8 = '#' + raw.toUpperCase() + (raw.length === 6 ? 'FF' : '');
-    emit(`    <m:color color="${hex8}"/>\n`);
-  }
-  emit('  </m:colorgroup>\n');
-
-  // 2. Single watertight solid object with triangle material properties
+  // Single watertight solid object
   const rootObjectId = 1;
-  emit(`  <object id="${rootObjectId}" type="model" name="BumpMesh_Color" pid="1" p1="0">\n`);
+  emit(`  <object id="${rootObjectId}" type="model">\n`);
   emit('    <mesh>\n      <vertices>\n');
 
   for (let i = 0; i < vertCount; i++) {
@@ -420,10 +403,9 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     seenFacesMulti.add(faceKey);
 
     const toolId = (triTools && triTools[i]) ? triTools[i] : 1;
-    const palIdx = toolToPalIndex.get(toolId) ?? 0;
     const paintCode = encodeTrianglePaint(toolId);
     emit(
-      `        <triangle v1="${v1}" v2="${v2}" v3="${v3}" pid="1" p1="${palIdx}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
+      `        <triangle v1="${v1}" v2="${v2}" v3="${v3}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
     );
   }
 
