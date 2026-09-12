@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "원통 투영 정의",
   "ui.cylinderNoModel1": "모델을 불러와",
   "ui.cylinderNoModel2": "원통 축을 배치하세요",
-  "ui.cylinderPanelMinimize": "최소화 / 복원"
+  "ui.cylinderPanelMinimize": "최소화 / 복원",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

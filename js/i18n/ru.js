@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "Настройка цилиндрической проекции",
   "ui.cylinderNoModel1": "Загрузите модель, чтобы настроить",
   "ui.cylinderNoModel2": "ось цилиндра",
-  "ui.cylinderPanelMinimize": "Свернуть / развернуть"
+  "ui.cylinderPanelMinimize": "Свернуть / развернуть",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

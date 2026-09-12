@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "Silindir Yansıtmayı Tanımla",
   "ui.cylinderNoModel1": "Modeli Pozisyona Yükle",
   "ui.cylinderNoModel2": "Silindir eksenleri",
-  "ui.cylinderPanelMinimize": "Sayfayı küçült/geri getir"
+  "ui.cylinderPanelMinimize": "Sayfayı küçült/geri getir",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

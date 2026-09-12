@@ -267,7 +267,7 @@ export default {
   "ui.cylinderPanelLabel": "シリンダー投影を設定",
   "ui.cylinderNoModel1": "モデルを読み込んで",
   "ui.cylinderNoModel2": "シリンダー軸を配置してください",
-  "ui.cylinderPanelMinimize": "最小化 / 復元"
+  "ui.cylinderPanelMinimize": "最小化 / 復元",
   "labels.textureSizeU": "サイズ U",
   "labels.textureSizeV": "サイズ V",
   "tooltips.textureSize": "テクスチャ1マスの実寸法 (mm)",

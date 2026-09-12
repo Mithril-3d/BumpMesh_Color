@@ -259,7 +259,7 @@ export default {
   "ui.cylinderPanelLabel": "Zdefiniuj projekcję walcową",
   "ui.cylinderNoModel1": "Załaduj model, aby ustawić",
   "ui.cylinderNoModel2": "oś walca",
-  "ui.cylinderPanelMinimize": "Zwiń / rozwiń"
+  "ui.cylinderPanelMinimize": "Zwiń / rozwiń",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

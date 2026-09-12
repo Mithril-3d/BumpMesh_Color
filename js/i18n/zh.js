@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "定义圆柱投影",
   "ui.cylinderNoModel1": "加载模型以定位",
   "ui.cylinderNoModel2": "圆柱轴",
-  "ui.cylinderPanelMinimize": "最小化 / 还原"
+  "ui.cylinderPanelMinimize": "最小化 / 还原",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

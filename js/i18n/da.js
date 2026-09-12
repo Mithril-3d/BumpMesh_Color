@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "Definer cylinderprojektion",
   "ui.cylinderNoModel1": "Indlæs en model for at placere",
   "ui.cylinderNoModel2": "cylinderaksen",
-  "ui.cylinderPanelMinimize": "Minimer / genskab"
+  "ui.cylinderPanelMinimize": "Minimer / genskab",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

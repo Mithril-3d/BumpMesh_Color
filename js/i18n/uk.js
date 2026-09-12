@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "Визначення проєкції циліндра",
   "ui.cylinderNoModel1": "Завантажте модель для розташування",
   "ui.cylinderNoModel2": "вісі циліндра",
-  "ui.cylinderPanelMinimize": "Згорнути / відновити"
+  "ui.cylinderPanelMinimize": "Згорнути / відновити",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

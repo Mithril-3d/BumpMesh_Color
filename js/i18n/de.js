@@ -264,7 +264,7 @@ export default {
   "ui.cylinderPanelLabel": "Zylinderprojektion festlegen",
   "ui.cylinderNoModel1": "Modell laden, um die",
   "ui.cylinderNoModel2": "Zylinderachse zu setzen",
-  "ui.cylinderPanelMinimize": "Minimieren / Wiederherstellen"
+  "ui.cylinderPanelMinimize": "Minimieren / Wiederherstellen",
   "ui.presetModels": "Preset-Modelle",
   "ui.presetCube": "Würfel",
   "ui.presetCylinder": "Zylinder",

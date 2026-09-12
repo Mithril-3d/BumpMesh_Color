@@ -263,7 +263,7 @@ export default {
   "ui.cylinderPanelLabel": "Definir proyección cilíndrica",
   "ui.cylinderNoModel1": "Carga un modelo para",
   "ui.cylinderNoModel2": "colocar el eje del cilindro",
-  "ui.cylinderPanelMinimize": "Minimizar / restaurar"
+  "ui.cylinderPanelMinimize": "Minimizar / restaurar",
   "ui.presetModels": "Preset Models",
   "ui.presetCube": "Cube",
   "ui.presetCylinder": "Cylinder",

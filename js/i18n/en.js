@@ -268,7 +268,7 @@ export default {
   "ui.cylinderPanelLabel": "Define cylinder projection",
   "ui.cylinderNoModel1": "Load a model to position",
   "ui.cylinderNoModel2": "the cylinder axis",
-  "ui.cylinderPanelMinimize": "Minimize / restore"
+  "ui.cylinderPanelMinimize": "Minimize / restore",
   "progress.slicingMesh": "Slicing mesh at layer boundaries…",
   "progress.applyingLayerDisplacement": "Applying layer-aligned displacement…",
   "progress.assigningTools": "Assigning colors to triangles…",
