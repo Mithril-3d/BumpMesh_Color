@@ -297,7 +297,8 @@ export function applyLayerAlignedDisplacement(
   concaveVal,
   profileMode,
   shadingMode,
-  sampleFn // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
+  sampleFn, // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
+  untexturedTool = 1
 ) {
   const { positions: inPos, normals: inNrm, layers: inLay, cutEdgesPerCut, uniqueVerts, uniqueNorms, zCuts } = sliced;
   const triCount = inLay.length;
@@ -313,8 +314,20 @@ export function applyLayerAlignedDisplacement(
   for (let i = 0; i < triCount; i++) {
     const lay = inLay[i];
     const activeTool = getInterleavedToolAtLayer(lay, toolIds);
-    triTools[i] = activeTool;
     const b = i * 9;
+
+    // Compute average face normal to detect horizontal caps
+    let avgNx = (inNrm ? (inNrm[b] + inNrm[b+3] + inNrm[b+6]) : 0) / 3;
+    let avgNy = (inNrm ? (inNrm[b+1] + inNrm[b+4] + inNrm[b+7]) : 0) / 3;
+    let avgNz = (inNrm ? (inNrm[b+2] + inNrm[b+5] + inNrm[b+8]) : 1) / 3;
+    const avgLen = Math.hypot(avgNx, avgNy, avgNz) || 1;
+    avgNx /= avgLen; avgNy /= avgLen; avgNz /= avgLen;
+    const avgHlen = Math.hypot(avgNx, avgNy);
+
+    // Horizontal surfaces (top/bottom flat caps) receive untexturedTool
+    // so no displacement or interleaved color is applied
+    const isHorizontalCap = avgHlen < 0.15;
+    triTools[i] = isHorizontalCap ? untexturedTool : activeTool;
 
     for (let v = 0; v < 3; v++) {
       const idx = b + v * 3;

@@ -271,15 +271,12 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     '<Relationship Id="rel-1" Target="/3D/3dmodel.model" ' +
     'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n';
   if (thumbBytes) {
-    relsXml += '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n';
+    relsXml +=
+      '<Relationship Id="rel-2" Target="/Metadata/plate_1.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Id="rel-4" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Id="rel-5" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   relsXml += '</Relationships>\n';
-
-  const modelRelsXml =
-    '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
-    '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-    '</Relationships>\n';
 
   // ── Zip and download ─────────────────────────────────────────────────────
   const zipFiles = {
@@ -288,7 +285,6 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     '3D/3dmodel.model':    modelBytes,
   };
   if (thumbBytes) {
-    zipFiles['3D/_rels/3dmodel.model.rels'] = strToU8(modelRelsXml);
     zipFiles['Metadata/thumbnail.png']     = thumbBytes;
     zipFiles['Metadata/plate_1.png']       = thumbBytes;
     zipFiles['Metadata/plate_1_small.png'] = thumbBytes;
@@ -505,15 +501,12 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '<Relationship Id="rel-2" Target="/Metadata/model_settings.config" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
     '<Relationship Id="rel-3" Target="/Metadata/Slic3r_PE.config" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n';
   if (thumbBytes) {
-    relsXml += '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n';
+    relsXml +=
+      '<Relationship Id="rel-4" Target="/Metadata/plate_1.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Id="rel-5" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Id="rel-6" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   relsXml += '</Relationships>\n';
-
-  const modelRelsXml =
-    '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
-    '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-    '</Relationships>\n';
 
   const zipFiles = {
     '[Content_Types].xml':           strToU8(contentTypesXml),
@@ -524,7 +517,6 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   };
 
   if (thumbBytes) {
-    zipFiles['3D/_rels/3dmodel.model.rels'] = strToU8(modelRelsXml);
     zipFiles['Metadata/thumbnail.png']     = thumbBytes;
     zipFiles['Metadata/plate_1.png']       = thumbBytes;
     zipFiles['Metadata/plate_1_small.png'] = thumbBytes;
