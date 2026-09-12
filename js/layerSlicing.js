@@ -428,40 +428,30 @@ export function applyLayerAlignedDisplacement(
         // Assign tool: dominant protruding tool owns the shelf surface
         const shelfTool = (dispBot0 > dispTop0) ? botTool : topTool;
 
-        // Correct manifold winding order based on shelf normal orientation
-        if (dispBot0 >= dispTop0) {
-          // Lower layer is wider: shelf faces UP (Z+)
-          // Winding: (p1_bot, p0_bot, p0_top) and (p1_bot, p0_top, p1_top)
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, 1,
-            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, 1,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, 1
-          );
-          shelfTools.push(shelfTool);
+        // Correct manifold winding order:
+        // Lower layer boundary edge runs p0_bot -> p1_bot.
+        // Upper layer boundary edge runs p1_top -> p0_top.
+        // To close the gap between displaced layers, the shelf quad perimeter MUST run:
+        // p1_bot -> p0_bot -> p0_top -> p1_top -> p1_bot.
+        // Triangulating this quad with diagonal (p1_bot, p0_top) yields:
+        //   Tri 1: (p1_bot, p0_bot, p0_top)
+        //   Tri 2: (p1_bot, p0_top, p1_top)
+        // This topological order is identical whether the shelf faces up or down.
+        const shelfNz = (dispBot0 >= dispTop0) ? 1 : -1;
 
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, 1,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, 1,
-            p1_top[0], p1_top[1], p1_top[2], 0, 0, 1
-          );
-          shelfTools.push(shelfTool);
-        } else {
-          // Upper layer is wider: shelf faces DOWN (Z-)
-          // Winding: (p0_bot, p1_bot, p0_top) and (p1_bot, p1_top, p0_top)
-          shelfTris.push(
-            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, -1,
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, -1,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, -1
-          );
-          shelfTools.push(shelfTool);
+        shelfTris.push(
+          p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
+          p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
+          p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz
+        );
+        shelfTools.push(shelfTool);
 
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, -1,
-            p1_top[0], p1_top[1], p1_top[2], 0, 0, -1,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, -1
-          );
-          shelfTools.push(shelfTool);
-        }
+        shelfTris.push(
+          p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
+          p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz,
+          p1_top[0], p1_top[1], p1_top[2], 0, 0, shelfNz
+        );
+        shelfTools.push(shelfTool);
       }
     }
   }

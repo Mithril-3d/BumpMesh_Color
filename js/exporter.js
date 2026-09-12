@@ -272,9 +272,9 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n';
   if (thumbBytes) {
     relsXml +=
-      '<Relationship Id="rel-2" Target="/Metadata/plate_1.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-      '<Relationship Id="rel-4" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
-      '<Relationship Id="rel-5" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
+      '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Id="rel-bambu-mid" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Id="rel-bambu-sm" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   relsXml += '</Relationships>\n';
 
@@ -285,9 +285,10 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     '3D/3dmodel.model':    modelBytes,
   };
   if (thumbBytes) {
-    zipFiles['Metadata/thumbnail.png']     = thumbBytes;
-    zipFiles['Metadata/plate_1.png']       = thumbBytes;
-    zipFiles['Metadata/plate_1_small.png'] = thumbBytes;
+    zipFiles['Metadata/thumbnail.png']       = thumbBytes;
+    zipFiles['Metadata/thumbnail_small.png'] = thumbBytes;
+    zipFiles['Metadata/plate_1.png']         = thumbBytes;
+    zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
 
   const zipped = zipSync(zipFiles, { level: 6 });
@@ -502,9 +503,9 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '<Relationship Id="rel-3" Target="/Metadata/Slic3r_PE.config" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n';
   if (thumbBytes) {
     relsXml +=
-      '<Relationship Id="rel-4" Target="/Metadata/plate_1.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-      '<Relationship Id="rel-5" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
-      '<Relationship Id="rel-6" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
+      '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Id="rel-bambu-mid" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Id="rel-bambu-sm" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   relsXml += '</Relationships>\n';
 
@@ -517,9 +518,10 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   };
 
   if (thumbBytes) {
-    zipFiles['Metadata/thumbnail.png']     = thumbBytes;
-    zipFiles['Metadata/plate_1.png']       = thumbBytes;
-    zipFiles['Metadata/plate_1_small.png'] = thumbBytes;
+    zipFiles['Metadata/thumbnail.png']       = thumbBytes;
+    zipFiles['Metadata/thumbnail_small.png'] = thumbBytes;
+    zipFiles['Metadata/plate_1.png']         = thumbBytes;
+    zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
 
   const zipped = zipSync(zipFiles, { level: 6 });
