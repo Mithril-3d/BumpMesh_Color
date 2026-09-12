@@ -56,6 +56,7 @@ const sharedGLSL = /* glsl */`
   uniform int       interleavedToolCount;
   uniform vec3      interleavedPalette[8];
   uniform int       interleavedShadingMode;
+  uniform int       interleavedProfileMode;
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
@@ -159,6 +160,9 @@ const sharedGLSL = /* glsl */`
           return -interleavedConcave;
         }
         float targetPeak = interleavedConvex * ratio;
+        if (interleavedProfileMode == 0) {
+          return targetPeak;
+        }
         float slope = min(targetPeak, t);
         float base = max(0.0, targetPeak - slope);
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
@@ -176,6 +180,9 @@ const sharedGLSL = /* glsl */`
           }
         }
         if (activeK == bestK) {
+          if (interleavedProfileMode == 0) {
+            return interleavedConvex;
+          }
           float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
           float slope = min(interleavedConvex, t);
           float base = max(0.0, interleavedConvex - slope);
@@ -688,6 +695,9 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedShadingMode) u.interleavedShadingMode = { value: 0 };
   u.interleavedShadingMode.value = settings.interleavedShadingMode ?? 0;
 
+  if (!u.interleavedProfileMode) u.interleavedProfileMode = { value: 0 };
+  u.interleavedProfileMode.value = settings.interleavedProfileMode ?? 0;
+
   if (settings.layerBlendMap) {
     if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
     else u.layerBlendMap.value = settings.layerBlendMap;
@@ -751,6 +761,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedToolCount:     { value: settings.interleavedToolCount ?? 2 },
     interleavedPalette:       { value: initPalette },
     interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 0 },
+    interleavedProfileMode:   { value: settings.interleavedProfileMode ?? 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

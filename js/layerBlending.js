@@ -108,7 +108,7 @@ export function computeLouverDisplacement(
   toolIds = [1, 2],
   convexAmp = 0.35,
   concaveAmp = 0.0,
-  profileMode = 1,
+  profileMode = 0,
   blendWeight = 1.0,
   shadingMode = 0
 ) {

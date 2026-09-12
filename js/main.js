@@ -15,7 +15,7 @@ import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
 import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260911a';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260911a';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909d';
@@ -26,7 +26,7 @@ import {
   getInterleavedToolAtLayer,
   computeInterleavedDisplacement,
   generateInterleavedTable
-} from './layerBlending.js?v=20260909d';
+} from './layerBlending.js?v=20260912_sticky';
 import { sliceMeshWatertight } from './layerSlicing.js?v=20260909i';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -35,7 +35,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260908d';
-import { APP_VERSION } from './version.js?v=20260908d';
+import { APP_VERSION } from './version.js?v=20260912_100';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -329,7 +329,7 @@ let interleavedSettings          = {
   layerThickness: 0.20,
   convexAmp: 0.35,
   concaveAmp: 0.00,
-  profileMode: 1, // 1 = 45° Louver (eaves shield), 0 = Flat
+  profileMode: 0, // 0 = Flat step (recommended), 1 = 45° Louver
   shadingMode: 0  // 0 = Step (discrete), 1 = Gradient (continuous)
 };
 const exportProgress   = document.getElementById('export-progress');
@@ -1500,7 +1500,7 @@ function renderInterleavedUI() {
   let info = `• 積層ピッチ: ${thickness.toFixed(2)} mm (総レイヤー数: 約${totalLayers}層)\n`;
   info += `• 凸突出量: +${interleavedSettings.convexAmp.toFixed(2)} mm (目的色と一致)\n`;
   info += `• 凹引込量: -${interleavedSettings.concaveAmp.toFixed(2)} mm (目的色と不一致)\n`;
-  info += `• 断面プロファイル: ${isLouver ? '45° ルーバー庇（他色シールド）' : 'フラット段差'}\n`;
+  info += `• 断面プロファイル: ${isLouver ? '45° ルーバー庇（他色シールド）' : 'フラット段差（標準ステップ・推奨）'}\n`;
   info += `• 階調表現: ${isGradient ? 'グラデーション (連続階調)' : 'シャープ (二値 / 0-1)'}\n`;
   info += `• 交互パターン: ${toolIds.map(t => 'Tool ' + t).join(' → ')} → …`;
   interleavedInfoText.textContent = info;
@@ -1574,7 +1574,7 @@ function initInterleavedEvents() {
   if (interleavedProfileModeSelect) {
     interleavedProfileModeSelect.addEventListener('change', (e) => {
       const parsed = parseInt(e.target.value, 10);
-      interleavedSettings.profileMode = isNaN(parsed) ? 1 : parsed;
+      interleavedSettings.profileMode = isNaN(parsed) ? 0 : parsed;
       renderInterleavedUI();
       updatePreview();
     });
@@ -4661,7 +4661,7 @@ function getFullPreviewSettings() {
     interleavedThickness: interleavedSettings.layerThickness || 0.20,
     interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
-    interleavedProfileMode: interleavedSettings.profileMode ?? 1,
+    interleavedProfileMode: interleavedSettings.profileMode ?? 0,
     interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
@@ -5361,7 +5361,7 @@ async function handleExport(format = 'stl') {
       interleavedThickness: interleavedSettings.layerThickness || 0.20,
       interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
-      interleavedProfileMode: interleavedSettings.profileMode ?? 1,
+      interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
@@ -5773,7 +5773,7 @@ async function bakeTextures() {
       interleavedThickness: interleavedSettings.layerThickness || 0.20,
       interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
-      interleavedProfileMode: interleavedSettings.profileMode ?? 1,
+      interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
