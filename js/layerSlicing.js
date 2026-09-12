@@ -424,10 +424,26 @@ export function applyLayerAlignedDisplacement(
         const hasStep1 = Math.abs(diff1) >= 1e-4;
         if (!hasStep0 && !hasStep1) continue; // coplanar, no shelf needed
 
-        const p0_bot = [p0[0] + dispBot0 * unx0, p0[1] + dispBot0 * uny0, zCut];
-        const p1_bot = [p1[0] + dispBot1 * unx1, p1[1] + dispBot1 * uny1, zCut];
-        const p0_top = [p0[0] + dispTop0 * unx0, p0[1] + dispTop0 * uny0, zCut];
-        const p1_top = [p1[0] + dispTop1 * unx1, p1[1] + dispTop1 * uny1, zCut];
+        const p0_bot = [
+          Math.fround(Math.fround(p0[0]) + Math.fround(dispBot0 * unx0)),
+          Math.fround(Math.fround(p0[1]) + Math.fround(dispBot0 * uny0)),
+          Math.fround(zCut)
+        ];
+        const p1_bot = [
+          Math.fround(Math.fround(p1[0]) + Math.fround(dispBot1 * unx1)),
+          Math.fround(Math.fround(p1[1]) + Math.fround(dispBot1 * uny1)),
+          Math.fround(zCut)
+        ];
+        const p0_top = [
+          Math.fround(Math.fround(p0[0]) + Math.fround(dispTop0 * unx0)),
+          Math.fround(Math.fround(p0[1]) + Math.fround(dispTop0 * uny0)),
+          Math.fround(zCut)
+        ];
+        const p1_top = [
+          Math.fround(Math.fround(p1[0]) + Math.fround(dispTop1 * unx1)),
+          Math.fround(Math.fround(p1[1]) + Math.fround(dispTop1 * uny1)),
+          Math.fround(zCut)
+        ];
 
         // Assign tool: dominant protruding tool owns the shelf surface
         const shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;

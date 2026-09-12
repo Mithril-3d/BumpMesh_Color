@@ -137,22 +137,18 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   const triCount = (posArr.length / 9) | 0;
 
   // ── Deduplicate vertices ─────────────────────────────────────────────────
-  // Weld on the 1e4 grid (0.0001 mm cells), matching the 4-decimal precision
-  // the coordinates are written with below — safely below the resolution of
-  // any FDM/SLA printer and far tighter than float32 rounding noise from the
-  // displacement pipeline. The pipeline snaps coordinates onto this exact
-  // grid in resolveTJunctions before export, so welding here only merges
-  // bit-identical (or grid-identical) points.
-  const indexMap  = new QuantizedPointMap(1e4, Math.min(triCount * 3, 1 << 22));
-  const uniqueXYZ = [];   // flat [x,y,z,x,y,z,...]
-  const triIdx    = new Uint32Array(triCount * 3);
+  // Weld on a 0.5 um grid (2000 units/mm) matching slicer resolution
+  const QUANT = 2000;
+  const indexMap = new QuantizedPointMap(QUANT, Math.min(triCount * 3, 1 << 22));
+  const uniqueXYZ = [];
+  const triIdx = new Uint32Array(triCount * 3);
 
   for (let i = 0; i < triCount; i++) {
     for (let j = 0; j < 3; j++) {
       const b = i * 9 + j * 3;
-      const x = Math.round(posArr[b] * 1e4) / 1e4;
-      const y = Math.round(posArr[b + 1] * 1e4) / 1e4;
-      const z = Math.round(posArr[b + 2] * 1e4) / 1e4;
+      const x = Math.round(posArr[b] * QUANT) / QUANT;
+      const y = Math.round(posArr[b + 1] * QUANT) / QUANT;
+      const z = Math.round(posArr[b + 2] * QUANT) / QUANT;
       const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
       if (indexMap.inserted) uniqueXYZ.push(x, y, z);
       triIdx[i * 3 + j] = idx;
@@ -200,7 +196,6 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
 
   // Vertices: trim trailing zeros to keep the file compact.
   const fmt = (n) => {
-    // 4 decimals matches the dedup precision; strip trailing zeros and ".".
     let s = n.toFixed(4);
     if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
     return s;
@@ -208,34 +203,30 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   for (let i = 0; i < vertCount; i++) {
     const b = i * 3;
     emit(
-      '<vertex x="' + fmt(uniqueXYZ[b]) +
-      '" y="'       + fmt(uniqueXYZ[b + 1]) +
-      '" z="'       + fmt(uniqueXYZ[b + 2]) +
-      '"/>\n'
+      `        <vertex x="${fmt(uniqueXYZ[b])}" y="${fmt(uniqueXYZ[b+1])}" z="${fmt(uniqueXYZ[b+2])}"/>\n`
     );
   }
 
-  emit('</vertices>\n<triangles>\n');
+  emit('      </vertices>\n      <triangles>\n');
 
-  const seenFaces3mf = new Set();
+  // Triangles: drop degenerate faces (indices collapsed by dedup)
+  const seenFaces = new Set();
   for (let i = 0; i < triCount; i++) {
-    const b = i * 3;
-    const v1 = triIdx[b], v2 = triIdx[b + 1], v3 = triIdx[b + 2];
-    if (v1 === v2 || v2 === v3 || v1 === v3) continue;
-    let lo = v1, mid = v2, hi = v3;
-    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    const v1 = triIdx[i * 3];
+    const v2 = triIdx[i * 3 + 1];
+    const v3 = triIdx[i * 3 + 2];
+    if (v1 === v2 || v2 === v3 || v3 === v1) continue;
+
+    let lo = Math.min(v1, v2, v3);
+    let hi = Math.max(v1, v2, v3);
+    let mid = v1 + v2 + v3 - lo - hi;
     if (mid > hi) { const t = mid; mid = hi; hi = t; }
     if (lo > mid) { const t = lo; lo = mid; mid = t; }
     const faceKey = `${lo},${mid},${hi}`;
-    if (seenFaces3mf.has(faceKey)) continue;
-    seenFaces3mf.add(faceKey);
+    if (seenFaces.has(faceKey)) continue;
+    seenFaces.add(faceKey);
 
-    emit(
-      '<triangle v1="' + v1 +
-      '" v2="'         + v2 +
-      '" v3="'         + v3 +
-      '"/>\n'
-    );
+    emit(`        <triangle v1="${v1}" v2="${v2}" v3="${v3}"/>\n`);
   }
 
   emit(
@@ -268,21 +259,19 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   let relsXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
-    '<Relationship Id="rel-1" Target="/3D/3dmodel.model" ' +
-    'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n';
+    '<Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n';
   if (thumbBytes) {
     relsXml +=
-      '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-      '<Relationship Id="rel-bambu-mid" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
-      '<Relationship Id="rel-bambu-sm" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
+      '<Relationship Target="/Metadata/thumbnail.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Target="/Metadata/plate_1.png" Id="rel-3" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
-  relsXml += '</Relationships>\n';
-
   // ── Zip and download ─────────────────────────────────────────────────────
+  // Place metadata and thumbnails at the head of the zip so Windows Shell and slicers
+  // can instantly read the preview thumbnail without scanning through the 400MB model payload.
   const zipFiles = {
-    '[Content_Types].xml': strToU8(contentTypesXml),
-    '_rels/.rels':         strToU8(relsXml),
-    '3D/3dmodel.model':    modelBytes,
+    '[Content_Types].xml':           strToU8(contentTypesXml),
+    '_rels/.rels':                   strToU8(relsXml),
   };
   if (thumbBytes) {
     zipFiles['Metadata/thumbnail.png']       = thumbBytes;
@@ -290,6 +279,7 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     zipFiles['Metadata/plate_1.png']         = thumbBytes;
     zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
+  zipFiles['3D/3dmodel.model'] = modelBytes;
 
   const zipped = zipSync(zipFiles, { level: 6 });
 
@@ -372,17 +362,18 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     }
   });
 
-  // Deduplicate vertices on a 1e4 grid (0.0001 mm) to form a continuous manifold
-  const indexMap = new QuantizedPointMap(1e4, Math.min(triCount * 3, 1 << 22));
+  // Deduplicate vertices on a 0.5 um grid (2000 units/mm) matching slicer resolution
+  const QUANT = 2000;
+  const indexMap = new QuantizedPointMap(QUANT, Math.min(triCount * 3, 1 << 22));
   const uniqueXYZ = [];
   const triIdx = new Uint32Array(triCount * 3);
 
   for (let i = 0; i < triCount; i++) {
     for (let j = 0; j < 3; j++) {
       const b = i * 9 + j * 3;
-      const x = Math.round(posArr[b] * 1e4) / 1e4;
-      const y = Math.round(posArr[b + 1] * 1e4) / 1e4;
-      const z = Math.round(posArr[b + 2] * 1e4) / 1e4;
+      const x = Math.round(posArr[b] * QUANT) / QUANT;
+      const y = Math.round(posArr[b + 1] * QUANT) / QUANT;
+      const z = Math.round(posArr[b + 2] * QUANT) / QUANT;
       const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
       if (indexMap.inserted) uniqueXYZ.push(x, y, z);
       triIdx[i * 3 + j] = idx;
@@ -498,23 +489,24 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   let relsXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
-    '<Relationship Id="rel-1" Target="/3D/3dmodel.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
-    '<Relationship Id="rel-2" Target="/Metadata/model_settings.config" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
-    '<Relationship Id="rel-3" Target="/Metadata/Slic3r_PE.config" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n';
+    '<Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
+    '<Relationship Target="/Metadata/model_settings.config" Id="rel-2" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
+    '<Relationship Target="/Metadata/Slic3r_PE.config" Id="rel-3" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n';
   if (thumbBytes) {
     relsXml +=
-      '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-      '<Relationship Id="rel-bambu-mid" Target="/Metadata/plate_1.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
-      '<Relationship Id="rel-bambu-sm" Target="/Metadata/plate_1_small.png" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
+      '<Relationship Target="/Metadata/thumbnail.png" Id="rel-4" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Target="/Metadata/plate_1.png" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-6" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   relsXml += '</Relationships>\n';
 
+  // Place metadata and thumbnails at the head of the zip so Windows Shell and slicers
+  // can instantly read the preview thumbnail without scanning through the massive model payload.
   const zipFiles = {
-    '[Content_Types].xml':           strToU8(contentTypesXml),
-    '_rels/.rels':                   strToU8(relsXml),
-    '3D/3dmodel.model':              modelBytes,
+    '[Content_Types].xml':            strToU8(contentTypesXml),
+    '_rels/.rels':                    strToU8(relsXml),
     'Metadata/model_settings.config': strToU8(bambuConfigXml),
-    'Metadata/Slic3r_PE.config':     strToU8(prusaConfigXml),
+    'Metadata/Slic3r_PE.config':      strToU8(prusaConfigXml),
   };
 
   if (thumbBytes) {
@@ -523,6 +515,8 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     zipFiles['Metadata/plate_1.png']         = thumbBytes;
     zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
+
+  zipFiles['3D/3dmodel.model'] = modelBytes;
 
   const zipped = zipSync(zipFiles, { level: 6 });
 

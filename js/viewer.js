@@ -1157,7 +1157,7 @@ function _initGizmoInteraction() {
  * Used for embedding inside 3MF packages so slicers (PrusaSlicer, Bambu Studio)
  * display full-fidelity preview thumbnails.
  */
-export function getViewerThumbnail(maxDim = 400) {
+export function getViewerThumbnail(maxDim = 256) {
   try {
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = maxDim;
