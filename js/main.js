@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260908d';
-import { APP_VERSION } from './version.js?v=20260912_105';
+import { APP_VERSION } from './version.js?v=20260912_106';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ const settings = {
   lockScale:     true,
   untexturedToolId: 4,
   bottomAngleLimit: 5,
-  topAngleLimit:    5,
+  topAngleLimit:    0,
   mappingBlend:     1,
   seamBandWidth:    0.5,
   textureSmoothing: 0,
@@ -3074,6 +3074,30 @@ function refreshExclusionOverlay() {
   updateFaceMask(activeGeo);
 }
 
+function autoMaskTopSurface() {
+  if (!currentGeometry || !triangleCentroids || !triangleFaceNormals || !currentBounds) return;
+  const triCount = currentGeometry.attributes.position.count / 3;
+  const maxZ = currentBounds.max.z;
+  const zTol = Math.max(0.05, currentBounds.size.z * 0.002);
+
+  excludedFaces = new Set();
+  for (let t = 0; t < triCount; t++) {
+    const idx = t * 3;
+    const nz = triangleFaceNormals[idx + 2];
+    const cz = triangleCentroids[idx + 2];
+    // Upward-facing planar horizontal surface at the maximum Z of the model
+    if (nz > 0.95 && cz >= maxZ - zTol) {
+      excludedFaces.add(t);
+    }
+  }
+
+  if (excludedFaces.size > 0) {
+    maskModeChosen = true;
+    updateMaskModeButtons();
+  }
+  refreshExclusionOverlay();
+}
+
 function updateBrushCursor(e) {
   if (!brushIsRadius || !currentGeometry) {
     brushCursorEl.style.display = 'none';
@@ -3449,6 +3473,7 @@ function loadPresetModel(presetKey = 'cube') {
   triangleAdjacency = adjData.adjacency;
   triangleCentroids = adjData.centroids;
   triangleFaceNormals = adjData.faceNormals;
+  autoMaskTopSurface();
 
   // Pre-calculate an initial tile size that looks nice on this model; from
   // here on the value is absolute (mm) and independent of the model bounds.
@@ -3694,6 +3719,7 @@ async function handleModelFile(file, stepSettings = null) {
     triangleCentroids = adjData.centroids;
     triangleFaceNormals = adjData.faceNormals;
     updateMeshDiagnostics(adjData, currentGeometry.attributes.position.count / 3);
+    autoMaskTopSurface();
 
     // Carry scale, offset, rotation, and all other tuning across model swaps —
     // they're normalized to the bounding box so they apply meaningfully to the
@@ -5493,8 +5519,7 @@ async function handleExport(format = 'stl') {
           concaveAmp,
           effectiveSettings.interleavedProfileMode,
           effectiveSettings.interleavedShadingMode,
-          sampleFn,
-          untexturedTool
+          sampleFn
         );
 
         finalGeometry = new THREE.BufferGeometry();
@@ -6279,7 +6304,7 @@ const DEFAULT_SETTINGS_SNAPSHOT = Object.freeze({
   symmetricDisplacement: false, noDownwardZ: false, smoothBottom: true, harvestFlatFaces: true, harvestTol: 0.005, preserveUntextured: true, textureSmoothing: 0,
   mappingBlend: 1, seamBandWidth: 0.5, capAngle: 20, boundaryFalloff: 0,
   boundaryFalloffCurve: 'ease',
-  bottomAngleLimit: 5, topAngleLimit: 5,
+  bottomAngleLimit: 5, topAngleLimit: 0,
   refineLength: 1, maxTriangles: 750000,
   snapSeamlessWrap: true,
   cylinderCenterX: null, cylinderCenterY: null, cylinderRadius: null,
