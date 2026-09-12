@@ -28,6 +28,38 @@ function triggerDownload(buffer, filename, mime = 'application/octet-stream') {
 }
 
 /**
+ * Decode thumbnail base64 data URL to Uint8Array, with fallback minimal PNG
+ * to ensure 3MF files always carry a valid thumbnail.
+ */
+function decodeThumbnail(dataUrl) {
+  if (dataUrl && typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png;base64,')) {
+    try {
+      const b64 = dataUrl.slice('data:image/png;base64,'.length);
+      const binStr = atob(b64);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+      if (bytes.length > 0) return bytes;
+    } catch (e) {
+      console.warn('[decodeThumbnail] Failed to decode dataUrl:', e);
+    }
+  }
+
+  // Fallback: 1x1 pixel valid PNG byte array
+  // PNG signature + IHDR (1x1 RGBA) + IDAT + IEND
+  return new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41,
+    0x54, 0x78, 0x9c, 0x63, 0x60, 0x60, 0x60, 0x00,
+    0x00, 0x00, 0x04, 0x00, 0x01, 0x27, 0x34, 0x50,
+    0x78, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
+    0x44, 0xae, 0x42, 0x60, 0x82
+  ]);
+}
+
+/**
  * Fast binary STL exporter — writes directly from BufferGeometry arrays.
  *
  * Eliminates Three.js STLExporter overhead:
@@ -135,6 +167,7 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   // length".  Encode chunks to UTF-8 bytes as we go, flushing the small
   // staging string every ~1 MiB so it never grows large enough to trip the
   // limit.  Final concat is byte-wise (no string-length cap).
+  const thumbBytes = decodeThumbnail(thumbnailDataUrl);
   const enc = new TextEncoder();
   const byteChunks = [];
   let totalBytes = 0;
@@ -157,6 +190,8 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n' +
+    '<metadata name="Application">BumpMesh Color</metadata>\n' +
+    (thumbBytes ? '<metadata name="Thumbnail">/Metadata/thumbnail.png</metadata>\n' : '') +
     '<resources>\n' +
     '<object id="1" type="model">\n' +
     '<mesh>\n' +
@@ -219,15 +254,6 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     for (const b of byteChunks) { modelBytes.set(b, off); off += b.length; }
   }
 
-  // Thumbnail PNG extraction
-  let thumbBytes = null;
-  if (thumbnailDataUrl && thumbnailDataUrl.startsWith('data:image/png;base64,')) {
-    const b64 = thumbnailDataUrl.slice('data:image/png;base64,'.length);
-    const binStr = atob(b64);
-    thumbBytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) thumbBytes[i] = binStr.charCodeAt(i);
-  }
-
   // ── Static package files ─────────────────────────────────────────────────
   let contentTypesXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -249,6 +275,12 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   }
   relsXml += '</Relationships>\n';
 
+  const modelRelsXml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
+    '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+    '</Relationships>\n';
+
   // ── Zip and download ─────────────────────────────────────────────────────
   const zipFiles = {
     '[Content_Types].xml': strToU8(contentTypesXml),
@@ -256,8 +288,10 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     '3D/3dmodel.model':    modelBytes,
   };
   if (thumbBytes) {
-    zipFiles['Metadata/thumbnail.png'] = thumbBytes;
-    zipFiles['Metadata/plate_1.png']   = thumbBytes;
+    zipFiles['3D/_rels/3dmodel.model.rels'] = strToU8(modelRelsXml);
+    zipFiles['Metadata/thumbnail.png']     = thumbBytes;
+    zipFiles['Metadata/plate_1.png']       = thumbBytes;
+    zipFiles['Metadata/plate_1_small.png'] = thumbBytes;
   }
 
   const zipped = zipSync(zipFiles, { level: 6 });
@@ -305,6 +339,7 @@ export function encodeTrianglePaint(toolId) {
  * @param {string} [thumbnailDataUrl]
  */
 export function exportMultiColor3MF(geometry, triTools, palette, filename = 'textured_multicolor.3mf', thumbnailDataUrl = null) {
+  const thumbBytes = decodeThumbnail(thumbnailDataUrl);
   const enc = new TextEncoder();
   const byteChunks = [];
   let totalBytes = 0;
@@ -366,6 +401,7 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
     'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
     '<metadata name="Application">BumpMesh Color</metadata>\n' +
+    (thumbBytes ? '<metadata name="Thumbnail">/Metadata/thumbnail.png</metadata>\n' : '') +
     '<resources>\n'
   );
 
@@ -450,15 +486,6 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '  </object>\n' +
     '</config>\n';
 
-  // Thumbnail PNG extraction
-  let thumbBytes = null;
-  if (thumbnailDataUrl && thumbnailDataUrl.startsWith('data:image/png;base64,')) {
-    const b64 = thumbnailDataUrl.slice('data:image/png;base64,'.length);
-    const binStr = atob(b64);
-    thumbBytes = new Uint8Array(binStr.length);
-    for (let i = 0; i < binStr.length; i++) thumbBytes[i] = binStr.charCodeAt(i);
-  }
-
   // Static package files
   let contentTypesXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -482,6 +509,12 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   }
   relsXml += '</Relationships>\n';
 
+  const modelRelsXml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
+    '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+    '</Relationships>\n';
+
   const zipFiles = {
     '[Content_Types].xml':           strToU8(contentTypesXml),
     '_rels/.rels':                   strToU8(relsXml),
@@ -491,8 +524,10 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   };
 
   if (thumbBytes) {
-    zipFiles['Metadata/thumbnail.png'] = thumbBytes;
-    zipFiles['Metadata/plate_1.png']   = thumbBytes;
+    zipFiles['3D/_rels/3dmodel.model.rels'] = strToU8(modelRelsXml);
+    zipFiles['Metadata/thumbnail.png']     = thumbBytes;
+    zipFiles['Metadata/plate_1.png']       = thumbBytes;
+    zipFiles['Metadata/plate_1_small.png'] = thumbBytes;
   }
 
   const zipped = zipSync(zipFiles, { level: 6 });

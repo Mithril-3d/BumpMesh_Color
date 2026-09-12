@@ -171,7 +171,7 @@ function buildDimensions(box, groundZ, scale) {
 
 export function initViewer(canvas) {
   // Renderer
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1157,22 +1157,51 @@ function _initGizmoInteraction() {
  * Used for embedding inside 3MF packages so slicers (PrusaSlicer, Bambu Studio)
  * display full-fidelity preview thumbnails.
  */
-export function getViewerThumbnail(maxDim = 300) {
-  if (!renderer || !scene || !camera) return null;
-  renderer.render(scene, camera);
-  const srcCanvas = renderer.domElement;
-  if (!srcCanvas || srcCanvas.width === 0 || srcCanvas.height === 0) return null;
+export function getViewerThumbnail(maxDim = 400) {
+  try {
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = maxDim;
+    thumbCanvas.height = maxDim;
+    const ctx = thumbCanvas.getContext('2d');
+    if (!ctx) return null;
 
-  const w = srcCanvas.width;
-  const h = srcCanvas.height;
-  const scale = Math.min(1, maxDim / Math.max(w, h));
-  const tw = Math.round(w * scale);
-  const th = Math.round(h * scale);
+    // Solid dark background matching viewer
+    ctx.fillStyle = '#18181c';
+    ctx.fillRect(0, 0, maxDim, maxDim);
 
-  const thumbCanvas = document.createElement('canvas');
-  thumbCanvas.width = tw;
-  thumbCanvas.height = th;
-  const ctx = thumbCanvas.getContext('2d');
-  ctx.drawImage(srcCanvas, 0, 0, tw, th);
-  return thumbCanvas.toDataURL('image/png');
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+      const srcCanvas = renderer.domElement;
+      if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
+        const sw = srcCanvas.width;
+        const sh = srcCanvas.height;
+        const scale = Math.min((maxDim * 0.92) / sw, (maxDim * 0.92) / sh);
+        const dw = Math.round(sw * scale);
+        const dh = Math.round(sh * scale);
+        const dx = Math.round((maxDim - dw) / 2);
+        const dy = Math.round((maxDim - dh) / 2);
+
+        ctx.drawImage(srcCanvas, dx, dy, dw, dh);
+        const dataUrl = thumbCanvas.toDataURL('image/png');
+        if (dataUrl && dataUrl.length > 100) {
+          return dataUrl;
+        }
+      }
+    }
+
+    // Fallback: draw an elegant 3D icon thumbnail if canvas render was blank
+    ctx.fillStyle = '#2563eb';
+    ctx.beginPath();
+    ctx.arc(maxDim / 2, maxDim / 2, maxDim * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('BumpMesh', maxDim / 2, maxDim / 2);
+    return thumbCanvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('[getViewerThumbnail] Failed to capture thumbnail:', err);
+    return null;
+  }
 }
