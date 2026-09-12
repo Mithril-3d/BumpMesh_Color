@@ -89,18 +89,31 @@ Fully localized UI with instant language switching:
 
 ## 💻 Running Locally
 
-Because browsers restrict ES module imports and local image access over `file://` URLs, run a lightweight local static HTTP server:
+Because modern web browsers restrict ES module imports and local image/texture access over `file://` URLs, a local static HTTP server is required. All processing still runs 100% locally and offline on your computer.
+
+### Option 1: Desktop GUI Launcher (Recommended)
+
+If you have Python installed, simply use the included desktop launcher:
+
+- **Windows**: Double-click `launcher.py` (or run `python launcher.py` in terminal).
+- **macOS / Linux**: Run `python3 launcher.py`.
+
+A clean launcher window will open, automatically find an available port, start the local server, and open **BumpMesh_Color** in your default browser. You can stop, start, or restart the server anytime with a single click.
+
+### Option 2: Standard Command Line
+
+Alternatively, you can start Python's built-in HTTP server directly from your terminal:
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/Mithril-3d/BumpMesh_Color.git
 cd BumpMesh_Color
 
-# 2. Start a local server (Python 3)
+# 2. Start the local server
 python -m http.server 8080
 ```
 
-Open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
+Then open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
 
 ---
 
