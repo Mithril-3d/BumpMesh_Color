@@ -403,22 +403,26 @@ export function applyLayerAlignedDisplacement(
 
         const hlen0 = Math.hypot(n0[0], n0[1]);
         const hlen1 = Math.hypot(n1[0], n1[1]);
-        if (hlen0 < 0.15 || hlen1 < 0.15) continue; // skip horizontal caps
+        if (hlen0 < 0.15 && hlen1 < 0.15) continue; // skip horizontal caps
 
-        const unx0 = n0[0] / hlen0, uny0 = n0[1] / hlen0;
-        const unx1 = n1[0] / hlen1, uny1 = n1[1] / hlen1;
+        const unx0 = hlen0 >= 0.15 ? n0[0] / hlen0 : 0;
+        const uny0 = hlen0 >= 0.15 ? n0[1] / hlen0 : 0;
+        const unx1 = hlen1 >= 0.15 ? n1[0] / hlen1 : 0;
+        const uny1 = hlen1 >= 0.15 ? n1[1] / hlen1 : 0;
 
         const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
         const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
 
-        const dispBot0 = computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode);
-        const dispBot1 = computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode);
-        const dispTop0 = computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode);
-        const dispTop1 = computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode);
+        const dispBot0 = hlen0 >= 0.15 ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) : 0;
+        const dispBot1 = hlen1 >= 0.15 ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) : 0;
+        const dispTop0 = hlen0 >= 0.15 ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) : 0;
+        const dispTop1 = hlen1 >= 0.15 ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;
-        if (Math.abs(diff0) < 1e-4 && Math.abs(diff1) < 1e-4) continue; // coplanar, no shelf needed
+        const hasStep0 = Math.abs(diff0) >= 1e-4;
+        const hasStep1 = Math.abs(diff1) >= 1e-4;
+        if (!hasStep0 && !hasStep1) continue; // coplanar, no shelf needed
 
         const p0_bot = [p0[0] + dispBot0 * unx0, p0[1] + dispBot0 * uny0, zCut];
         const p1_bot = [p1[0] + dispBot1 * unx1, p1[1] + dispBot1 * uny1, zCut];
@@ -426,32 +430,45 @@ export function applyLayerAlignedDisplacement(
         const p1_top = [p1[0] + dispTop1 * unx1, p1[1] + dispTop1 * uny1, zCut];
 
         // Assign tool: dominant protruding tool owns the shelf surface
-        const shelfTool = (dispBot0 > dispTop0) ? botTool : topTool;
+        const shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;
+        const shelfNz = ((dispBot0 + dispBot1) >= (dispTop0 + dispTop1)) ? 1 : -1;
 
-        // Correct manifold winding order:
-        // Lower layer boundary edge runs p0_bot -> p1_bot.
-        // Upper layer boundary edge runs p1_top -> p0_top.
-        // To close the gap between displaced layers, the shelf quad perimeter MUST run:
-        // p1_bot -> p0_bot -> p0_top -> p1_top -> p1_bot.
-        // Triangulating this quad with diagonal (p1_bot, p0_top) yields:
-        //   Tri 1: (p1_bot, p0_bot, p0_top)
-        //   Tri 2: (p1_bot, p0_top, p1_top)
-        // This topological order is identical whether the shelf faces up or down.
-        const shelfNz = (dispBot0 >= dispTop0) ? 1 : -1;
+        // Output non-degenerate shelf geometry:
+        // When only one endpoint has a step (texture color boundary running through the edge),
+        // emitting a quad produces a degenerate 0-area sliver which exporters/slicers discard,
+        // leaving an open edge hole. Emitting a single triangle cleanly seals the manifold step.
+        if (!hasStep0) {
+          // p0_bot == p0_top: Single triangle (p1_bot, p0_bot, p1_top)
+          shelfTris.push(
+            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
+            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
+            p1_top[0], p1_top[1], p1_top[2], 0, 0, shelfNz
+          );
+          shelfTools.push(shelfTool);
+        } else if (!hasStep1) {
+          // p1_bot == p1_top: Single triangle (p1_bot, p0_bot, p0_top)
+          shelfTris.push(
+            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
+            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
+            p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz
+          );
+          shelfTools.push(shelfTool);
+        } else {
+          // Both endpoints have steps: Full quad = 2 triangles
+          shelfTris.push(
+            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
+            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
+            p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz
+          );
+          shelfTools.push(shelfTool);
 
-        shelfTris.push(
-          p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
-          p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
-          p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz
-        );
-        shelfTools.push(shelfTool);
-
-        shelfTris.push(
-          p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
-          p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz,
-          p1_top[0], p1_top[1], p1_top[2], 0, 0, shelfNz
-        );
-        shelfTools.push(shelfTool);
+          shelfTris.push(
+            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
+            p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz,
+            p1_top[0], p1_top[1], p1_top[2], 0, 0, shelfNz
+          );
+          shelfTools.push(shelfTool);
+        }
       }
     }
   }
