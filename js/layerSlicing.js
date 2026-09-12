@@ -12,6 +12,8 @@
  *  5. Watertight manifold geometry (manifold = yes, open edges = 0).
  */
 
+import { computeLouverDisplacement, getInterleavedToolAtLayer } from './layerBlending.js';
+
 export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLayers) {
   const t = Math.max(0.01, thickness);
   const zCuts = [];
@@ -199,4 +201,91 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
   }
 
   return { positions: outPos, normals: outNrm, layers: outLay };
+}
+
+/**
+ * Apply layer-aligned displacement to a sliced mesh and insert horizontal shelves.
+ * Every layer receives exact, uniform displacement for its active tool, completely
+ * eliminating periodic long/short moiré artifacts and residual micro-roughness.
+ */
+export function applyLayerAlignedDisplacement(
+  sliced,
+  minZ,
+  thickness,
+  toolIds,
+  convexVal,
+  concaveVal,
+  profileMode,
+  shadingMode,
+  sampleFn // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
+) {
+  const { positions: inPos, normals: inNrm, layers: inLay } = sliced;
+  const triCount = inLay.length;
+  const t = Math.max(0.01, thickness);
+
+  const outPos = new Float32Array(triCount * 9);
+  const outNrm = new Float32Array(triCount * 9);
+  const outTools = new Int32Array(triCount);
+
+  // 1. Displace every triangle based strictly on its layer's active tool
+  for (let i = 0; i < triCount; i++) {
+    const lay = inLay[i];
+    const activeTool = getInterleavedToolAtLayer(lay, toolIds);
+    outTools[i] = activeTool;
+    const b = i * 9;
+
+    for (let v = 0; v < 3; v++) {
+      const idx = b + v * 3;
+      const x = inPos[idx];
+      const y = inPos[idx + 1];
+      const z = inPos[idx + 2];
+      const nx = inNrm ? inNrm[idx] : 0;
+      const ny = inNrm ? inNrm[idx + 1] : 0;
+      const nz = inNrm ? inNrm[idx + 2] : 1;
+
+      const hlen = Math.hypot(nx, ny);
+      if (hlen < 0.15) {
+        // Horizontal surface (top/bottom flat caps): keep base position
+        outPos[idx]     = x;
+        outPos[idx + 1] = y;
+        outPos[idx + 2] = z;
+        outNrm[idx]     = nx;
+        outNrm[idx + 1] = ny;
+        outNrm[idx + 2] = nz;
+      } else {
+        // Vertical/perimeter sidewall: apply exact displacement
+        const unx = nx / hlen;
+        const uny = ny / hlen;
+
+        const { targetTool, blendWeight } = sampleFn(x, y, z, nx, ny, nz);
+
+        // Compute displacement strictly for this layer
+        const disp = computeLouverDisplacement(
+          targetTool,
+          z,
+          minZ,
+          t,
+          toolIds,
+          convexVal,
+          concaveVal,
+          profileMode,
+          blendWeight,
+          shadingMode
+        );
+
+        outPos[idx]     = x + disp * unx;
+        outPos[idx + 1] = y + disp * uny;
+        outPos[idx + 2] = z;
+        outNrm[idx]     = nx;
+        outNrm[idx + 1] = ny;
+        outNrm[idx + 2] = nz;
+      }
+    }
+  }
+
+  return {
+    positions: outPos,
+    normals: outNrm,
+    triTools: outTools
+  };
 }

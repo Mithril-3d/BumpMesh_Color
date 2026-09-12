@@ -19,21 +19,23 @@ import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909d';
-import { quantizeImage } from './colorQuantization.js?v=20260908d';
+import { quantizeImage, getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {
   getLayerIndex,
   getInterleavedToolAtLayer,
   computeInterleavedDisplacement,
+  computeColorBlendWeight,
   generateInterleavedTable
-} from './layerBlending.js?v=20260912_sticky';
-import { sliceMeshWatertight } from './layerSlicing.js?v=20260909i';
+} from './layerBlending.js?v=20260912_101';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260912_101';
+import { sampleRGBBilinear } from './displacement.js?v=20260912_101';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
-import { getScaleReferenceLengths } from './mapping.js?v=20260908d';
+import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260908d';
 import { APP_VERSION } from './version.js?v=20260912_100';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
@@ -5354,6 +5356,7 @@ async function handleExport(format = 'stl') {
     // bottom snaps → repair), preferably in the export worker so the UI stays
     // responsive and background-tab throttling can't stall it. Falls back to
     // running inline if the worker can't initialise. See exportPipeline.js.
+    const isLayerBlendMode = (format === 'multicolor-3mf' && currentColorSubMode === 1);
     const effectiveSettings = {
       ...settings,
       colorSubMode: currentColorSubMode,
@@ -5364,6 +5367,14 @@ async function handleExport(format = 'stl') {
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
+      // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
+      // so we receive a pristine subdivided base mesh, then slice & displace strictly per layer.
+      ...(isLayerBlendMode ? {
+        amplitude: 0,
+        harvestFlatFaces: false,
+        regularizeEnabled: false,
+        maxTriangles: 2000000
+      } : {})
     };
     const result = await runPipeline({
       positions: currentGeometry.attributes.position.array,
@@ -5384,15 +5395,8 @@ async function handleExport(format = 'stl') {
     triLimitWarning.classList.toggle('hidden', exportWarnings.length === 0);
     triLimitWarning.textContent = exportWarnings.join(' ');
 
-
-
     if (result.repairStats) {
       const rs = result.repairStats;
-      // Ground-truth readout. The decisive number is `slivers`: zero-area
-      // "needle" triangles read as watertight here but every slicer (and our
-      // own importer) deletes them, punching a hole at each — that was the
-      // real cause of the open-edge warning on re-imported files. After
-      // repair both `slivers` and `open` must be 0.
       console.log(
         `%c[stlTexturizer] mesh repair (build 2026-06-10w): ` +
         `removed ${rs.beforeSlivers.toLocaleString()} zero-area slivers; ` +
@@ -5407,8 +5411,6 @@ async function handleExport(format = 'stl') {
     const baseName = `${currentStlName}_${texLabel}_amp${ampLabel}`;
 
     if (format === 'multicolor-3mf') {
-      const isLayerBlendMode = (currentColorSubMode === 1);
-
       if (isLayerBlendMode) {
         setProgress(0.94, 'Slicing mesh at layer boundaries…');
         await yieldFrame();
@@ -5418,8 +5420,6 @@ async function handleExport(format = 'stl') {
         _restoreOriginalPose(result.positions, result.normals);
 
         // 2. Align base minZ strictly with the original model bottom and ground to Z=0.
-        // This guarantees 100% exact synchronization with slicer layer heights (0.20, 0.40...)
-        // and eliminates periodic aliasing (horizontal striping / moiré artifacts).
         const originMinZ = currentBounds ? (currentBounds.min.z - currentPoseTrans.z) : 0;
         const originMaxZ = currentBounds ? (currentBounds.max.z - currentPoseTrans.z) : 50;
 
@@ -5435,33 +5435,67 @@ async function handleExport(format = 'stl') {
         const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
 
         // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm)
-        // Offsetting cut planes by +0.005mm eliminates coplanar intersection collision
-        // with slicer cutting planes (which slice exactly at Z = k * thickness).
-        // This guarantees the slicer plane passes strictly inside a single layer block,
-        // ensuring 100% pure 1-tool layers without within-layer tool changes.
         const cutOffset = 0.005;
         const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers);
 
-        finalGeometry = new THREE.BufferGeometry();
-        finalGeometry.setAttribute('position', new THREE.BufferAttribute(sliced.positions, 3));
-        if (sliced.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(sliced.normals, 3));
+        setProgress(0.96, 'Applying layer-aligned displacement…');
+        await yieldFrame();
+        if (exportToken !== myToken) return;
 
-        const slicedTriCount = (sliced.positions.length / 9) | 0;
-        const triTools = new Int32Array(slicedTriCount);
-        const exportPalette = currentColorPalette;
+        // 4. Sample texture and apply layer-aligned displacement:
+        // Every layer receives exact, uniform displacement for its active tool,
+        // completely eliminating periodic long/short moiré artifacts and residual micro-roughness.
+        const exportPalette = currentColorPalette || [];
         const toolIds = exportPalette && exportPalette.length > 0
           ? exportPalette.map(p => p.toolId)
           : [1, 2];
 
-        // 4. Assign tool per sliced triangle:
-        // In interleaved mode, every triangle in layer k (including flat caps and interior)
-        // MUST be assigned the layer's active tool to ensure 100% pure single-tool layers.
-        // Using sliced.layers strictly generated during slicing eliminates all floating-point
-        // boundary rounding errors (zero dot noise / stray triangles).
-        for (let i = 0; i < slicedTriCount; i++) {
-          const layerIdx = sliced.layers ? sliced.layers[i] : 0;
-          triTools[i] = getInterleavedToolAtLayer(layerIdx, toolIds);
-        }
+        const sampleFn = (x, y, z, nx, ny, nz) => {
+          const tmpP = new THREE.Vector3(x + currentPoseTrans.x, y + currentPoseTrans.y, z + originMinZ + currentPoseTrans.z);
+          const tmpN = new THREE.Vector3(nx, ny, nz);
+          const uvResult = computeUV(tmpP, tmpN, settings.mappingMode, settings, currentBounds);
+          let u = 0, v = 0;
+          if (uvResult && uvResult.triplanar) {
+            let maxW = -1;
+            for (const s of uvResult.samples) {
+              if (s.w > maxW) { maxW = s.w; u = s.u; v = s.v; }
+            }
+          } else if (uvResult) {
+            u = uvResult.u;
+            v = uvResult.v;
+          }
+
+          const targetTool = (exportPalette.length > 0)
+            ? getToolAtUV(exportEntry.imageData.data, exportEntry.width, exportEntry.height, u, v, exportPalette)
+            : 1;
+
+          let blendWeight = 1.0;
+          if (effectiveSettings.interleavedShadingMode === 1 && exportPalette.length >= 2) {
+            const rgb = sampleRGBBilinear(exportEntry.imageData.data, exportEntry.width, exportEntry.height, u, v);
+            const colorA = exportPalette[0].color || [255, 255, 255];
+            const colorB = exportPalette[1].color || [0, 0, 0];
+            blendWeight = computeColorBlendWeight(rgb, colorA, colorB);
+          }
+
+          return { targetTool, blendWeight };
+        };
+
+        const aligned = applyLayerAlignedDisplacement(
+          sliced,
+          groundedMinZ + cutOffset,
+          thickness,
+          toolIds,
+          effectiveSettings.interleavedConvex,
+          effectiveSettings.interleavedConcave,
+          effectiveSettings.interleavedProfileMode,
+          effectiveSettings.interleavedShadingMode,
+          sampleFn
+        );
+
+        finalGeometry = new THREE.BufferGeometry();
+        finalGeometry.setAttribute('position', new THREE.BufferAttribute(aligned.positions, 3));
+        if (aligned.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(aligned.normals, 3));
+        const triTools = aligned.triTools;
 
         setProgress(0.98, 'Packaging 3MF with layer-aligned painting…');
         await yieldFrame();
