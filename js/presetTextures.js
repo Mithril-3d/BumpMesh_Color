@@ -27,8 +27,10 @@ function fitDimensions(imgW, imgH) {
 
 const IMAGE_PRESETS = [
   { name: 'Geometric 4-Color', url: 'textures/geometric_4color.png', thumb: 'textures/thumbs/geometric_4color.webp', defaultScale: 0.5 },
-  // Japanese Traditional
+  // Japanese Traditional & Modern
   { name: 'Blue Porcelain',           url: 'textures/porcelain_blue_gradient.jpg', thumb: 'textures/thumbs/porcelain_blue_gradient.webp', defaultScale: 1.0 },
+  { name: 'Japanese Modern',          url: 'textures/japanese_modern.jpg',        thumb: 'textures/thumbs/japanese_modern.webp',        defaultScale: 0.5 },
+  { name: 'Japanese Pattern',         url: 'textures/japanese_pattern.jpg',       thumb: 'textures/thumbs/japanese_pattern.webp',       defaultScale: 0.5 },
   { name: 'Ichimatsu (2-Color)',       url: 'textures/ichimatsu_2color.png',       thumb: 'textures/thumbs/ichimatsu_2color.webp',       defaultScale: 0.5 },
   { name: 'Seigaiha (2-Color)',        url: 'textures/seigaiha_2color.png',        thumb: 'textures/thumbs/seigaiha_2color.webp',        defaultScale: 0.5 },
   { name: 'Yagasuri (2-Color)',        url: 'textures/yagasuri_2color.png',        thumb: 'textures/thumbs/yagasuri_2color.webp',        defaultScale: 0.5 },
