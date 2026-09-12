@@ -1086,8 +1086,8 @@ function populateLanguageSelector() {
     _scheduleCylinderPanelRedraw();
 
     // Re-render dynamic color controls with the new language
-    renderColorPaletteUI();
-    renderInterleavedUI();
+    if (typeof renderPaletteUI === 'function') renderPaletteUI();
+    if (typeof renderInterleavedUI === 'function') renderInterleavedUI();
   });
 
   languageSelector.appendChild(select);
@@ -1115,9 +1115,8 @@ populateLanguageSelector();
   if (select) {
     select.value = lang;
   }
-  // Re-render color controls to reflect initial language
-  renderColorPaletteUI();
-  renderInterleavedUI();
+  if (typeof renderPaletteUI === 'function') renderPaletteUI();
+  if (typeof renderInterleavedUI === 'function') renderInterleavedUI();
 })();
 
 // Theme toggle
