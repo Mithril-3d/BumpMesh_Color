@@ -43,17 +43,13 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Windows Explorer Thumbnail**: Automatically embeds compliant PNG thumbnails so files display high-res preview icons in Windows File Explorer.
 - **Non-blocking Progress**: Asynchronous export pipeline with realistic 0%–100% progress reporting that never freezes the browser.
 
-### 4. 🛡️ 100% Watertight Mesh Engine (Zero Open Edges)
-- **Robust Topology**: Completely eliminates open edges (holes), non-manifold creases, and flipped normals.
-- **Slicer Friendly**: Guaranteed to slice cleanly in modern slicing engines with zero yellow/pink repair warnings.
-
-### 5. 🖼️ Rich Library of Color & Traditional Japanese Textures
+### 4. 🖼️ Rich Library of Color & Traditional Japanese Textures
 In addition to the original 24 monochrome displacement patterns, **BumpMesh_Color** includes:
 - **Japanese Traditional & Modern Patterns**: Blue Porcelain, Japanese Modern, Japanese Pattern, Ichimatsu (市松), Seigaiha (青海波), Yagasuri (矢絣), Asanoha (麻の葉), Tomoe (巴), Kikko (亀甲), Kagome (籠目).
 - **Western Classics**: Houndstooth, Chevron, Herringbone, Argyle, Tartan, Stained Glass.
 - **Geometric Mosaics**: Honeycomb, Triangle Mosaic, Isometric Cubes, Octagon Tile, Kaleidoscope.
 
-### 6. 🌐 Comprehensive 14-Language Localization
+### 5. 🌐 Comprehensive 14-Language Localization
 Fully localized UI with instant language switching:
 - English, Japanese (日本語), German (Deutsch), French (Français), Spanish (Español), Italian (Italiano), Portuguese (Português), Chinese (中文), Korean (한국어), Russian (Русский), Ukrainian (Українська), Polish (Polski), Danish (Dansk), Turkish (Türkçe).
 
@@ -105,38 +101,6 @@ python -m http.server 8080
 ```
 
 Open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
-
----
-
-## 📁 Project Architecture
-
-```
-BumpMesh_Color/
-├── index.html              # Main application UI & layout
-├── style.css               # Styling (dark & light theme support)
-├── logo.png                # App icon & logo
-├── vercel.json             # Vercel deployment & cache-control configuration
-├── textures/               # Built-in displacement & color textures
-│   ├── thumbs/             # WebP thumbnail previews
-│   ├── japanese_modern.jpg
-│   ├── japanese_pattern.jpg
-│   └── ...
-├── js/
-│   ├── main.js             # Application bootstrap & UI event wiring
-│   ├── colorQuantization.js# K-means color palette extraction & pixel mapping
-│   ├── layerBlending.js    # Interleaved layer parameter handling
-│   ├── layerSlicing.js     # Watertight Z-slice generation & profile modeling
-│   ├── meshPartition.js    # Triangle tool assignment & boundary splitting
-│   ├── exporter.js         # Multi-Tool 3MF & STL serialization
-│   ├── presetTextures.js   # Texture library definitions & async loading
-│   ├── viewer.js           # Three.js 3D viewport, lighting & controls
-│   ├── displacement.js     # Vertex displacement baking
-│   ├── subdivision.js      # Adaptive mesh refinement
-│   ├── decimation.js       # QEM decimation engine
-│   ├── i18n.js             # Localization manager
-│   └── i18n/               # Translation dictionaries (14 languages)
-└── docs/                   # Engineering & development documentation
-```
 
 ---
 
