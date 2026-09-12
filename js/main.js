@@ -9,7 +9,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setExclusionOverlay, setHoverPreview, setViewerTheme,
          setProjection, requestRender,
          clearDiagOverlays, setDiagEdges, addDiagFaces,
-         setRotationGizmo, isGizmoDragging, getViewerThumbnail } from './viewer.js?v=20260912_110';
+         setRotationGizmo, isGizmoDragging, getViewerThumbnail } from './viewer.js?v=20260912_111';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';

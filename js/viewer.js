@@ -476,6 +476,17 @@ export function initViewer(canvas) {
       renderer.render(scene, camera);
     }
   })();
+
+  // Automation / inspect helper
+  window.__viewer = {
+    get camera() { return camera; },
+    get orthoCamera() { return orthoCamera; },
+    get perspCamera() { return perspCamera; },
+    get controls() { return controls; },
+    get scene() { return scene; },
+    get renderer() { return renderer; },
+    requestRender
+  };
 }
 
 function onResize() {
