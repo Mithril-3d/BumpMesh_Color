@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260908d';
-import { APP_VERSION } from './version.js?v=20260912_102';
+import { APP_VERSION } from './version.js?v=20260912_103';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ const settings = {
   lockScale:     true,
   untexturedToolId: 4,
   bottomAngleLimit: 5,
-  topAngleLimit:    0,
+  topAngleLimit:    5,
   mappingBlend:     1,
   seamBandWidth:    0.5,
   textureSmoothing: 0,
@@ -5482,6 +5482,7 @@ async function handleExport(format = 'stl') {
 
         const convexAmp = interleavedSettings.convexAmp ?? 0.35;
         const concaveAmp = interleavedSettings.concaveAmp ?? 0.00;
+        const untexturedTool = settings.untexturedToolId || getOptimalUntexturedTool(toolIds);
 
         const aligned = applyLayerAlignedDisplacement(
           sliced,
@@ -5492,7 +5493,8 @@ async function handleExport(format = 'stl') {
           concaveAmp,
           effectiveSettings.interleavedProfileMode,
           effectiveSettings.interleavedShadingMode,
-          sampleFn
+          sampleFn,
+          untexturedTool
         );
 
         finalGeometry = new THREE.BufferGeometry();
@@ -6277,7 +6279,7 @@ const DEFAULT_SETTINGS_SNAPSHOT = Object.freeze({
   symmetricDisplacement: false, noDownwardZ: false, smoothBottom: true, harvestFlatFaces: true, harvestTol: 0.005, preserveUntextured: true, textureSmoothing: 0,
   mappingBlend: 1, seamBandWidth: 0.5, capAngle: 20, boundaryFalloff: 0,
   boundaryFalloffCurve: 'ease',
-  bottomAngleLimit: 5, topAngleLimit: 0,
+  bottomAngleLimit: 5, topAngleLimit: 5,
   refineLength: 1, maxTriangles: 750000,
   snapSeamlessWrap: true,
   cylinderCenterX: null, cylinderCenterY: null, cylinderRadius: null,

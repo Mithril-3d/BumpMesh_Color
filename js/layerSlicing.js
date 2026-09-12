@@ -297,7 +297,8 @@ export function applyLayerAlignedDisplacement(
   concaveVal,
   profileMode,
   shadingMode,
-  sampleFn // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
+  sampleFn, // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
+  untexturedTool = 1
 ) {
   const { positions: inPos, normals: inNrm, layers: inLay, cutEdgesPerCut, uniqueVerts, uniqueNorms, zCuts } = sliced;
   const triCount = inLay.length;
@@ -313,8 +314,18 @@ export function applyLayerAlignedDisplacement(
   for (let i = 0; i < triCount; i++) {
     const lay = inLay[i];
     const activeTool = getInterleavedToolAtLayer(lay, toolIds);
-    triTools[i] = activeTool;
     const b = i * 9;
+
+    let avgNx = (inNrm ? (inNrm[b] + inNrm[b+3] + inNrm[b+6]) : 0) / 3;
+    let avgNy = (inNrm ? (inNrm[b+1] + inNrm[b+4] + inNrm[b+7]) : 0) / 3;
+    let avgNz = (inNrm ? (inNrm[b+2] + inNrm[b+5] + inNrm[b+8]) : 1) / 3;
+    const avgLen = Math.hypot(avgNx, avgNy, avgNz) || 1;
+    avgNx /= avgLen; avgNy /= avgLen; avgNz /= avgLen;
+    const avgHlen = Math.hypot(avgNx, avgNy);
+
+    // Horizontal surface (top/bottom flat caps) receives untexturedTool so no texture/color is applied to top/bottom
+    const isHorizontalCap = (avgHlen < 0.15) || (Math.abs(avgNz) > 0.85);
+    triTools[i] = isHorizontalCap ? untexturedTool : activeTool;
 
     for (let v = 0; v < 3; v++) {
       const idx = b + v * 3;
