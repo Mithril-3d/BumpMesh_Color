@@ -40,9 +40,18 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
   - **Sharp (Binary / 0-1)**: Solid, distinct color levels.
   - **Gradient (Continuous)**: Smoothly modulates extrusion depth based on image luminance.
 
-| Interleaved Layers (Size U=100, 2-Color Ichimatsu) | Close-up: Alternating Layer Steps (振り重ね段差拡大) |
+![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
+
+| Slicer Result (Infill 0%, Top 0, Perimeters 1) | Alternating Layer Detail (Close-up) |
 | :---: | :---: |
-| ![Interleaved Layer Slicing](docs/images/interleaved_layers.png) | ![Alternating Steps Close-up](docs/images/interleaved_detail.png) |
+| ![Slicer Sliced Result](docs/images/interleaved_slicer_sliced.jpg) | ![Interleaved Detail](docs/images/interleaved_slicer_detail.jpg) |
+
+> [!TIP]
+> **Recommended Slicer Print Settings for Interleaved Layers (振り重ね):**  
+> - **Infill:** 0%  
+> - **Top solid layers:** 0  
+> - **Perimeters (Walls):** 1  
+> - **Ensure vertical shell thickness:** Disabled (Off)
 
 ### 3. 📦 Seamless Multi-Tool 3MF Export
 - **Full Slicer Compatibility**: Generates standard 3MF archives with multi-part objects directly recognized by **PrusaSlicer**, **OrcaSlicer**, and **Bambu Studio** without configuration hassles.
@@ -177,9 +186,18 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
   - **シャープ（二値 / 0-1）**: はっきりとしたコントラストの二値表現。
   - **グラデーション（連続階調）**: 画像の明暗に応じて出っ張り量を連続的・無段階に制御。
 
-| 2色市松模様での交互積層プレビュー (サイズU=100) | 角の振り重ね段差 クローズアップ拡大 |
+![BumpMesh_Color 振り重ねプレビュー画面](docs/images/interleaved_app_screen.png)
+
+| スライサーでのスライス結果 (インフィル0%, トップ層0, ペリメータ1) | 振り重ね積層断面の拡大 (交互積層ディテール) |
 | :---: | :---: |
-| ![交互積層プレビュー](docs/images/interleaved_layers.png) | ![振り重ね段差拡大](docs/images/interleaved_detail.png) |
+| ![スライス結果全体](docs/images/interleaved_slicer_sliced.jpg) | ![積層ディテール拡大](docs/images/interleaved_slicer_detail.jpg) |
+
+> [!TIP]
+> **振り重ね（交互積層）出力時のスライサー推奨設定:**  
+> - **インフィル (Infill):** 0%  
+> - **トップ層 (Top solid layers):** 0  
+> - **ペリメータ (Perimeters / 外周壁ループ数):** 1  
+> - **垂直シェルの厚みを確保する (Ensure vertical shell thickness):** **無効 (Off)**
 
 ### 3. 📦 スライサー完全互換のマルチツール 3MF エクスポート
 - **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを **PrusaSlicer**、**OrcaSlicer**、**Bambu Studio** にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
