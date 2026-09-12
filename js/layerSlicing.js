@@ -42,8 +42,8 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     if (id === undefined) {
       id = uniqueVerts.length;
       vertMap.set(key, id);
-      uniqueVerts.push([x, y, z]);
-      uniqueNorms.push([nx, ny, nz]);
+      uniqueVerts.push([Math.fround(x), Math.fround(y), Math.fround(z)]);
+      uniqueNorms.push([Math.fround(nx), Math.fround(ny), Math.fround(nz)]);
     }
     return id;
   }
@@ -91,8 +91,8 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     nx /= nlen; ny /= nlen; nz /= nlen;
 
     cutId = uniqueVerts.length;
-    uniqueVerts.push([px, py, pz]);
-    uniqueNorms.push([nx, ny, nz]);
+    uniqueVerts.push([Math.fround(px), Math.fround(py), Math.fround(pz)]);
+    uniqueNorms.push([Math.fround(nx), Math.fround(ny), Math.fround(nz)]);
     edgeCutCache.set(key, cutId);
     return cutId;
   }
@@ -425,24 +425,24 @@ export function applyLayerAlignedDisplacement(
         if (!hasStep0 && !hasStep1) continue; // coplanar, no shelf needed
 
         const p0_bot = [
-          Math.fround(Math.fround(p0[0]) + Math.fround(dispBot0 * unx0)),
-          Math.fround(Math.fround(p0[1]) + Math.fround(dispBot0 * uny0)),
-          Math.fround(zCut)
+          Math.fround(p0[0] + dispBot0 * unx0),
+          Math.fround(p0[1] + dispBot0 * uny0),
+          p0[2]
         ];
         const p1_bot = [
-          Math.fround(Math.fround(p1[0]) + Math.fround(dispBot1 * unx1)),
-          Math.fround(Math.fround(p1[1]) + Math.fround(dispBot1 * uny1)),
-          Math.fround(zCut)
+          Math.fround(p1[0] + dispBot1 * unx1),
+          Math.fround(p1[1] + dispBot1 * uny1),
+          p1[2]
         ];
         const p0_top = [
-          Math.fround(Math.fround(p0[0]) + Math.fround(dispTop0 * unx0)),
-          Math.fround(Math.fround(p0[1]) + Math.fround(dispTop0 * uny0)),
-          Math.fround(zCut)
+          Math.fround(p0[0] + dispTop0 * unx0),
+          Math.fround(p0[1] + dispTop0 * uny0),
+          p0[2]
         ];
         const p1_top = [
-          Math.fround(Math.fround(p1[0]) + Math.fround(dispTop1 * unx1)),
-          Math.fround(Math.fround(p1[1]) + Math.fround(dispTop1 * uny1)),
-          Math.fround(zCut)
+          Math.fround(p1[0] + dispTop1 * unx1),
+          Math.fround(p1[1] + dispTop1 * uny1),
+          p1[2]
         ];
 
         // Assign tool: dominant protruding tool owns the shelf surface

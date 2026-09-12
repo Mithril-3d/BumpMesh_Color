@@ -4,7 +4,7 @@
  */
 
 import { zipSync, strToU8 } from 'fflate';
-import { QuantizedPointMap } from './meshIndex.js';
+import { QuantizedPointMap, TolerantPointMap } from './meshIndex.js';
 
 /**
  * Trigger a browser download for a binary buffer.
@@ -136,25 +136,19 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   const posArr = geometry.attributes.position.array;
   const triCount = (posArr.length / 9) | 0;
 
-  // ── Deduplicate vertices ─────────────────────────────────────────────────
-  // Weld on a 0.5 um grid (2000 units/mm) matching slicer resolution
-  const QUANT = 2000;
-  const indexMap = new QuantizedPointMap(QUANT, Math.min(triCount * 3, 1 << 22));
-  const uniqueXYZ = [];
+  // ── Deduplicate vertices using TolerantPointMap (1 µm tolerance) ──────────
+  // Guarantees zero open edges across cut planes and grid boundaries
+  const welder = new TolerantPointMap(0.001);
   const triIdx = new Uint32Array(triCount * 3);
 
   for (let i = 0; i < triCount; i++) {
     for (let j = 0; j < 3; j++) {
       const b = i * 9 + j * 3;
-      const x = Math.round(posArr[b] * QUANT) / QUANT;
-      const y = Math.round(posArr[b + 1] * QUANT) / QUANT;
-      const z = Math.round(posArr[b + 2] * QUANT) / QUANT;
-      const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
-      if (indexMap.inserted) uniqueXYZ.push(x, y, z);
-      triIdx[i * 3 + j] = idx;
+      triIdx[i * 3 + j] = welder.getOrSet(posArr[b], posArr[b + 1], posArr[b + 2]);
     }
   }
 
+  const uniqueXYZ = welder.uniqueXYZ;
   const vertCount = uniqueXYZ.length / 3;
 
   // ── Build 3dmodel.model XML as Uint8Array chunks ─────────────────────────
@@ -267,11 +261,9 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
       '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   // ── Zip and download ─────────────────────────────────────────────────────
-  // Place metadata and thumbnails at the head of the zip so Windows Shell and slicers
-  // can instantly read the preview thumbnail without scanning through the 400MB model payload.
+  // Place metadata and thumbnails at the head of the zip matching PrusaSlicer standard entry order
   const zipFiles = {
-    '[Content_Types].xml':           strToU8(contentTypesXml),
-    '_rels/.rels':                   strToU8(relsXml),
+    '[Content_Types].xml': strToU8(contentTypesXml),
   };
   if (thumbBytes) {
     zipFiles['Metadata/thumbnail.png']       = thumbBytes;
@@ -279,6 +271,7 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     zipFiles['Metadata/plate_1.png']         = thumbBytes;
     zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
+  zipFiles['_rels/.rels']      = strToU8(relsXml);
   zipFiles['3D/3dmodel.model'] = modelBytes;
 
   const zipped = zipSync(zipFiles, { level: 6 });
@@ -362,24 +355,19 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     }
   });
 
-  // Deduplicate vertices on a 0.5 um grid (2000 units/mm) matching slicer resolution
-  const QUANT = 2000;
-  const indexMap = new QuantizedPointMap(QUANT, Math.min(triCount * 3, 1 << 22));
-  const uniqueXYZ = [];
+  // Deduplicate vertices using TolerantPointMap (1 µm tolerance)
+  // Guarantees zero open edges across cut planes and grid boundaries
+  const welder = new TolerantPointMap(0.001);
   const triIdx = new Uint32Array(triCount * 3);
 
   for (let i = 0; i < triCount; i++) {
     for (let j = 0; j < 3; j++) {
       const b = i * 9 + j * 3;
-      const x = Math.round(posArr[b] * QUANT) / QUANT;
-      const y = Math.round(posArr[b + 1] * QUANT) / QUANT;
-      const z = Math.round(posArr[b + 2] * QUANT) / QUANT;
-      const idx = indexMap.getOrSet(x, y, z, uniqueXYZ.length / 3);
-      if (indexMap.inserted) uniqueXYZ.push(x, y, z);
-      triIdx[i * 3 + j] = idx;
+      triIdx[i * 3 + j] = welder.getOrSet(posArr[b], posArr[b + 1], posArr[b + 2]);
     }
   }
 
+  const uniqueXYZ = welder.uniqueXYZ;
   const vertCount = uniqueXYZ.length / 3;
 
   emit(
@@ -489,24 +477,22 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   let relsXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
-    '<Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
-    '<Relationship Target="/Metadata/model_settings.config" Id="rel-2" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
-    '<Relationship Target="/Metadata/Slic3r_PE.config" Id="rel-3" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n';
+    '<Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n';
   if (thumbBytes) {
     relsXml +=
-      '<Relationship Target="/Metadata/thumbnail.png" Id="rel-4" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
-      '<Relationship Target="/Metadata/plate_1.png" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
-      '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-6" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
+      '<Relationship Target="/Metadata/thumbnail.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Target="/Metadata/plate_1.png" Id="rel-3" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
+      '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
-  relsXml += '</Relationships>\n';
+  relsXml +=
+    '<Relationship Target="/Metadata/model_settings.config" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
+    '<Relationship Target="/Metadata/Slic3r_PE.config" Id="rel-6" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n' +
+    '</Relationships>\n';
 
-  // Place metadata and thumbnails at the head of the zip so Windows Shell and slicers
-  // can instantly read the preview thumbnail without scanning through the massive model payload.
+  // Place metadata and thumbnails at the head of the zip matching PrusaSlicer standard entry order:
+  // [Content_Types].xml, Metadata/thumbnail.png, ..., _rels/.rels, configs, 3D/3dmodel.model
   const zipFiles = {
-    '[Content_Types].xml':            strToU8(contentTypesXml),
-    '_rels/.rels':                    strToU8(relsXml),
-    'Metadata/model_settings.config': strToU8(bambuConfigXml),
-    'Metadata/Slic3r_PE.config':      strToU8(prusaConfigXml),
+    '[Content_Types].xml': strToU8(contentTypesXml),
   };
 
   if (thumbBytes) {
@@ -516,7 +502,10 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
 
-  zipFiles['3D/3dmodel.model'] = modelBytes;
+  zipFiles['_rels/.rels']                    = strToU8(relsXml);
+  zipFiles['Metadata/model_settings.config'] = strToU8(bambuConfigXml);
+  zipFiles['Metadata/Slic3r_PE.config']      = strToU8(prusaConfigXml);
+  zipFiles['3D/3dmodel.model']               = modelBytes;
 
   const zipped = zipSync(zipFiles, { level: 6 });
 

@@ -128,3 +128,83 @@ export function weldVertices(pos, count, quant) {
   }
   return { vertexId, uniqueCount: nextId };
 }
+
+/**
+ * TolerantPointMap — spatial hash map that welds vertices within a distance tolerance.
+ * Unlike rigid grid quantization which splits near-identical points across grid boundaries,
+ * TolerantPointMap searches neighboring cells to guarantee that vertices within `tolerance`
+ * (e.g. 1 µm / 0.001 mm) always collapse to the same vertex ID.
+ */
+export class TolerantPointMap {
+  /**
+   * @param {number} [tolerance] - maximum Euclidean/Chebyshev welding distance in mm (default 0.001 = 1 µm)
+   */
+  constructor(tolerance = 0.001) {
+    this.tol = tolerance;
+    this.invCell = 1.0 / (tolerance * 2.0); // cell size = 2 * tolerance
+    this.cells = new Map();
+    this.uniqueXYZ = [];
+    this.inserted = false;
+  }
+
+  /**
+   * Return canonical vertex index for (x, y, z).
+   * If a vertex within `this.tol` already exists, returns its index.
+   * Otherwise registers (x, y, z) and returns its new index.
+   * `this.inserted` indicates whether a new vertex was created.
+   *
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   * @returns {number} canonical vertex index
+   */
+  getOrSet(x, y, z) {
+    const inv = this.invCell;
+    const cx = Math.floor(x * inv);
+    const cy = Math.floor(y * inv);
+    const cz = Math.floor(z * inv);
+    const tol = this.tol;
+    const xyz = this.uniqueXYZ;
+
+    // Search current cell and adjacent 26 neighbor cells
+    for (let dx = -1; dx <= 1; dx++) {
+      const ncx = cx + dx;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ncy = cy + dy;
+        for (let dz = -1; dz <= 1; dz++) {
+          const ncz = cz + dz;
+          const k = ((ncx * 73856093) ^ (ncy * 19349663) ^ (ncz * 83492791)) | 0;
+          const cell = this.cells.get(k);
+          if (cell !== undefined) {
+            for (let i = 0; i < cell.length; i++) {
+              const idx = cell[i];
+              const b = idx * 3;
+              if (
+                Math.abs(x - xyz[b]) <= tol &&
+                Math.abs(y - xyz[b + 1]) <= tol &&
+                Math.abs(z - xyz[b + 2]) <= tol
+              ) {
+                this.inserted = false;
+                return idx;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // No existing neighbor found within tolerance: insert as new canonical vertex
+    const newIdx = (xyz.length / 3) | 0;
+    xyz.push(x, y, z);
+    const homeKey = ((cx * 73856093) ^ (cy * 19349663) ^ (cz * 83492791)) | 0;
+    let homeCell = this.cells.get(homeKey);
+    if (homeCell === undefined) {
+      homeCell = [];
+      this.cells.set(homeKey, homeCell);
+    }
+    homeCell.push(newIdx);
+    this.inserted = true;
+    return newIdx;
+  }
+}
+
