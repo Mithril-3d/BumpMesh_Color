@@ -1065,7 +1065,7 @@ function populateLanguageSelector() {
     }
 
     // Re-translate <option> elements (innerHTML won't reach these)
-    document.querySelectorAll('#mapping-mode option[data-i18n-opt]').forEach(opt => {
+    document.querySelectorAll('option[data-i18n-opt]').forEach(opt => {
       opt.textContent = t(opt.dataset.i18nOpt);
     });
 
@@ -1084,6 +1084,10 @@ function populateLanguageSelector() {
     // The cylinder panel paints its placeholder text via Canvas2D, which
     // applyTranslations() doesn't reach — re-render so the new locale lands.
     _scheduleCylinderPanelRedraw();
+
+    // Re-render dynamic color controls with the new language
+    renderColorPaletteUI();
+    renderInterleavedUI();
   });
 
   languageSelector.appendChild(select);
@@ -1111,6 +1115,9 @@ populateLanguageSelector();
   if (select) {
     select.value = lang;
   }
+  // Re-render color controls to reflect initial language
+  renderColorPaletteUI();
+  renderInterleavedUI();
 })();
 
 // Theme toggle
@@ -1396,7 +1403,8 @@ function renderPaletteUI() {
     right.className = 'palette-tool-assign';
 
     const label = document.createElement('label');
-    label.textContent = '割当:';
+    const assignText = t('color.assignLabel');
+    label.textContent = (assignText && assignText !== 'color.assignLabel') ? assignText : 'Tool:';
 
     const select = document.createElement('select');
     select.className = 'palette-tool-select';
@@ -1499,13 +1507,17 @@ function renderInterleavedUI() {
 
   const isLouver = (interleavedSettings.profileMode === 1);
   const isGradient = (interleavedSettings.shadingMode === 1);
-  let info = `• 積層ピッチ: ${thickness.toFixed(2)} mm (総レイヤー数: 約${totalLayers}層)\n`;
-  info += `• 凸突出量: +${interleavedSettings.convexAmp.toFixed(2)} mm (目的色と一致)\n`;
-  info += `• 凹引込量: -${interleavedSettings.concaveAmp.toFixed(2)} mm (目的色と不一致)\n`;
-  info += `• 断面プロファイル: ${isLouver ? '45° ルーバー庇（他色シールド）' : 'フラット段差（標準ステップ・推奨）'}\n`;
-  info += `• 階調表現: ${isGradient ? 'グラデーション (連続階調)' : 'シャープ (二値 / 0-1)'}\n`;
-  info += `• 交互パターン: ${toolIds.map(t => 'Tool ' + t).join(' → ')} → …`;
-  interleavedInfoText.textContent = info;
+  const profileStr = isLouver ? t('color.profileLouver') : t('color.profileStep');
+  const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
+
+  const pitchLine = t('color.infoPitch', { pitch: thickness.toFixed(2), layers: totalLayers });
+  const convexLine = t('color.infoConvex', { val: interleavedSettings.convexAmp.toFixed(2) });
+  const concaveLine = t('color.infoConcave', { val: interleavedSettings.concaveAmp.toFixed(2) });
+  const profileLine = t('color.infoProfile', { profile: profileStr });
+  const shadingLine = t('color.infoShading', { shading: shadingStr });
+  const patternLine = t('color.infoPattern', { pattern: toolIds.map(t => 'Tool ' + t).join(' → ') });
+
+  interleavedInfoText.textContent = `${pitchLine}\n${convexLine}\n${concaveLine}\n${profileLine}\n${shadingLine}\n${patternLine}`;
 
   // Pass parameters to settings for preview and export
   settings.interleavedThickness   = thickness;

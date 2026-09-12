@@ -7,7 +7,7 @@
 // logged on startup. Keep in sync with package.json when cutting a release.
 // Not to be confused with PROJECT_VERSION in main.js, which versions the
 // .bumpmesh project file format independently.
-export const APP_VERSION = '1.0.15';
+export const APP_VERSION = '1.0.16';
 
 
 
