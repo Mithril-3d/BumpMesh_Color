@@ -16,6 +16,8 @@ A browser-based tool for applying surface displacement textures and **multi-colo
 
 Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tune procedural parameters, slice into alternating tool layers, and export a slicer-ready multi-color 3MF compatible with **PrusaSlicer, OrcaSlicer, and Bambu Studio**.
 
+![BumpMesh_Color Overview](docs/images/overview_hero.png)
+
 ---
 
 ## 🌟 Key Features Added in BumpMesh_Color
@@ -38,6 +40,8 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
   - **Sharp (Binary / 0-1)**: Solid, distinct color levels.
   - **Gradient (Continuous)**: Smoothly modulates extrusion depth based on image luminance.
 
+![Interleaved Layer Slicing](docs/images/interleaved_layers.png)
+
 ### 3. 📦 Seamless Multi-Tool 3MF Export
 - **Full Slicer Compatibility**: Generates standard 3MF archives with multi-part objects directly recognized by **PrusaSlicer**, **OrcaSlicer**, and **Bambu Studio** without configuration hassles.
 - **Windows Explorer Thumbnail**: Automatically embeds compliant PNG thumbnails so files display high-res preview icons in Windows File Explorer.
@@ -48,6 +52,10 @@ In addition to the original 24 monochrome displacement patterns, **BumpMesh_Colo
 - **Japanese Traditional & Modern Patterns**: Blue Porcelain, Japanese Modern, Japanese Pattern, Ichimatsu (市松), Seigaiha (青海波), Yagasuri (矢絣), Asanoha (麻の葉), Tomoe (巴), Kikko (亀甲), Kagome (籠目).
 - **Western Classics**: Houndstooth, Chevron, Herringbone, Argyle, Tartan, Stained Glass.
 - **Geometric Mosaics**: Honeycomb, Triangle Mosaic, Isometric Cubes, Octagon Tile, Kaleidoscope.
+
+| Japanese Modern | Japanese Pattern |
+| :---: | :---: |
+| ![Japanese Modern](docs/images/japanese_modern.png) | ![Japanese Pattern](docs/images/japanese_pattern.png) |
 
 ### 5. 🌐 Comprehensive 14-Language Localization
 Fully localized UI with instant language switching:
@@ -143,6 +151,8 @@ Then open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
 
 STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチャや和柄を選択し、各パラメータを調整するだけで、**PrusaSlicer、OrcaSlicer、Bambu Studio** に完全対応したマルチツール3MFファイルを直接出力できます。
 
+![BumpMesh_Color 全体画面](docs/images/overview_hero.png)
+
 ---
 
 ## 🌟 BumpMesh_Color の主な新機能
@@ -165,6 +175,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
   - **シャープ（二値 / 0-1）**: はっきりとしたコントラストの二値表現。
   - **グラデーション（連続階調）**: 画像の明暗に応じて出っ張り量を連続的・無段階に制御。
 
+![交互積層コントロール](docs/images/interleaved_layers.png)
+
 ### 3. 📦 スライサー完全互換のマルチツール 3MF エクスポート
 - **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを **PrusaSlicer**、**OrcaSlicer**、**Bambu Studio** にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
 - **Windows エクスプローラーのサムネイル表示**: 標準的な3MFサムネイル仕様に準拠しており、Windowsのエクスプローラー上で高解像度プレビューアイコンが表示されます。
@@ -175,6 +187,10 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **伝統和柄 & モダン和柄**: 青磁グラデーション (Blue Porcelain), Japanese Modern, Japanese Pattern, 市松 (2色), 青海波 (2色), 矢絣 (2色), 麻の葉 (3色), 巴 (3色), 亀甲 (4色), 籠目 (8色)
 - **西洋クラシック**: 千鳥格子 (Houndstooth), シェブロン (Chevron), ヘリンボーン (Herringbone), アーガイル (Argyle), タータンチェック (Tartan), ステンドグラス (Stained Glass)
 - **幾何学モザイク**: ハニカム (Honeycomb), 三角モザイク (Triangle Mosaic), アイソメトリックキューブ (Isometric Cubes), オクタゴンタイル (Octagon Tile), 万華鏡 (Kaleidoscope)
+
+| Japanese Modern 適用例 | Japanese Pattern 適用例 |
+| :---: | :---: |
+| ![Japanese Modern](docs/images/japanese_modern.png) | ![Japanese Pattern](docs/images/japanese_pattern.png) |
 
 ### 5. 🌐 14言語の完全ローカライズ
 日本語および英語をはじめ、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、中国語、韓国語、ロシア語、ウクライナ語、ポーランド語、デンマーク語、トルコ語の計14言語に完全対応。右上の言語セレクターからいつでも即座に切り替え可能です。
