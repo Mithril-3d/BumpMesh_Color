@@ -312,6 +312,8 @@ const quantizeControlsContainer   = document.getElementById('quantize-controls-c
 const layerblendControlsContainer = document.getElementById('layerblend-controls-container');
 
 // Phase 2 Interleaved Layer Blending DOM elements
+const interleavedColorCountSlider     = document.getElementById('interleaved-color-count-slider');
+const interleavedColorCountVal        = document.getElementById('interleaved-color-count-val');
 const interleavedLayerThicknessSlider = document.getElementById('interleaved-layer-thickness');
 const interleavedLayerThicknessVal    = document.getElementById('interleaved-layer-thickness-val');
 const interleavedConvexAmpSlider      = document.getElementById('interleaved-convex-amp');
@@ -1331,8 +1333,11 @@ function runColorQuantization() {
     return;
   }
 
-  const k = parseInt(colorCountSlider ? colorCountSlider.value : 4, 10) || 4;
+  const k = parseInt(colorCountSlider ? colorCountSlider.value : (interleavedColorCountSlider ? interleavedColorCountSlider.value : 4), 10) || 4;
   if (colorCountVal) colorCountVal.textContent = k;
+  if (interleavedColorCountVal) interleavedColorCountVal.textContent = k;
+  if (colorCountSlider && colorCountSlider.value != k) colorCountSlider.value = k;
+  if (interleavedColorCountSlider && interleavedColorCountSlider.value != k) interleavedColorCountSlider.value = k;
 
   // Perform k-means++ clustering on the texture
   currentQuantizedResult = quantizeImage(activeMapEntry.imageData, k);
@@ -2008,11 +2013,24 @@ function wireEvents() {
   }
 
   // ── Color & Multi-Tool listeners ──
+  const syncExtruderCount = (val) => {
+    const k = Math.max(2, Math.min(8, parseInt(val, 10) || 4));
+    if (colorCountSlider) colorCountSlider.value = k;
+    if (colorCountVal) colorCountVal.textContent = k;
+    if (interleavedColorCountSlider) interleavedColorCountSlider.value = k;
+    if (interleavedColorCountVal) interleavedColorCountVal.textContent = k;
+    runColorQuantization();
+    updatePreview();
+  };
+
   if (colorCountSlider) {
-    colorCountSlider.addEventListener('input', () => {
-      if (colorCountVal) colorCountVal.textContent = colorCountSlider.value;
-      runColorQuantization();
-      updatePreview();
+    colorCountSlider.addEventListener('input', (e) => {
+      syncExtruderCount(e.target.value);
+    });
+  }
+  if (interleavedColorCountSlider) {
+    interleavedColorCountSlider.addEventListener('input', (e) => {
+      syncExtruderCount(e.target.value);
     });
   }
 
