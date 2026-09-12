@@ -264,4 +264,18 @@ export default {
   "ui.cylinderNoModel1": "加载模型以定位",
   "ui.cylinderNoModel2": "圆柱轴",
   "ui.cylinderPanelMinimize": "最小化 / 还原"
+  "ui.presetModels": "Preset Models",
+  "ui.presetCube": "Cube",
+  "ui.presetCylinder": "Cylinder",
+  "ui.presetBowl": "Bowl",
+  "labels.textureSizeU": "Size U",
+  "labels.textureSizeV": "Size V",
+  "tooltips.textureSize": "Physical size of one texture tile in mm",
+  "progress.slicingMesh": "Slicing mesh at layer boundaries…",
+  "progress.applyingLayerDisplacement": "Applying layer-aligned displacement…",
+  "progress.assigningTools": "Assigning colors to triangles…",
+  "progress.weldingMesh": "Welding & deduplicating vertices…",
+  "progress.building3mf": "Building 3MF model structure…",
+  "progress.packaging3mf": "Compressing 3MF package…",
+  "license.forkNotice": "<strong>Fork & Disclaimer:</strong> BumpMesh_Color is an independent modification by <a href=\"https://x.com/Mithril_MEX\" target=\"_blank\" rel=\"noopener\">@Mithril_MEX</a>. CNC Kitchen (Stefan Hermann) is <strong>not affiliated</strong> with this fork and does <strong>not provide support</strong> for it. Please report all issues to @Mithril_MEX.",
 };

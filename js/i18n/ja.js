@@ -268,4 +268,14 @@ export default {
   "ui.cylinderNoModel1": "モデルを読み込んで",
   "ui.cylinderNoModel2": "シリンダー軸を配置してください",
   "ui.cylinderPanelMinimize": "最小化 / 復元"
+  "labels.textureSizeU": "サイズ U",
+  "labels.textureSizeV": "サイズ V",
+  "tooltips.textureSize": "テクスチャ1マスの実寸法 (mm)",
+  "progress.slicingMesh": "レイヤー境界でメッシュをスライス中…",
+  "progress.applyingLayerDisplacement": "レイヤー整合テクスチャを変形適用中…",
+  "progress.assigningTools": "三角形にカラー/ツールを割り当て中…",
+  "progress.weldingMesh": "頂点を溶接・重複除去中…",
+  "progress.building3mf": "3MFモデル構造を構築中…",
+  "progress.packaging3mf": "3MFパッケージを圧縮中…",
+  "license.forkNotice": "<strong>フォークおよび免責事項:</strong> BumpMesh_Color は <a href=\"https://x.com/Mithril_MEX\" target=\"_blank\" rel=\"noopener\">@Mithril_MEX</a> による独立したコミュニティ改変版です。CNC Kitchen（Stefan Hermann氏）は本フォークに関与しておらず、<strong>サポートは提供していません</strong>。不具合やお問い合わせはすべて @Mithril_MEX 宛にお願いいたします。",
 };

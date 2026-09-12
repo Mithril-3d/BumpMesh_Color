@@ -1,12 +1,19 @@
-# BumpMesh by CNC Kitchen
+# BumpMesh_Color
 
-**Live:** https://bumpmesh.com  
-**GitHub:** https://github.com/CNCKitchen/stlTexturizer
-**Author:** Stefan Hermann
+**Fork Author:** [@Mithril_MEX](https://x.com/Mithril_MEX)  
+**GitHub:** https://github.com/Mithril-3d/BumpMesh_Color  
+**Based on:** [BumpMesh (stlTexturizer)](https://github.com/CNCKitchen/stlTexturizer) by Stefan Hermann ([CNC Kitchen](https://bumpmesh.com))  
 
-A browser-based tool for applying surface displacement textures to 3D meshes — no installation required.
+> [!IMPORTANT]
+> **Disclaimer & Support Notice:**  
+> **BumpMesh_Color** is an independent community fork and feature extension created by [@Mithril_MEX](https://x.com/Mithril_MEX).  
+> **CNC Kitchen (Stefan Hermann) is NOT affiliated with, does NOT maintain, and does NOT provide support for this modified fork.**  
+> Please do NOT contact CNC Kitchen regarding any bugs, print issues, or feature requests related to BumpMesh_Color. All issues, feedback, and inquiries should be directed to [@Mithril_MEX](https://x.com/Mithril_MEX) or submitted via [GitHub Issues](https://github.com/Mithril-3d/BumpMesh_Color/issues).
 
-Load an STL, OBJ, 3MF, or STEP file, pick a texture, tune the parameters, and export a new displaced STL ready for slicing.
+A browser-based tool for applying surface displacement textures and **multi-color printing assignments** to 3D meshes — no installation required.
+
+Load an STL, OBJ, 3MF, or STEP file, pick a texture, tune the parameters, assign colors/tools, and export a displaced watertight STL or multi-color 3MF ready for slicing.
+
 
 ## Recent Updates
 

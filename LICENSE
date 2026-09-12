@@ -1,9 +1,18 @@
-stlTexturizer
-Copyright (C) 2026 CNCKitchen (Stefan Hermann)
+BumpMesh_Color
+Copyright (C) 2026 @Mithril_MEX (https://github.com/Mithril-3d/BumpMesh_Color)
+
+Based on stlTexturizer (BumpMesh)
+Copyright (C) 2026 CNCKitchen (Stefan Hermann) (https://github.com/CNCKitchen/stlTexturizer)
+
+Disclaimer:
+BumpMesh_Color is an independent modification. CNCKitchen (Stefan Hermann) is not
+affiliated with this fork and does not maintain, endorse, or provide support for
+this software. For bug reports, questions, or issues, please contact @Mithril_MEX.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, version 3 of the License.
+
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of

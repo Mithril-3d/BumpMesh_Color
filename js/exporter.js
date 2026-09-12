@@ -132,9 +132,12 @@ export function exportSTL(geometry, filename = 'textured.stl') {
  * @param {THREE.BufferGeometry} geometry  – non-indexed with position attribute
  * @param {string} [filename]
  */
-export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl = null) {
+export async function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl = null, onProgress = null) {
   const posArr = geometry.attributes.position.array;
   const triCount = (posArr.length / 9) | 0;
+
+  if (onProgress) onProgress(0.82, 'progress.weldingMesh');
+  await new Promise(r => setTimeout(r, 0));
 
   // ── Deduplicate vertices using TolerantPointMap (1 µm tolerance) ──────────
   // Guarantees zero open edges across cut planes and grid boundaries
@@ -151,12 +154,10 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   const uniqueXYZ = welder.uniqueXYZ;
   const vertCount = uniqueXYZ.length / 3;
 
+  if (onProgress) onProgress(0.88, 'progress.building3mf');
+  await new Promise(r => setTimeout(r, 0));
+
   // ── Build 3dmodel.model XML as Uint8Array chunks ─────────────────────────
-  // A single concatenated string would exceed V8's max-string-length limit
-  // (~512 MiB) for meshes around 10M+ triangles, throwing "Invalid string
-  // length".  Encode chunks to UTF-8 bytes as we go, flushing the small
-  // staging string every ~1 MiB so it never grows large enough to trip the
-  // limit.  Final concat is byte-wise (no string-length cap).
   const thumbBytes = decodeThumbnail(thumbnailDataUrl);
   const enc = new TextEncoder();
   const byteChunks = [];
@@ -261,7 +262,6 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
       '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
   // ── Zip and download ─────────────────────────────────────────────────────
-  // Place metadata and thumbnails at the head of the zip matching PrusaSlicer standard entry order
   const zipFiles = {
     '[Content_Types].xml': strToU8(contentTypesXml),
   };
@@ -274,7 +274,13 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
   zipFiles['_rels/.rels']      = strToU8(relsXml);
   zipFiles['3D/3dmodel.model'] = modelBytes;
 
-  const zipped = zipSync(zipFiles, { level: 6 });
+  if (onProgress) onProgress(0.93, 'progress.packaging3mf');
+  await new Promise(r => setTimeout(r, 0));
+
+  const zipped = zipSync(zipFiles, { level: 4 });
+
+  if (onProgress) onProgress(0.99, 'progress.done');
+  await new Promise(r => setTimeout(r, 0));
 
   triggerDownload(
     zipped,
@@ -282,6 +288,7 @@ export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl 
     'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
   );
 }
+
 
 /**
  * Encode toolhead ID into the TriangleSelector nibble-packed serialization
@@ -318,7 +325,7 @@ export function encodeTrianglePaint(toolId) {
  * @param {string} [filename]
  * @param {string} [thumbnailDataUrl]
  */
-export function exportMultiColor3MF(geometry, triTools, palette, filename = 'textured_multicolor.3mf', thumbnailDataUrl = null) {
+export async function exportMultiColor3MF(geometry, triTools, palette, filename = 'textured_multicolor.3mf', thumbnailDataUrl = null, onProgress = null) {
   const thumbBytes = decodeThumbnail(thumbnailDataUrl);
   const enc = new TextEncoder();
   const byteChunks = [];
@@ -347,8 +354,10 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   const posArr = geometry.attributes.position.array;
   const triCount = (posArr.length / 9) | 0;
 
-  // Deduplicate vertices using TolerantPointMap (1 µm tolerance)
+  if (onProgress) onProgress(0.82, 'progress.weldingMesh');
+  await new Promise(r => setTimeout(r, 0));
 
+  // Deduplicate vertices using TolerantPointMap (1 µm tolerance)
   // Guarantees zero open edges across cut planes and grid boundaries
   const welder = new TolerantPointMap(0.001);
   const triIdx = new Uint32Array(triCount * 3);
@@ -362,6 +371,9 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
 
   const uniqueXYZ = welder.uniqueXYZ;
   const vertCount = uniqueXYZ.length / 3;
+
+  if (onProgress) onProgress(0.88, 'progress.building3mf');
+  await new Promise(r => setTimeout(r, 0));
 
   emit(
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -472,7 +484,6 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '</Relationships>\n';
 
   // Place metadata and thumbnails at the head of the zip matching PrusaSlicer standard entry order:
-  // [Content_Types].xml, Metadata/thumbnail.png, ..., _rels/.rels, configs, 3D/3dmodel.model
   const zipFiles = {
     '[Content_Types].xml': strToU8(contentTypesXml),
   };
@@ -489,7 +500,13 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
   zipFiles['Metadata/Slic3r_PE.config']      = strToU8(prusaConfigXml);
   zipFiles['3D/3dmodel.model']               = modelBytes;
 
-  const zipped = zipSync(zipFiles, { level: 6 });
+  if (onProgress) onProgress(0.93, 'progress.packaging3mf');
+  await new Promise(r => setTimeout(r, 0));
+
+  const zipped = zipSync(zipFiles, { level: 4 });
+
+  if (onProgress) onProgress(0.99, 'progress.done');
+  await new Promise(r => setTimeout(r, 0));
 
   return triggerDownload(
     zipped,
@@ -497,4 +514,5 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
   );
 }
+
 

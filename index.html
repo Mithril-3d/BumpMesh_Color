@@ -7,26 +7,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BumpMesh by CNC Kitchen</title>
-  <meta name="description" content="BumpMesh by CNC Kitchen is a browser-based tool for adding displacement textures to STL, OBJ, and 3MF models locally, then exporting printable textured meshes." />
-  <link rel="canonical" href="https://bumpmesh.com/" />
+  <title>BumpMesh_Color by @Mithril_MEX</title>
+  <meta name="description" content="BumpMesh_Color is a browser-based tool for adding displacement textures and multi-color print assignments to 3D meshes locally. Forked from BumpMesh by Stefan Hermann (CNC Kitchen)." />
+  <link rel="canonical" href="https://github.com/Mithril-3d/BumpMesh_Color" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="BumpMesh" />
-  <meta property="og:title" content="BumpMesh by CNC Kitchen" />
-  <meta property="og:description" content="Add displacement textures to STL, OBJ, and 3MF models directly in your browser. Preview, mask, bake, and export printable textured meshes locally." />
-  <meta property="og:url" content="https://bumpmesh.com/" />
-  <meta property="og:image" content="https://bumpmesh.com/assets/preview.jpg" />
-  <meta property="og:image:secure_url" content="https://bumpmesh.com/assets/preview.jpg" />
-  <meta property="og:image:type" content="image/jpeg" />
-  <meta property="og:image:width" content="2078" />
-  <meta property="og:image:height" content="1091" />
-  <meta property="og:image:alt" content="BumpMesh interface for previewing and exporting textured 3D models" />
+  <meta property="og:site_name" content="BumpMesh_Color" />
+  <meta property="og:title" content="BumpMesh_Color by @Mithril_MEX" />
+  <meta property="og:description" content="Add displacement textures and multi-color tool assignments to 3D models directly in your browser. Preview, mask, and export printable meshes locally." />
+  <meta property="og:url" content="https://github.com/Mithril-3d/BumpMesh_Color" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="BumpMesh by CNC Kitchen" />
-  <meta name="twitter:description" content="Add displacement textures to STL, OBJ, and 3MF models directly in your browser. Preview, mask, bake, and export printable textured meshes locally." />
-  <meta name="twitter:image" content="https://bumpmesh.com/assets/preview.jpg" />
-  <meta name="twitter:image:alt" content="BumpMesh interface for previewing and exporting textured 3D models" />
+  <meta name="twitter:title" content="BumpMesh_Color by @Mithril_MEX" />
+  <meta name="twitter:description" content="Add displacement textures and multi-color tool assignments to 3D models directly in your browser. Preview, mask, and export printable meshes locally." />
+
   <link rel="icon" type="image/png" href="logo.png" />
   <link rel="stylesheet" href="style.css?v=20260912_sticky" />
   <script>
@@ -103,7 +96,8 @@
   <header>
     <div class="logo">
       <img src="logo.png" alt="BumpMesh_Color" width="24" height="24" />
-      <span>BumpMesh_Color <span id="app-version" class="app-version">v1.0.12</span> <small style="opacity:.7;font-weight:400">by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">@Mithril_MEX</a></small></span>
+      <span>BumpMesh_Color <span id="app-version" class="app-version">v1.0.13</span> <small style="opacity:.7;font-weight:400">by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">@Mithril_MEX</a></small></span>
+
 
     </div>
     <div class="header-actions">
@@ -843,18 +837,20 @@
     <div class="license-modal">
       <button id="license-close" class="license-close-btn" aria-label="Close">&#215;</button>
       <h2 id="license-title" data-i18n="license.title">License &amp; Terms</h2>
+      <p class="imprint-text" data-i18n-html="license.forkNotice" style="margin-bottom:14px;padding:10px;background:rgba(255,160,0,0.1);border-left:3px solid #ff9800;border-radius:4px;font-size:0.85em;line-height:1.5;"><strong>Fork &amp; Disclaimer:</strong> BumpMesh_Color is an independent modification by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener">@Mithril_MEX</a>. CNC Kitchen (Stefan Hermann) is <strong>not affiliated</strong> with this fork and does <strong>not provide support</strong> for it. Please report all issues to @Mithril_MEX.</p>
       <ul class="license-list">
         <li data-i18n-html="license.item1">Free to use for any purpose, including <strong>commercial work</strong> (e.g., texturing STLs for clients or products).</li>
         <li data-i18n-html="license.item2">Attribution is <strong>appreciated</strong> but <strong>not required</strong> when using this tool as-is.</li>
         <li data-i18n-html="license.item4">This tool is provided <strong>as-is</strong> with <strong>no warranty</strong> of any kind. Use at your own risk.</li>
-        <li data-i18n-html="license.item5"><strong>No support</strong> is provided. The author is under no obligation to fix bugs, answer questions, or update this tool. That said, bug reports and feature requests are always welcome at <a href="mailto:texturizer@cnckitchen.com">texturizer@cnckitchen.com</a>.</li>
+        <li data-i18n-html="license.item5"><strong>Support &amp; Inquiries:</strong> For bug reports, feature requests, or questions regarding BumpMesh_Color, please visit <a href="https://github.com/Mithril-3d/BumpMesh_Color/issues" target="_blank" rel="noopener">GitHub Issues</a> or contact <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener">@Mithril_MEX</a>. Please do not contact CNC Kitchen for support with this fork.</li>
         <li data-i18n-html="license.item6">The author shall not be held <strong>liable</strong> for any damages, data loss, or issues arising from the use of this tool.</li>
         <li data-i18n-html="license.item7">Want to license or embed this tool for your own business or website? Contact us at <a href="mailto:contact@cnckitchen.com">contact@cnckitchen.com</a>.</li>
         <li data-i18n-html="license.item3">Support this tool? Shop at <a href="https://geni.us/CNCStoreTexture" target="_blank" rel="noopener">CNCKitchen.STORE</a> or send a tip via <a href="https://www.paypal.me/CNCKitchen" target="_blank" rel="noopener">PayPal</a> / <a href="https://ko-fi.com/cnckitchen" target="_blank" rel="noopener">Ko-fi</a>.</li>
-        <li data-i18n-html="license.item8">Source code available on <a href="https://github.com/CNCKitchen/stlTexturizer" target="_blank" rel="noopener">GitHub</a>.</li>
+        <li data-i18n-html="license.item8">Source code available on <a href="https://github.com/Mithril-3d/BumpMesh_Color" target="_blank" rel="noopener">GitHub (BumpMesh_Color)</a>. Original project by CNC Kitchen on <a href="https://github.com/CNCKitchen/stlTexturizer" target="_blank" rel="noopener">GitHub</a>.</li>
       </ul>
     </div>
   </div>
+
 
   <!-- Imprint & Privacy popup -->
   <div id="imprint-overlay" class="license-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="imprint-title">

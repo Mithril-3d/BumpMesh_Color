@@ -5438,7 +5438,7 @@ async function handleExport(format = 'stl') {
 
     if (format === 'multicolor-3mf') {
       if (isLayerBlendMode) {
-        setProgress(0.94, 'Slicing mesh at layer boundaries…');
+        setProgress(0.70, t('progress.slicingMesh'));
         await yieldFrame();
         if (exportToken !== myToken) return;
 
@@ -5464,7 +5464,7 @@ async function handleExport(format = 'stl') {
         const cutOffset = 0.005;
         const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers);
 
-        setProgress(0.96, 'Applying layer-aligned displacement…');
+        setProgress(0.78, t('progress.applyingLayerDisplacement'));
         await yieldFrame();
         if (exportToken !== myToken) return;
 
@@ -5528,14 +5528,18 @@ async function handleExport(format = 'stl') {
         if (aligned.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(aligned.normals, 3));
         const triTools = aligned.triTools;
 
-        setProgress(0.98, 'Packaging 3MF with layer-aligned painting…');
-        await yieldFrame();
-
         const thumbUrl = getViewerThumbnail(256);
         const subModeLabel = 'interleaved';
-        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`, thumbUrl);
+        await exportMultiColor3MF(
+          finalGeometry,
+          triTools,
+          exportPalette,
+          `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`,
+          thumbUrl,
+          (frac, key) => setProgress(frac, t(key))
+        );
       } else {
-        setProgress(0.95, 'Assigning tools to triangles…');
+        setProgress(0.75, t('progress.assigningTools'));
         await yieldFrame();
         if (exportToken !== myToken) return;
 
@@ -5565,13 +5569,17 @@ async function handleExport(format = 'stl') {
         // 2. Restore original model pose on the solid geometry
         _restoreOriginalPose(result.positions, result.normals);
 
-        setProgress(0.98, 'Packaging 3MF with facet painting…');
-        await yieldFrame();
-
         const thumbUrl = getViewerThumbnail(256);
         const exportPalette = currentColorPalette;
         const subModeLabel = 'quantized';
-        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`, thumbUrl);
+        await exportMultiColor3MF(
+          finalGeometry,
+          triTools,
+          exportPalette,
+          `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`,
+          thumbUrl,
+          (frac, key) => setProgress(frac, t(key))
+        );
       }
     } else {
       _restoreOriginalPose(result.positions, result.normals);
@@ -5581,13 +5589,15 @@ async function handleExport(format = 'stl') {
       if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
 
       if (format === '3mf') {
-        setProgress(0.97, t('progress.writing3mf'));
-        await yieldFrame();
-        if (exportToken !== myToken) return;
         const thumbUrl = getViewerThumbnail(256);
-        export3MF(finalGeometry, `${baseName}.3mf`, thumbUrl);
+        await export3MF(
+          finalGeometry,
+          `${baseName}.3mf`,
+          thumbUrl,
+          (frac, key) => setProgress(frac, t(key))
+        );
       } else {
-        setProgress(0.97, t('progress.writingStl'));
+        setProgress(0.95, t('progress.writingStl'));
         await yieldFrame();
         if (exportToken !== myToken) return;
         exportSTL(finalGeometry, `${baseName}.stl`);

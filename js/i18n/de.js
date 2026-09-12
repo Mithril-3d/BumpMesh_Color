@@ -265,4 +265,15 @@ export default {
   "ui.cylinderNoModel1": "Modell laden, um die",
   "ui.cylinderNoModel2": "Zylinderachse zu setzen",
   "ui.cylinderPanelMinimize": "Minimieren / Wiederherstellen"
+  "ui.presetModels": "Preset-Modelle",
+  "ui.presetCube": "Würfel",
+  "ui.presetCylinder": "Zylinder",
+  "ui.presetBowl": "Schale",
+  "progress.slicingMesh": "Schneide Netz an Schichtgrenzen…",
+  "progress.applyingLayerDisplacement": "Wende schichtausgerichtete Verschiebung an…",
+  "progress.assigningTools": "Weise Dreiecken Farben zu…",
+  "progress.weldingMesh": "Verschweiße und dedupliziere Eckpunkte…",
+  "progress.building3mf": "Erstelle 3MF-Modellstruktur…",
+  "progress.packaging3mf": "Komprimiere 3MF-Paket…",
+  "license.forkNotice": "<strong>Fork & Haftungsausschluss:</strong> BumpMesh_Color ist eine unabhängige Modifikation von <a href=\"https://x.com/Mithril_MEX\" target=\"_blank\" rel=\"noopener\">@Mithril_MEX</a>. CNC Kitchen (Stefan Hermann) ist <strong>nicht an diesem Fork beteiligt</strong> und leistet <strong>keinen Support</strong> dafür. Bitte melden Sie alle Probleme an @Mithril_MEX.",
 };
