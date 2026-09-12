@@ -40,8 +40,8 @@ BumpMesh (stlTexturizer) を拡張し、カラー画像対応・代表色減色�
 - `assets/textures/geometric_sample_4color.png` および `textures/geometric_4color.png`（4色幾何学グラフィック画像、サムネイル付き）を同梱。
 - 初回起動時のデフォルトプリセットに指定。
 
-### 2.4 実機UI画面スクリーンショット
-![Phase 1 3Dカラープレビュー成功画面](/Users/phaizmithriln/.gemini/antigravity-ide/brain/147287a9-bb3f-4bec-94d4-ff8a99f90792/final_color_preview_success_1788861774172.png)
+### 2.4 実機UI画面の確認
+- 3Dプレビュー画面にて、4色幾何学グラフィックパレットおよびバンプ凹凸が正しくレンダリングされることを確認。
 
 ---
 
@@ -95,9 +95,7 @@ Tool 3 triangles: 48
 - **UI**: 「COLOR & MULTI-TOOL」パネル内に「非テクスチャ部ツール (`#untextured-tool-select`)」ドロップダウンを追加。デフォルト値を「Tool 4」に設定。色数スライダー（2〜8色）の変更時にも選択肢（Tool 1〜Tool K）が自動連動。
 - **メッシュ分割**: `partitionMeshByTool()` 内で各三角形の法線角度（`bottomAngleLimit` / `topAngleLimit`）およびマスク属性（`faceMask` / `excludedFaces`）を判定し、テクスチャ非適用面の三角形には指定されたツール番号（デフォルト: Tool 4）を割り当て。
 - **3Dプレビュー連動**: `previewMaterial.js` に `untexturedColor` uniform を追加し、非テクスチャ面（底面など）も指定ツールの色（Tool 4の赤紫色など）で美しくシェーディング描画されることを実機確認。
-- **UI & スタイリング改善**: パレット内セレクトボックスと共通のデザイントークン（`var(--surface)`, `var(--text)`, `var(--border)`）を適用し、ライトテーマ・ダークテーマ双方で「Tool 4」が白背景・くっきり濃色テキストで美しく読み取れるように修正。
-- **検証スクリーンショット**:
-![非テクスチャ部ツール（Tool 4）表示改善画面](/Users/phaizmithriln/.gemini/antigravity-ide/brain/147287a9-bb3f-4bec-94d4-ff8a99f90792/dropdown_style_fixed_1788863350343.png)
+- **検証結果**: パレット内セレクトボックスと共通のデザイントークンにより、ライト・ダーク両テーマで視認性が向上。
 
 ---
 
