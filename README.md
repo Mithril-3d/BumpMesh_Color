@@ -52,6 +52,9 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 > - **Top solid layers:** 0  
 > - **Perimeters (Walls):** 1  
 > - **Ensure vertical shell thickness:** Disabled (Off)
+>
+> 📖 **Deep Dive Article:** For a detailed breakdown of the background, theory, and printing mechanics behind the "振り重ね" (Interleaved Layer) technique, see the author's article:  
+> [振り重ねプリント手法の解説 (note.com)](https://note.com/mithril_mex/n/nf6866893448c)
 
 ### 3. 📦 Seamless Multi-Tool 3MF Export
 - **Full Slicer Compatibility**: Generates standard 3MF archives with multi-part objects directly recognized by **PrusaSlicer**, **OrcaSlicer**, and **Bambu Studio** without configuration hassles.
@@ -198,6 +201,9 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 > - **トップ層 (Top solid layers):** 0  
 > - **ペリメータ (Perimeters / 外周壁ループ数):** 1  
 > - **垂直シェルの厚みを確保する (Ensure vertical shell thickness):** **無効 (Off)**
+>
+> 📖 **詳細解説記事 (note):** 振り重ねプリント手法の着想・原理・スライスノウハウについての詳しい解説は、以下のnote記事をご参照ください：  
+> [振り重ねプリント手法の解説｜note (@Mithril_MEX)](https://note.com/mithril_mex/n/nf6866893448c)
 
 ### 3. 📦 スライサー完全互換のマルチツール 3MF エクスポート
 - **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを **PrusaSlicer**、**OrcaSlicer**、**Bambu Studio** にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
