@@ -9,7 +9,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setExclusionOverlay, setHoverPreview, setViewerTheme,
          setProjection, requestRender,
          clearDiagOverlays, setDiagEdges, addDiagFaces,
-         setRotationGizmo, isGizmoDragging } from './viewer.js?v=20260908d';
+         setRotationGizmo, isGizmoDragging, getViewerThumbnail } from './viewer.js?v=20260912_102';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
@@ -18,7 +18,7 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260909d';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260912_102';
 import { quantizeImage, getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {
@@ -27,9 +27,9 @@ import {
   computeInterleavedDisplacement,
   computeColorBlendWeight,
   generateInterleavedTable
-} from './layerBlending.js?v=20260912_101';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260912_101';
-import { sampleRGBBilinear } from './displacement.js?v=20260912_101';
+} from './layerBlending.js?v=20260912_102';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260912_102';
+import { sampleRGBBilinear } from './displacement.js?v=20260912_102';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260908d';
-import { APP_VERSION } from './version.js?v=20260912_100';
+import { APP_VERSION } from './version.js?v=20260912_102';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -5362,8 +5362,8 @@ async function handleExport(format = 'stl') {
       colorSubMode: currentColorSubMode,
       palette: currentColorPalette,
       interleavedThickness: interleavedSettings.layerThickness || 0.20,
-      interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
-      interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
+      interleavedConvex: isLayerBlendMode ? 0.0 : (interleavedSettings.convexAmp ?? 0.35),
+      interleavedConcave: isLayerBlendMode ? 0.0 : (interleavedSettings.concaveAmp ?? 0.00),
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
@@ -5480,13 +5480,16 @@ async function handleExport(format = 'stl') {
           return { targetTool, blendWeight };
         };
 
+        const convexAmp = interleavedSettings.convexAmp ?? 0.35;
+        const concaveAmp = interleavedSettings.concaveAmp ?? 0.00;
+
         const aligned = applyLayerAlignedDisplacement(
           sliced,
           groundedMinZ + cutOffset,
           thickness,
           toolIds,
-          effectiveSettings.interleavedConvex,
-          effectiveSettings.interleavedConcave,
+          convexAmp,
+          concaveAmp,
           effectiveSettings.interleavedProfileMode,
           effectiveSettings.interleavedShadingMode,
           sampleFn
@@ -5500,8 +5503,9 @@ async function handleExport(format = 'stl') {
         setProgress(0.98, 'Packaging 3MF with layer-aligned painting…');
         await yieldFrame();
 
+        const thumbUrl = getViewerThumbnail(400);
         const subModeLabel = 'interleaved';
-        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
+        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`, thumbUrl);
       } else {
         setProgress(0.95, 'Assigning tools to triangles…');
         await yieldFrame();
@@ -5536,9 +5540,10 @@ async function handleExport(format = 'stl') {
         setProgress(0.98, 'Packaging 3MF with facet painting…');
         await yieldFrame();
 
+        const thumbUrl = getViewerThumbnail(400);
         const exportPalette = currentColorPalette;
         const subModeLabel = 'quantized';
-        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`);
+        exportMultiColor3MF(finalGeometry, triTools, exportPalette, `${baseName}_multicolor_${subModeLabel}_${exportPalette.length}tools.3mf`, thumbUrl);
       }
     } else {
       _restoreOriginalPose(result.positions, result.normals);
@@ -5551,7 +5556,8 @@ async function handleExport(format = 'stl') {
         setProgress(0.97, t('progress.writing3mf'));
         await yieldFrame();
         if (exportToken !== myToken) return;
-        export3MF(finalGeometry, `${baseName}.3mf`);
+        const thumbUrl = getViewerThumbnail(400);
+        export3MF(finalGeometry, `${baseName}.3mf`, thumbUrl);
       } else {
         setProgress(0.97, t('progress.writingStl'));
         await yieldFrame();

@@ -100,7 +100,7 @@ export function exportSTL(geometry, filename = 'textured.stl') {
  * @param {THREE.BufferGeometry} geometry  – non-indexed with position attribute
  * @param {string} [filename]
  */
-export function export3MF(geometry, filename = 'textured.3mf') {
+export function export3MF(geometry, filename = 'textured.3mf', thumbnailDataUrl = null) {
   const posArr = geometry.attributes.position.array;
   const triCount = (posArr.length / 9) | 0;
 
@@ -219,27 +219,48 @@ export function export3MF(geometry, filename = 'textured.3mf') {
     for (const b of byteChunks) { modelBytes.set(b, off); off += b.length; }
   }
 
+  // Thumbnail PNG extraction
+  let thumbBytes = null;
+  if (thumbnailDataUrl && thumbnailDataUrl.startsWith('data:image/png;base64,')) {
+    const b64 = thumbnailDataUrl.slice('data:image/png;base64,'.length);
+    const binStr = atob(b64);
+    thumbBytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) thumbBytes[i] = binStr.charCodeAt(i);
+  }
+
   // ── Static package files ─────────────────────────────────────────────────
-  const contentTypesXml =
+  let contentTypesXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
-    '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n' +
-    '</Types>\n';
+    '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n';
+  if (thumbBytes) {
+    contentTypesXml += '<Default Extension="png" ContentType="image/png"/>\n';
+  }
+  contentTypesXml += '</Types>\n';
 
-  const relsXml =
+  let relsXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
     '<Relationship Id="rel-1" Target="/3D/3dmodel.model" ' +
-    'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
-    '</Relationships>\n';
+    'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n';
+  if (thumbBytes) {
+    relsXml += '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n';
+  }
+  relsXml += '</Relationships>\n';
 
   // ── Zip and download ─────────────────────────────────────────────────────
-  const zipped = zipSync({
+  const zipFiles = {
     '[Content_Types].xml': strToU8(contentTypesXml),
     '_rels/.rels':         strToU8(relsXml),
     '3D/3dmodel.model':    modelBytes,
-  }, { level: 6 });
+  };
+  if (thumbBytes) {
+    zipFiles['Metadata/thumbnail.png'] = thumbBytes;
+    zipFiles['Metadata/plate_1.png']   = thumbBytes;
+  }
+
+  const zipped = zipSync(zipFiles, { level: 6 });
 
   triggerDownload(
     zipped,
@@ -281,8 +302,9 @@ export function encodeTrianglePaint(toolId) {
  * @param {Int32Array|Array<number>} triTools - Tool ID (1..K) for each triangle
  * @param {Array<{ id: number, color: number[], hex: string, toolId: number }>} palette
  * @param {string} [filename]
+ * @param {string} [thumbnailDataUrl]
  */
-export function exportMultiColor3MF(geometry, triTools, palette, filename = 'textured_multicolor.3mf') {
+export function exportMultiColor3MF(geometry, triTools, palette, filename = 'textured_multicolor.3mf', thumbnailDataUrl = null) {
   const enc = new TextEncoder();
   const byteChunks = [];
   let totalBytes = 0;
@@ -368,15 +390,17 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
 
   emit('      </vertices>\n      <triangles>\n');
 
+  // Multi-material triangle classification with deduplication:
   const seenFacesMulti = new Set();
   for (let i = 0; i < triCount; i++) {
-    const b = i * 3;
-    const v1 = triIdx[b], v2 = triIdx[b + 1], v3 = triIdx[b + 2];
-    // Skip index-degenerate triangles (collapsed edge)
-    if (v1 === v2 || v2 === v3 || v1 === v3) continue;
-    // Skip duplicate / back-to-back face sets
-    let lo = v1, mid = v2, hi = v3;
-    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    const v1 = triIdx[i * 3];
+    const v2 = triIdx[i * 3 + 1];
+    const v3 = triIdx[i * 3 + 2];
+    if (v1 === v2 || v2 === v3 || v3 === v1) continue;
+
+    let lo = Math.min(v1, v2, v3);
+    let hi = Math.max(v1, v2, v3);
+    let mid = v1 + v2 + v3 - lo - hi;
     if (mid > hi) { const t = mid; mid = hi; hi = t; }
     if (lo > mid) { const t = lo; lo = mid; mid = t; }
     const faceKey = `${lo},${mid},${hi}`;
@@ -426,30 +450,52 @@ export function exportMultiColor3MF(geometry, triTools, palette, filename = 'tex
     '  </object>\n' +
     '</config>\n';
 
+  // Thumbnail PNG extraction
+  let thumbBytes = null;
+  if (thumbnailDataUrl && thumbnailDataUrl.startsWith('data:image/png;base64,')) {
+    const b64 = thumbnailDataUrl.slice('data:image/png;base64,'.length);
+    const binStr = atob(b64);
+    thumbBytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) thumbBytes[i] = binStr.charCodeAt(i);
+  }
+
   // Static package files
-  const contentTypesXml =
+  let contentTypesXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
     '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n' +
-    '<Default Extension="config" ContentType="text/xml"/>\n' +
-    '</Types>\n';
+    '<Default Extension="config" ContentType="text/xml"/>\n';
+  if (thumbBytes) {
+    contentTypesXml += '<Default Extension="png" ContentType="image/png"/>\n';
+  }
+  contentTypesXml += '</Types>\n';
 
-  const relsXml =
+  let relsXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
     '<Relationship Id="rel-1" Target="/3D/3dmodel.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n' +
     '<Relationship Id="rel-2" Target="/Metadata/model_settings.config" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
-    '<Relationship Id="rel-3" Target="/Metadata/Slic3r_PE.config" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n' +
-    '</Relationships>\n';
+    '<Relationship Id="rel-3" Target="/Metadata/Slic3r_PE.config" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n';
+  if (thumbBytes) {
+    relsXml += '<Relationship Id="rel-thumb" Target="/Metadata/thumbnail.png" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n';
+  }
+  relsXml += '</Relationships>\n';
 
-  const zipped = zipSync({
+  const zipFiles = {
     '[Content_Types].xml':           strToU8(contentTypesXml),
     '_rels/.rels':                   strToU8(relsXml),
     '3D/3dmodel.model':              modelBytes,
     'Metadata/model_settings.config': strToU8(bambuConfigXml),
     'Metadata/Slic3r_PE.config':     strToU8(prusaConfigXml),
-  }, { level: 6 });
+  };
+
+  if (thumbBytes) {
+    zipFiles['Metadata/thumbnail.png'] = thumbBytes;
+    zipFiles['Metadata/plate_1.png']   = thumbBytes;
+  }
+
+  const zipped = zipSync(zipFiles, { level: 6 });
 
   return triggerDownload(
     zipped,

@@ -1151,3 +1151,28 @@ function _initGizmoInteraction() {
     }
   });
 }
+
+/**
+ * Capture thumbnail PNG data URL from the current 3D viewport.
+ * Used for embedding inside 3MF packages so slicers (PrusaSlicer, Bambu Studio)
+ * display full-fidelity preview thumbnails.
+ */
+export function getViewerThumbnail(maxDim = 300) {
+  if (!renderer || !scene || !camera) return null;
+  renderer.render(scene, camera);
+  const srcCanvas = renderer.domElement;
+  if (!srcCanvas || srcCanvas.width === 0 || srcCanvas.height === 0) return null;
+
+  const w = srcCanvas.width;
+  const h = srcCanvas.height;
+  const scale = Math.min(1, maxDim / Math.max(w, h));
+  const tw = Math.round(w * scale);
+  const th = Math.round(h * scale);
+
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = tw;
+  thumbCanvas.height = th;
+  const ctx = thumbCanvas.getContext('2d');
+  ctx.drawImage(srcCanvas, 0, 0, tw, th);
+  return thumbCanvas.toDataURL('image/png');
+}
