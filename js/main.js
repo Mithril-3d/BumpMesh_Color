@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260912_118';
+import { APP_VERSION } from './version.js?v=20260912_119';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -3355,23 +3355,23 @@ function createPresetGeometry(type) {
     return nonIndexed;
   } else if (type === 'bowl') {
     // 直径80mm, 高さ45mm のお椀型立体 (ソリッド・上面完全フラット)
+    // 3Dプリンタでサポートなしで造形できるよう、底面立ち上がり45°から上縁90°(垂直)へ滑らかに立ち上がる設計
     const points = [];
-    const R_outer = 40;       // 外径80mm (半径40mm)
+    const R_outer = 40;       // 上部外径80mm (半径40mm)
     const H_total = 45;       // 高さ45mm
-    const R_base = 15;        // 底面の平らな座面 半径15mm (直径30mm)
+    const R_base = 17.5;      // 底面の平らな座面 半径17.5mm (直径35mm)
 
     // 1. 底面中心 (0, 0)
     points.push(new THREE.Vector2(0, 0));
     // 2. 底面の平らな座面縁 (R_base, 0)
     points.push(new THREE.Vector2(R_base, 0));
 
-    // 3. 外側カーブ: 座面から上縁へ滑らかに立ち上がるお椀の丸み (45ステップで1mmピッチ)
+    // 3. 外側カーブ: dr/dz = 1 - z/H_total
+    // 底面 z=0 でちょうど45°傾斜 (オーバーハング45°)、上縁 z=H_total で90°垂直へ滑らかに変化
     const outerSteps = 45;
     for (let i = 1; i <= outerSteps; i++) {
-      const t = i / outerSteps;
-      const theta = t * (Math.PI / 2);
-      const r = R_base + (R_outer - R_base) * Math.sin(theta);
-      const z = H_total * (1 - Math.cos(theta));
+      const z = (i / outerSteps) * H_total;
+      const r = R_base + z - (z * z) / (2 * H_total);
       points.push(new THREE.Vector2(r, z));
     }
 
