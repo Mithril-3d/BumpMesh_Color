@@ -1983,8 +1983,7 @@ function wireEvents() {
     if (e.target === imprintOverlay) imprintOverlay.classList.add('hidden');
   });
 
-  // ── Welcome / What's New ──
-  welcomeLink?.addEventListener('click', () => openWelcome({ allowDismissPersist: false }));
+
 
   // ── Mesh diagnostics dismiss ──
   meshDiagDismiss?.addEventListener('click', () => {
