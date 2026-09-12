@@ -151,16 +151,58 @@ header {
 .logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.logo-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13.5px;
   letter-spacing: 0.02em;
 }
 
 .app-version {
-  opacity: 0.45;
+  opacity: 0.5;
   font-weight: 400;
-  font-size: 11px;
+  font-size: 10.5px;
+}
+
+.logo-subtitle {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.logo-subtitle a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.logo-subtitle a:hover {
+  color: var(--accent);
+}
+
+.logo-sep {
+  opacity: 0.4;
+  font-size: 9px;
+  margin: 0 1px;
 }
 
 .header-note {
