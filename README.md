@@ -1,6 +1,10 @@
 # BumpMesh_Color
 
+> 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
+> *(No installation required — runs 100% locally in your browser)*
+
 **Author:** [@Mithril_MEX](https://x.com/Mithril_MEX)  
+**Web App:** https://mithril-3d.github.io/BumpMesh_Color/  
 **GitHub:** https://github.com/Mithril-3d/BumpMesh_Color  
 **Forked from:** [BumpMesh (stlTexturizer)](https://github.com/CNCKitchen/stlTexturizer) by Stefan Hermann ([CNC Kitchen](https://bumpmesh.com))  
 
@@ -143,7 +147,11 @@ Then open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
 
 # 日本語ドキュメント (Japanese)
 
+> 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
+> *(インストール不要・完全ローカル処理で安心)*
+
 **作者:** [@Mithril_MEX](https://x.com/Mithril_MEX)  
+**公開URL (Web App):** https://mithril-3d.github.io/BumpMesh_Color/  
 **GitHub:** https://github.com/Mithril-3d/BumpMesh_Color  
 **元プロジェクト:** Stefan Hermann 氏 ([CNC Kitchen](https://bumpmesh.com)) による [BumpMesh (stlTexturizer)](https://github.com/CNCKitchen/stlTexturizer)  
 
