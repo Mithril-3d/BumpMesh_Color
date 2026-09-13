@@ -334,7 +334,7 @@ let interleavedSettings          = {
   convexAmp: 0.35,
   concaveAmp: 0.00,
   profileMode: 0, // 0 = Flat step (recommended), 1 = 45° Louver
-  shadingMode: 0  // 0 = Step (discrete), 1 = Gradient (continuous)
+  shadingMode: 1  // 0 = Step (discrete), 1 = Gradient (continuous)
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -4732,7 +4732,7 @@ function getFullPreviewSettings() {
     interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
     interleavedProfileMode: interleavedSettings.profileMode ?? 0,
-    interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
+    interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: null,
@@ -5433,7 +5433,7 @@ async function handleExport(format = 'stl') {
       interleavedConvex: isLayerBlendMode ? 0.0 : (interleavedSettings.convexAmp ?? 0.35),
       interleavedConcave: isLayerBlendMode ? 0.0 : (interleavedSettings.concaveAmp ?? 0.00),
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
-      interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
+      interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
       // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
       // so we receive a pristine subdivided base mesh, then slice & displace strictly per layer.
@@ -5894,7 +5894,7 @@ async function bakeTextures() {
       interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
-      interleavedShadingMode: interleavedSettings.shadingMode ?? 0,
+      interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
     const result = await runPipeline({

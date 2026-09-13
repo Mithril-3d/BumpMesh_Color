@@ -692,8 +692,8 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
     }
   }
 
-  if (!u.interleavedShadingMode) u.interleavedShadingMode = { value: 0 };
-  u.interleavedShadingMode.value = settings.interleavedShadingMode ?? 0;
+  if (!u.interleavedShadingMode) u.interleavedShadingMode = { value: 1 };
+  u.interleavedShadingMode.value = settings.interleavedShadingMode ?? 1;
 
   if (!u.interleavedProfileMode) u.interleavedProfileMode = { value: 0 };
   u.interleavedProfileMode.value = settings.interleavedProfileMode ?? 0;
@@ -760,7 +760,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedConcave:       { value: settings.interleavedConcave ?? 0.00 },
     interleavedToolCount:     { value: settings.interleavedToolCount ?? 2 },
     interleavedPalette:       { value: initPalette },
-    interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 0 },
+    interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 1 },
     interleavedProfileMode:   { value: settings.interleavedProfileMode ?? 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },

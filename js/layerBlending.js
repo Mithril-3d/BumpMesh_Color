@@ -110,7 +110,7 @@ export function computeLouverDisplacement(
   concaveAmp = 0.0,
   profileMode = 0,
   blendWeight = 1.0,
-  shadingMode = 0
+  shadingMode = 1
 ) {
   const t = Math.max(0.01, thickness);
   const zRel = Math.max(0, z - minZ);

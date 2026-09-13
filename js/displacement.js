@@ -521,7 +521,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const convexVal = settings.interleavedConvex ?? 0.35;
       const concaveVal = settings.interleavedConcave ?? 0.00;
       const profileMode = settings.interleavedProfileMode ?? 0; // 0 = Flat step (recommended), 1 = 45° Louver
-      const shadingMode = settings.interleavedShadingMode ?? 0; // 0 = Step, 1 = Gradient
+      const shadingMode = settings.interleavedShadingMode ?? 1; // 0 = Step, 1 = Gradient
 
       let blendWeight = 1.0;
       if (shadingMode === 1 && palette.length >= 2) {
