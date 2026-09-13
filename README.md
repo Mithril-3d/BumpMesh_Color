@@ -195,6 +195,10 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ![BumpMesh_Color 振り重ねプレビュー画面](docs/images/interleaved_app_screen.png)
 
+| 実際のプリント出力例 (白・黒 2色フィラメント) | スライサーでのスライス結果 (インフィル0%, ペリメータ2) |
+| :---: | :---: |
+| ![実際のプリント出力例](docs/images/interleaved_print_sample.jpg) | ![スライス結果 (ペリメータ2)](docs/images/interleaved_slicer_perimeter2.png) |
+
 | スライサーでのスライス結果 (インフィル0%, トップ層0, ペリメータ1) | 振り重ね積層断面の拡大 (交互積層ディテール) |
 | :---: | :---: |
 | ![スライス結果全体](docs/images/interleaved_slicer_sliced.jpg) | ![積層ディテール拡大](docs/images/interleaved_slicer_detail.jpg) |
@@ -203,7 +207,7 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 > **振り重ね（交互積層）出力時のスライサー推奨設定:**  
 > - **インフィル (Infill):** 0%  
 > - **トップ層 (Top solid layers):** 0  
-> - **ペリメータ (Perimeters / 外周壁ループ数):** 1  
+> - **ペリメータ (Perimeters / 外周壁ループ数):** 1 または 2 *(肉厚やモデル形状に応じて調整。円筒やカップ等の薄肉モデルではペリメータ2でも美しく出力可能)*  
 > - **垂直シェルの厚みを確保する (Ensure vertical shell thickness):** **無効 (Off)**
 >
 > 📖 **詳細解説記事 (note):** 振り重ねプリント手法の着想・原理・スライスノウハウについての詳しい解説は、以下のnote記事をご参照ください：  
