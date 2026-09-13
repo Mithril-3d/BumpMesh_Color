@@ -65,17 +65,7 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Windows Explorer Thumbnail**: Automatically embeds compliant PNG thumbnails so files display high-res preview icons in Windows File Explorer.
 - **Non-blocking Progress**: Asynchronous export pipeline with realistic 0%–100% progress reporting that never freezes the browser.
 
-### 4. 🖼️ Rich Library of Color & Traditional Japanese Textures
-In addition to the original 24 monochrome displacement patterns, **BumpMesh_Color** includes:
-- **Japanese Traditional & Modern Patterns**: Blue Porcelain, Japanese Modern, Japanese Pattern, Ichimatsu (市松), Seigaiha (青海波), Yagasuri (矢絣), Asanoha (麻の葉), Tomoe (巴), Kikko (亀甲), Kagome (籠目).
-- **Western Classics**: Houndstooth, Chevron, Herringbone, Argyle, Tartan, Stained Glass.
-- **Geometric Mosaics**: Honeycomb, Triangle Mosaic, Isometric Cubes, Octagon Tile, Kaleidoscope.
-
-| Japanese Modern | Japanese Pattern |
-| :---: | :---: |
-| ![Japanese Modern](docs/images/japanese_modern.png) | ![Japanese Pattern](docs/images/japanese_pattern.png) |
-
-### 5. 🌐 Comprehensive 14-Language Localization
+### 4. 🌐 Comprehensive 14-Language Localization
 Fully localized UI with instant language switching:
 - English, Japanese (日本語), German (Deutsch), French (Français), Spanish (Español), Italian (Italiano), Portuguese (Português), Chinese (中文), Korean (한국어), Russian (Русский), Ukrainian (Українська), Polish (Polski), Danish (Dansk), Turkish (Türkçe).
 
@@ -218,17 +208,7 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **Windows エクスプローラーのサムネイル表示**: 標準的な3MFサムネイル仕様に準拠しており、Windowsのエクスプローラー上で高解像度プレビューアイコンが表示されます。
 - **フリーズしない非同期進捗バー**: 大規模なメッシュでもブラウザが固まらず、0%〜100%の進捗がスムーズに表示されます。
 
-### 4. 🖼️ 豊富なカラー・和柄プリセットテクスチャ
-従来のモノクロテクスチャ（24種類）に加え、以下のテクスチャを標準搭載：
-- **伝統和柄 & モダン和柄**: 青磁グラデーション (Blue Porcelain), Japanese Modern, Japanese Pattern, 市松 (2色), 青海波 (2色), 矢絣 (2色), 麻の葉 (3色), 巴 (3色), 亀甲 (4色), 籠目 (8色)
-- **西洋クラシック**: 千鳥格子 (Houndstooth), シェブロン (Chevron), ヘリンボーン (Herringbone), アーガイル (Argyle), タータンチェック (Tartan), ステンドグラス (Stained Glass)
-- **幾何学モザイク**: ハニカム (Honeycomb), 三角モザイク (Triangle Mosaic), アイソメトリックキューブ (Isometric Cubes), オクタゴンタイル (Octagon Tile), 万華鏡 (Kaleidoscope)
-
-| Japanese Modern 適用例 | Japanese Pattern 適用例 |
-| :---: | :---: |
-| ![Japanese Modern](docs/images/japanese_modern.png) | ![Japanese Pattern](docs/images/japanese_pattern.png) |
-
-### 5. 🌐 14言語の完全ローカライズ
+### 4. 🌐 14言語の完全ローカライズ
 日本語および英語をはじめ、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、中国語、韓国語、ロシア語、ウクライナ語、ポーランド語、デンマーク語、トルコ語の計14言語に完全対応。右上の言語セレクターからいつでも即座に切り替え可能です。
 
 ---
