@@ -14,7 +14,7 @@ import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260912b';
+import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260913_order';
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
@@ -1139,7 +1139,7 @@ scaleVVal.value = fmtScaleVal(posToScale(parseFloat(scaleVSlider.value)));
 loadDefaultCube();
 
 // Build swatches with placeholder canvases, then load thumbnails
-const DEFAULT_PRESET_NAME = 'Geometric 4-Color';
+const DEFAULT_PRESET_NAME = 'Blue Porcelain';
 const _presetSwatches = IMAGE_PRESETS.map((p, idx) => {
   const swatch = document.createElement('div');
   swatch.className = 'preset-swatch preset-loading';

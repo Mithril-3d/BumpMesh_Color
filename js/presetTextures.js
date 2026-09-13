@@ -26,7 +26,6 @@ function fitDimensions(imgW, imgH) {
 // ── Image-based presets ───────────────────────────────────────────────────────
 
 const IMAGE_PRESETS = [
-  { name: 'Geometric 4-Color', url: 'textures/geometric_4color.png', thumb: 'textures/thumbs/geometric_4color.webp', defaultScale: 0.5 },
   // Japanese Traditional & Modern
   { name: 'Blue Porcelain',           url: 'textures/porcelain_blue_gradient.jpg', thumb: 'textures/thumbs/porcelain_blue_gradient.webp', defaultScale: 1.0 },
   { name: 'Japanese Modern',          url: 'textures/japanese_modern.jpg',        thumb: 'textures/thumbs/japanese_modern.webp',        defaultScale: 0.5 },
@@ -36,6 +35,7 @@ const IMAGE_PRESETS = [
   { name: 'Yagasuri (2-Color)',        url: 'textures/yagasuri_2color.png',        thumb: 'textures/thumbs/yagasuri_2color.webp',        defaultScale: 0.5 },
   { name: 'Asanoha (3-Color)',         url: 'textures/asanoha_3color.png',         thumb: 'textures/thumbs/asanoha_3color.webp',         defaultScale: 0.5 },
   { name: 'Tomoe (3-Color)',           url: 'textures/tomoe_3color.png',           thumb: 'textures/thumbs/tomoe_3color.webp',           defaultScale: 0.5 },
+  { name: 'Geometric 4-Color',         url: 'textures/geometric_4color.png',       thumb: 'textures/thumbs/geometric_4color.webp',       defaultScale: 0.5 },
   { name: 'Kikko (4-Color)',           url: 'textures/kikko_4color.png',           thumb: 'textures/thumbs/kikko_4color.webp',           defaultScale: 0.5 },
   { name: 'Kagome (8-Color)',          url: 'textures/kagome_8color.png',          thumb: 'textures/thumbs/kagome_8color.webp',          defaultScale: 0.5 },
   // Western Patterns
