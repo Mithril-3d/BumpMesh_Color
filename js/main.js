@@ -5518,10 +5518,15 @@ async function handleExport(format = 'stl') {
           ? exportPalette.map(p => p.toolId)
           : [1, 2];
 
+        const tmax = Math.max(exportEntry.width, exportEntry.height, 1);
+        const aspectU = tmax / Math.max(exportEntry.width, 1);
+        const aspectV = tmax / Math.max(exportEntry.height, 1);
+        const settingsWithAspect = { ...settings, textureAspectU: aspectU, textureAspectV: aspectV };
+
         const sampleFn = (x, y, z, nx, ny, nz) => {
           const tmpP = new THREE.Vector3(x + currentPoseTrans.x, y + currentPoseTrans.y, z + originMinZ + currentPoseTrans.z);
           const tmpN = new THREE.Vector3(nx, ny, nz);
-          const uvResult = computeUV(tmpP, tmpN, settings.mappingMode, settings, currentBounds);
+          const uvResult = computeUV(tmpP, tmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds);
           let u = 0, v = 0;
           if (uvResult && uvResult.triplanar) {
             let maxW = -1;
