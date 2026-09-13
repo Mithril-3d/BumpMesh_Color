@@ -42,6 +42,10 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
 
+| Actual Printed Result (White & Black Filament) | Sliced Preview (Infill 0%, Perimeters 2) |
+| :---: | :---: |
+| ![Actual Printed Result](docs/images/interleaved_print_sample.jpg) | ![Sliced Preview (Perimeters 2)](docs/images/interleaved_slicer_perimeter2.png) |
+
 | Slicer Result (Infill 0%, Top 0, Perimeters 1) | Alternating Layer Detail (Close-up) |
 | :---: | :---: |
 | ![Slicer Sliced Result](docs/images/interleaved_slicer_sliced.jpg) | ![Interleaved Detail](docs/images/interleaved_slicer_detail.jpg) |
@@ -50,7 +54,7 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 > **Recommended Slicer Print Settings for Interleaved Layers (振り重ね):**  
 > - **Infill:** 0%  
 > - **Top solid layers:** 0  
-> - **Perimeters (Walls):** 1  
+> - **Perimeters (Walls):** 1 or 2 *(depending on wall thickness; 2 perimeters works great for hollow cylinders and cups)*  
 > - **Ensure vertical shell thickness:** Disabled (Off)
 >
 > 📖 **Deep Dive Article:** For a detailed breakdown of the background, theory, and printing mechanics behind the "振り重ね" (Interleaved Layer) technique, see the author's article:  

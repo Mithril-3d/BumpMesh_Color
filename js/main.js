@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260912_119';
+import { APP_VERSION } from './version.js?v=20260913_120';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -4638,9 +4638,23 @@ function getEffectiveMapEntry() {
 }
 
 function getPreviewColorTexture() {
-  return (colorModeToggle?.checked && colorPreviewToggle?.checked && _quantizedTextureCache)
-    ? _quantizedTextureCache
-    : null;
+  if (!colorModeToggle?.checked || !colorPreviewToggle?.checked) {
+    return null;
+  }
+
+  // Interleaved (振り重ね) mode with continuous gradient shading:
+  // Bypass quantized color display so the smooth, original continuous gradation
+  // is rendered on the 3D model surface while keeping tool count minimal.
+  const isInterleaved = (currentColorSubMode === 1 || settings.colorSubMode === 1);
+  const isGradient = (interleavedSettings.shadingMode === 1 || settings.interleavedShadingMode === 1);
+  if (isInterleaved && isGradient) {
+    const effective = getEffectiveMapEntry();
+    if (effective?.texture) {
+      return effective.texture;
+    }
+  }
+
+  return _quantizedTextureCache || null;
 }
 
 // Build the regularize.js opts object from current settings.  Centralised so
