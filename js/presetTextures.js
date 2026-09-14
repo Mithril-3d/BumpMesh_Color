@@ -5,7 +5,8 @@
 
 import * as THREE from 'three';
 
-const SIZE  = 512; // texture resolution for both preview and sampling
+const SIZE  = 512; // default texture resolution for presets
+const MAX_CUSTOM_SIZE = 4096; // safety cap for custom uploaded textures (preserves 1:1 detail up to 4K)
 const THUMB = 80;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -20,6 +21,12 @@ function makeCanvas(w, h = w) {
 /** Return { w, h } capped at SIZE on the longest side, preserving aspect ratio. */
 function fitDimensions(imgW, imgH) {
   const scale = Math.min(SIZE / imgW, SIZE / imgH, 1);
+  return { w: Math.round(imgW * scale), h: Math.round(imgH * scale) };
+}
+
+/** Return { w, h } capped at MAX_CUSTOM_SIZE on the longest side, preserving aspect ratio. */
+function fitCustomDimensions(imgW, imgH) {
+  const scale = Math.min(MAX_CUSTOM_SIZE / imgW, MAX_CUSTOM_SIZE / imgH, 1);
   return { w: Math.round(imgW * scale), h: Math.round(imgH * scale) };
 }
 
@@ -149,7 +156,7 @@ export function loadCustomTexture(file) {
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const { w, h } = fitDimensions(img.width, img.height);
+      const { w, h } = fitCustomDimensions(img.width, img.height);
       const canvas = makeCanvas(w, h);
       const ctx    = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, w, h);

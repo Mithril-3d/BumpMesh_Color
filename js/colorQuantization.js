@@ -164,11 +164,15 @@ export function quantizeImage(imageData, k = 4, maxSamples = 20000) {
     // Rec.709 luminance preserved at full original resolution
     luminanceMap[i] = getLuminance(r, g, b);
 
-    // Find nearest cluster
+    // Find nearest cluster without allocating temporary [r, g, b] arrays
     let minD = Infinity;
     let bestC = 0;
     for (let c = 0; c < actualK; c++) {
-      const d = colorDistSq([r, g, b], centers[c]);
+      const center = centers[c];
+      const dr = center[0] - r;
+      const dg = center[1] - g;
+      const db = center[2] - b;
+      const d = dr * dr + dg * dg + db * db;
       if (d < minD) {
         minD = d;
         bestC = c;
@@ -265,7 +269,11 @@ export function getToolAtUV(data, w, h, u, v, palette) {
   let bestTool = palette[0]?.toolId ?? 1;
 
   for (const item of palette) {
-    const d = colorDistSq([r, g, b], item.color);
+    const c = item.color;
+    const dr = c[0] - r;
+    const dg = c[1] - g;
+    const db = c[2] - b;
+    const d = dr * dr + dg * dg + db * db;
     if (d < minDist) {
       minDist = d;
       bestTool = item.toolId;

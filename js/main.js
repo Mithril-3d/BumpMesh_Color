@@ -4601,31 +4601,37 @@ function getEffectiveMapEntry() {
     } else {
       // Tile the source 3×3 before blurring so edge pixels have correct
       // neighbours and the blurred centre tile is seamlessly tileable.
+      // Safety cap: clamp longest side to 2048 to prevent huge 3x3 canvases (>6144px) from crashing browsers.
+      const MAX_BLUR_DIM = 2048;
+      const blurScale = Math.min(MAX_BLUR_DIM / width, MAX_BLUR_DIM / height, 1);
+      const blurW = Math.round(width * blurScale);
+      const blurH = Math.round(height * blurScale);
+
       const tiled = document.createElement('canvas');
-      tiled.width  = width  * 3;
-      tiled.height = height * 3;
+      tiled.width  = blurW  * 3;
+      tiled.height = blurH * 3;
       const tc = tiled.getContext('2d');
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
-          tc.drawImage(fullCanvas, col * width, row * height);
+          tc.drawImage(fullCanvas, col * blurW, row * blurH, blurW, blurH);
         }
       }
       // Blur the 3×3 canvas, then crop out only the centre tile.
       const blurred = document.createElement('canvas');
-      blurred.width  = width  * 3;
-      blurred.height = height * 3;
+      blurred.width  = blurW  * 3;
+      blurred.height = blurH * 3;
       blurred.getContext('2d').drawImage(tiled, 0, 0);
-      blurCanvas(blurred, settings.textureSmoothing);
+      blurCanvas(blurred, settings.textureSmoothing * blurScale);
       const offscreen = document.createElement('canvas');
-      offscreen.width  = width;
-      offscreen.height = height;
-      offscreen.getContext('2d').drawImage(blurred, width, height, width, height, 0, 0, width, height);
-      const imageData = offscreen.getContext('2d').getImageData(0, 0, width, height);
+      offscreen.width  = blurW;
+      offscreen.height = blurH;
+      offscreen.getContext('2d').drawImage(blurred, blurW, blurH, blurW, blurH, 0, 0, blurW, blurH);
+      const imageData = offscreen.getContext('2d').getImageData(0, 0, blurW, blurH);
       const texture   = new THREE.CanvasTexture(offscreen);
       texture.wrapS   = texture.wrapT = THREE.RepeatWrapping;
       if (_lastEffectiveTexture) _lastEffectiveTexture.dispose();
       _lastEffectiveTexture = texture;
-      _effectiveMapCache    = { ...activeMapEntry, imageData, texture };
+      _effectiveMapCache    = { ...activeMapEntry, imageData, texture, width: blurW, height: blurH };
       _effectiveMapCacheKey = cacheKey;
       baseEntry = _effectiveMapCache;
     }
