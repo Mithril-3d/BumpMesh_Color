@@ -109,20 +109,9 @@ Fully localized UI with instant language switching:
 
 ## 💻 Running Locally
 
-Because modern web browsers restrict ES module imports and local image/texture access over `file://` URLs, a local static HTTP server is required. All processing still runs 100% locally and offline on your computer.
+The easiest way to use BumpMesh_Color is via the **[Live Web App](https://mithril-3d.github.io/BumpMesh_Color/)** (100% client-side, no data uploaded).
 
-### Option 1: Desktop GUI Launcher (Recommended)
-
-If you have Python installed, simply use the included desktop launcher:
-
-- **Windows**: Double-click `launcher.py` (or run `python launcher.py` in terminal).
-- **macOS / Linux**: Run `python3 launcher.py`.
-
-A clean launcher window will open, automatically find an available port, start the local server, and open **BumpMesh_Color** in your default browser. You can stop, start, or restart the server anytime with a single click.
-
-### Option 2: Standard Command Line
-
-Alternatively, you can start Python's built-in HTTP server directly from your terminal:
+If you prefer to run it locally, modern browsers require a local static HTTP server for ES modules and local texture access:
 
 ```bash
 # 1. Clone the repository
@@ -133,7 +122,7 @@ cd BumpMesh_Color
 python -m http.server 8080
 ```
 
-Then open `http://localhost:8080` in Chrome, Edge, Firefox, or Safari.
+Then open `http://localhost:8080` in your browser. All processing still runs 100% locally and offline on your computer.
 
 ---
 
@@ -253,20 +242,9 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ## 💻 ローカル環境での実行方法
 
-モダンブラウザのセキュリティ制限（`file://` URL からのローカル画像やESモジュール読み込み制限）があるため、ローカルで実行する場合はローカルHTTPサーバーが必要です（処理自体はすべてPC内で完結し、完全オフラインで動作します）。
+最も手軽な方法は **[Web App 版](https://mithril-3d.github.io/BumpMesh_Color/)** をそのままブラウザで開くことです（完全ブラウザ内処理のため、外部へのデータ送信はありません）。
 
-### 方法 1: デスクトップ GUI ランチャー（推奨）
-
-Python がインストールされていれば、付属のランチャーを使うのが最も簡単です：
-
-- **Windows**: `launcher.py` をダブルクリック（またはターミナルで `python launcher.py`）
-- **macOS / Linux**: ターミナルで `python3 launcher.py`
-
-専用のランチャー画面が開き、空いているポートを自動検出してローカルサーバーを起動し、自動的にデフォルトブラウザで **BumpMesh_Color** を開きます。画面のボタンからいつでも停止・再起動が可能です。
-
-### 方法 2: 標準のコマンドライン
-
-ターミナル（コマンドプロンプトやPowerShell）から直接Pythonサーバーを起動することもできます：
+ローカルPC上で直接実行する場合は、モダンブラウザのセキュリティ制限（`file://` URL からのESモジュール読み込み制限）を避けるため、ローカルHTTPサーバーを起動します：
 
 ```bash
 # 1. リポジトリをクローン
@@ -277,4 +255,4 @@ cd BumpMesh_Color
 python -m http.server 8080
 ```
 
-ブラウザで `http://localhost:8080` を開きます。
+ブラウザで `http://localhost:8080` を開きます。処理自体はすべてPC内で完結し、完全オフラインで動作します。
