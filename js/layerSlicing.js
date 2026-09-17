@@ -509,16 +509,16 @@ export function applyLayerAlignedDisplacement(
         const shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;
         const shelfNz = ((dispBot0 + dispBot1) >= (dispTop0 + dispTop1)) ? 1 : -1;
 
-        // Output non-degenerate shelf geometry:
-        // When only one endpoint has a step (texture color boundary running through the edge),
-        // emitting a single triangle cleanly seals the manifold step without 0-area slivers.
+        // Output non-degenerate shelf geometry with correct manifold winding order:
+        // Lower triangle edge is p1_bot -> p0_bot, so shelf must have opposite directed edge p0_bot -> p1_bot.
+        // Upper triangle edge is p0_top -> p1_top, so shelf must have opposite directed edge p1_top -> p0_top.
         if (!hasStep0) {
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, p1_top_x, p1_top_y, p1_top_z, shelfNz, shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
         } else if (!hasStep1) {
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
         } else {
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p1_top_x, p1_top_y, p1_top_z, shelfNz, shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
         }
       }
     }
