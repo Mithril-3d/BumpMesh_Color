@@ -97,12 +97,29 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     return cutId;
   }
 
-  const outTris = [];
-  const outLayers = [];
+  const CHUNK_SIZE = 131072; // 128K triangles per chunk to avoid millions of small Array allocations
+  const triChunks = [];
+  const layerChunks = [];
+  let curTriChunk = new Int32Array(CHUNK_SIZE * 3);
+  let curLayerChunk = new Int32Array(CHUNK_SIZE);
+  let chunkCount = 0;
+  let totalTriangles = 0;
 
   function emitTri(id0, id1, id2, layerIdx) {
-    outTris.push([id0, id1, id2]);
-    outLayers.push(Math.max(0, Math.min(totalLayers - 1, layerIdx)));
+    if (chunkCount >= CHUNK_SIZE) {
+      triChunks.push(curTriChunk);
+      layerChunks.push(curLayerChunk);
+      curTriChunk = new Int32Array(CHUNK_SIZE * 3);
+      curLayerChunk = new Int32Array(CHUNK_SIZE);
+      chunkCount = 0;
+    }
+    const b = chunkCount * 3;
+    curTriChunk[b]     = id0;
+    curTriChunk[b + 1] = id1;
+    curTriChunk[b + 2] = id2;
+    curLayerChunk[chunkCount] = Math.max(0, Math.min(totalLayers - 1, layerIdx));
+    chunkCount++;
+    totalTriangles++;
   }
 
   function sliceTriangle(v0, v1, v2, cutIdx) {
@@ -192,24 +209,41 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     sliceTriangle(v0, v1, v2, startCut);
   }
 
-  // Convert outTris to flat Float32Array positions and normals, and Int32Array layers
-  const finalCount = outTris.length;
-  const outPos = new Float32Array(finalCount * 9);
-  const outNrm = new Float32Array(finalCount * 9);
-  const outLay = new Int32Array(outLayers);
+  if (chunkCount > 0) {
+    triChunks.push(curTriChunk.subarray(0, chunkCount * 3));
+    layerChunks.push(curLayerChunk.subarray(0, chunkCount));
+  }
 
-  for (let i = 0; i < finalCount; i++) {
-    const [i0, i1, i2] = outTris[i];
-    const p0 = uniqueVerts[i0], p1 = uniqueVerts[i1], p2 = uniqueVerts[i2];
-    const n0 = uniqueNorms[i0], n1 = uniqueNorms[i1], n2 = uniqueNorms[i2];
-    const b = i * 9;
-    outPos[b]   = p0[0]; outPos[b+1] = p0[1]; outPos[b+2] = p0[2];
-    outPos[b+3] = p1[0]; outPos[b+4] = p1[1]; outPos[b+5] = p1[2];
-    outPos[b+6] = p2[0]; outPos[b+7] = p2[1]; outPos[b+8] = p2[2];
+  // Convert chunk stores to flat Float32Array positions and normals, and Int32Array layers
+  const outPos = new Float32Array(totalTriangles * 9);
+  const outNrm = new Float32Array(totalTriangles * 9);
+  const outLay = new Int32Array(totalTriangles);
 
-    outNrm[b]   = n0[0]; outNrm[b+1] = n0[1]; outNrm[b+2] = n0[2];
-    outNrm[b+3] = n1[0]; outNrm[b+4] = n1[1]; outNrm[b+5] = n1[2];
-    outNrm[b+6] = n2[0]; outNrm[b+7] = n2[1]; outNrm[b+8] = n2[2];
+  let triOffset = 0;
+  for (let c = 0; c < triChunks.length; c++) {
+    const tChunk = triChunks[c];
+    const lChunk = layerChunks[c];
+    const count = lChunk.length;
+
+    outLay.set(lChunk, triOffset);
+
+    for (let i = 0; i < count; i++) {
+      const gTri = triOffset + i;
+      const b3 = i * 3;
+      const i0 = tChunk[b3], i1 = tChunk[b3 + 1], i2 = tChunk[b3 + 2];
+      const p0 = uniqueVerts[i0], p1 = uniqueVerts[i1], p2 = uniqueVerts[i2];
+      const n0 = uniqueNorms[i0], n1 = uniqueNorms[i1], n2 = uniqueNorms[i2];
+      const b9 = gTri * 9;
+
+      outPos[b9]   = p0[0]; outPos[b9+1] = p0[1]; outPos[b9+2] = p0[2];
+      outPos[b9+3] = p1[0]; outPos[b9+4] = p1[1]; outPos[b9+5] = p1[2];
+      outPos[b9+6] = p2[0]; outPos[b9+7] = p2[1]; outPos[b9+8] = p2[2];
+
+      outNrm[b9]   = n0[0]; outNrm[b9+1] = n0[1]; outNrm[b9+2] = n0[2];
+      outNrm[b9+3] = n1[0]; outNrm[b9+4] = n1[1]; outNrm[b9+5] = n1[2];
+      outNrm[b9+6] = n2[0]; outNrm[b9+7] = n2[1]; outNrm[b9+8] = n2[2];
+    }
+    triOffset += count;
   }
 
   return {
@@ -381,8 +415,41 @@ export function applyLayerAlignedDisplacement(
   }
 
   // 2. Generate horizontal shelf triangles at layer boundary steps to maintain 100% watertight manifold
-  const shelfTris = [];
-  const shelfTools = [];
+  // Pre-allocated typed chunk store for shelf triangles to eliminate large V8 JSArray allocations
+  const CHUNK_TRIS = 65536; // 64K triangles per chunk
+  const shelfPosChunks = [];
+  const shelfNrmChunks = [];
+  const shelfToolChunks = [];
+
+  let curChunkPos = new Float32Array(CHUNK_TRIS * 9);
+  let curChunkNrm = new Float32Array(CHUNK_TRIS * 9);
+  let curChunkTool = new Int32Array(CHUNK_TRIS);
+  let chunkTriCount = 0;
+  let totalShelfTris = 0;
+
+  function emitShelfTriangle(x0, y0, z0, x1, y1, z1, x2, y2, z2, nz, tool) {
+    if (chunkTriCount >= CHUNK_TRIS) {
+      shelfPosChunks.push(curChunkPos);
+      shelfNrmChunks.push(curChunkNrm);
+      shelfToolChunks.push(curChunkTool);
+      curChunkPos = new Float32Array(CHUNK_TRIS * 9);
+      curChunkNrm = new Float32Array(CHUNK_TRIS * 9);
+      curChunkTool = new Int32Array(CHUNK_TRIS);
+      chunkTriCount = 0;
+    }
+    const b = chunkTriCount * 9;
+    curChunkPos[b]   = x0; curChunkPos[b+1] = y0; curChunkPos[b+2] = z0;
+    curChunkPos[b+3] = x1; curChunkPos[b+4] = y1; curChunkPos[b+5] = z1;
+    curChunkPos[b+6] = x2; curChunkPos[b+7] = y2; curChunkPos[b+8] = z2;
+
+    curChunkNrm[b]   = 0;  curChunkNrm[b+1] = 0;  curChunkNrm[b+2] = nz;
+    curChunkNrm[b+3] = 0;  curChunkNrm[b+4] = 0;  curChunkNrm[b+5] = nz;
+    curChunkNrm[b+6] = 0;  curChunkNrm[b+7] = 0;  curChunkNrm[b+8] = nz;
+
+    curChunkTool[chunkTriCount] = tool;
+    chunkTriCount++;
+    totalShelfTris++;
+  }
 
   if (cutEdgesPerCut && uniqueVerts && uniqueNorms) {
     for (let cutIdx = 0; cutIdx < cutEdgesPerCut.length; cutIdx++) {
@@ -424,26 +491,21 @@ export function applyLayerAlignedDisplacement(
         const hasStep1 = Math.abs(diff1) >= 1e-4;
         if (!hasStep0 && !hasStep1) continue; // coplanar, no shelf needed
 
-        const p0_bot = [
-          Math.fround(p0[0] + dispBot0 * unx0),
-          Math.fround(p0[1] + dispBot0 * uny0),
-          p0[2]
-        ];
-        const p1_bot = [
-          Math.fround(p1[0] + dispBot1 * unx1),
-          Math.fround(p1[1] + dispBot1 * uny1),
-          p1[2]
-        ];
-        const p0_top = [
-          Math.fround(p0[0] + dispTop0 * unx0),
-          Math.fround(p0[1] + dispTop0 * uny0),
-          p0[2]
-        ];
-        const p1_top = [
-          Math.fround(p1[0] + dispTop1 * unx1),
-          Math.fround(p1[1] + dispTop1 * uny1),
-          p1[2]
-        ];
+        const p0_bot_x = Math.fround(p0[0] + dispBot0 * unx0);
+        const p0_bot_y = Math.fround(p0[1] + dispBot0 * uny0);
+        const p0_bot_z = p0[2];
+
+        const p1_bot_x = Math.fround(p1[0] + dispBot1 * unx1);
+        const p1_bot_y = Math.fround(p1[1] + dispBot1 * uny1);
+        const p1_bot_z = p1[2];
+
+        const p0_top_x = Math.fround(p0[0] + dispTop0 * unx0);
+        const p0_top_y = Math.fround(p0[0] + dispTop0 * uny0);
+        const p0_top_z = p0[2];
+
+        const p1_top_x = Math.fround(p1[0] + dispTop1 * unx1);
+        const p1_top_y = Math.fround(p1[1] + dispTop1 * uny1);
+        const p1_top_z = p1[2];
 
         // Assign tool: dominant protruding tool owns the shelf surface
         const shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;
@@ -451,46 +513,26 @@ export function applyLayerAlignedDisplacement(
 
         // Output non-degenerate shelf geometry:
         // When only one endpoint has a step (texture color boundary running through the edge),
-        // emitting a quad produces a degenerate 0-area sliver which exporters/slicers discard,
-        // leaving an open edge hole. Emitting a single triangle cleanly seals the manifold step.
+        // emitting a single triangle cleanly seals the manifold step without 0-area slivers.
         if (!hasStep0) {
-          // p0_bot == p0_top: Single triangle (p1_bot, p0_bot, p1_top)
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
-            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
-            p1_top[0], p1_top[1], p1_top[2], 0, 0, shelfNz
-          );
-          shelfTools.push(shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, p1_top_x, p1_top_y, p1_top_z, shelfNz, shelfTool);
         } else if (!hasStep1) {
-          // p1_bot == p1_top: Single triangle (p1_bot, p0_bot, p0_top)
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
-            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz
-          );
-          shelfTools.push(shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
         } else {
-          // Both endpoints have steps: Full quad = 2 triangles
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
-            p0_bot[0], p0_bot[1], p0_bot[2], 0, 0, shelfNz,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz
-          );
-          shelfTools.push(shelfTool);
-
-          shelfTris.push(
-            p1_bot[0], p1_bot[1], p1_bot[2], 0, 0, shelfNz,
-            p0_top[0], p0_top[1], p0_top[2], 0, 0, shelfNz,
-            p1_top[0], p1_top[1], p1_top[2], 0, 0, shelfNz
-          );
-          shelfTools.push(shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p1_top_x, p1_top_y, p1_top_z, shelfNz, shelfTool);
         }
       }
     }
   }
 
-  // Combine body triangles and shelf triangles
-  const extraTriCount = shelfTools.length;
+  if (chunkTriCount > 0) {
+    shelfPosChunks.push(curChunkPos.subarray(0, chunkTriCount * 9));
+    shelfNrmChunks.push(curChunkNrm.subarray(0, chunkTriCount * 9));
+    shelfToolChunks.push(curChunkTool.subarray(0, chunkTriCount));
+  }
+
+  const extraTriCount = totalShelfTris;
   if (extraTriCount === 0) {
     return {
       positions: outPos,
@@ -510,32 +552,20 @@ export function applyLayerAlignedDisplacement(
 
   let pOffset = triCount * 9;
   let nOffset = triCount * 9;
-  for (let k = 0; k < extraTriCount; k++) {
-    const sBase = k * 18;
-    // tri 1 & 2 stored interleaved in shelfTris
-    finalPos[pOffset]     = shelfTris[sBase];
-    finalPos[pOffset + 1] = shelfTris[sBase + 1];
-    finalPos[pOffset + 2] = shelfTris[sBase + 2];
-    finalPos[pOffset + 3] = shelfTris[sBase + 6];
-    finalPos[pOffset + 4] = shelfTris[sBase + 7];
-    finalPos[pOffset + 5] = shelfTris[sBase + 8];
-    finalPos[pOffset + 6] = shelfTris[sBase + 12];
-    finalPos[pOffset + 7] = shelfTris[sBase + 13];
-    finalPos[pOffset + 8] = shelfTris[sBase + 14];
+  let tOffset = triCount;
 
-    finalNrm[nOffset]     = shelfTris[sBase + 3];
-    finalNrm[nOffset + 1] = shelfTris[sBase + 4];
-    finalNrm[nOffset + 2] = shelfTris[sBase + 5];
-    finalNrm[nOffset + 3] = shelfTris[sBase + 9];
-    finalNrm[nOffset + 4] = shelfTris[sBase + 10];
-    finalNrm[nOffset + 5] = shelfTris[sBase + 11];
-    finalNrm[nOffset + 6] = shelfTris[sBase + 15];
-    finalNrm[nOffset + 7] = shelfTris[sBase + 16];
-    finalNrm[nOffset + 8] = shelfTris[sBase + 17];
+  for (let c = 0; c < shelfPosChunks.length; c++) {
+    const pC = shelfPosChunks[c];
+    const nC = shelfNrmChunks[c];
+    const tC = shelfToolChunks[c];
 
-    finalTools[triCount + k] = shelfTools[k];
-    pOffset += 9;
-    nOffset += 9;
+    finalPos.set(pC, pOffset);
+    finalNrm.set(nC, nOffset);
+    finalTools.set(tC, tOffset);
+
+    pOffset += pC.length;
+    nOffset += nC.length;
+    tOffset += tC.length;
   }
 
   return {

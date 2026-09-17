@@ -4,6 +4,18 @@
 
 ---
 
+## [v1.0.25] - 2026-09-17
+### Fixed / Performance
+- **交互積層3MFエクスポート時の `Invalid array length` エラー解消**:
+  - 進捗78%（レイヤー整合テクスチャを変形適用中）において、V8（Brave/Chrome）の配列サイズ上限およびメモリ制限に抵触して発生していた `RangeError: Invalid array length` を根本修正。
+  - **TypedArray チャンク化によるメモリ根絶**:
+    - `sliceMeshWatertight` 内の出力三角形保持を、数百万個の JavaScript Array オブジェクト生成から固定長 TypedArray チャンク（`Int32Array`）方式へ全面移行。
+    - `applyLayerAlignedDisplacement` の段差面（シェルフ三角形）生成において、通常の JavaScript 配列への数千万回に及ぶ `.push()` を撤廃し、TypedArray チャンク（`Float32Array` / `Int32Array`）へ直接書き込む方式に刷新。配列の多重リサイズとヒープ溢れを100%根絶。
+  - **細分化解像度セーフガードの適正化**:
+    - 交互積層モードにおける細分化エッジ長の下限を 1.5mm に適正化。Z方向は 0.20mm のスライサーで微細切断されるため、円周方向の美しい円筒形状（φ55.3で116角形以上、滑らかな外観）を完璧に保ちつつ、無駄な数百万面の過剰分割を抑止。
+
+---
+
 ## [v1.0.24] - 2026-09-17
 ### Fixed / Performance
 - **交互積層（振り重ね）3MFエクスポート時のメモリ不足（Out of Memory）クラッシュ解消**:
