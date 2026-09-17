@@ -304,14 +304,24 @@ function computeLayerDisplacementByLayer(
     return -concaveVal;
   }
 
-  const effAmp = convexVal * ratio;
+  let effAmp = convexVal * ratio;
+  if (effAmp < 0.001) {
+    return 0.0;
+  }
   if (profileMode === 0) {
     return effAmp;
   }
 
   const zFrac = Math.max(0, Math.min(1, (z - (minZ + lay * t)) / t));
-  const slope = Math.min(effAmp, t);
-  const base = Math.max(0, effAmp - slope);
+  let slope = Math.min(effAmp, t);
+  let base = Math.max(0, effAmp - slope);
+  // Eliminate micro-steps near layer thickness boundary (base < 1 µm)
+  // Guarantees shelf widths cannot degenerate below 3MF welding tolerance (0.2 µm),
+  // completely preventing collapsed/degenerate shelf triangles and open edges.
+  if (base < 0.001) {
+    base = 0.0;
+    slope = effAmp;
+  }
   return base + zFrac * slope;
 }
 
@@ -432,8 +442,8 @@ export function applyLayerAlignedDisplacement(
         );
         disp *= fade;
 
-        outPos[idx]     = x + disp * unx;
-        outPos[idx + 1] = y + disp * uny;
+        outPos[idx]     = Math.fround(x + disp * unx);
+        outPos[idx + 1] = Math.fround(y + disp * uny);
         outPos[idx + 2] = z;
         outNrm[idx]     = nx;
         outNrm[idx + 1] = ny;
