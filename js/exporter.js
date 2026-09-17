@@ -139,9 +139,9 @@ export async function export3MF(geometry, filename = 'textured.3mf', thumbnailDa
   if (onProgress) onProgress(0.82, 'progress.weldingMesh');
   await new Promise(r => setTimeout(r, 0));
 
-  // ── Deduplicate vertices using TolerantPointMap (1 µm tolerance) ──────────
-  // Guarantees zero open edges across cut planes and grid boundaries
-  const welder = new TolerantPointMap(0.001);
+  // ── Deduplicate vertices using TolerantPointMap (0.2 µm tolerance) ────────
+  // Guarantees zero open edges across cut planes and grid boundaries without collapsing micro-facets
+  const welder = new TolerantPointMap(0.0002);
   const triIdx = new Uint32Array(triCount * 3);
 
   for (let i = 0; i < triCount; i++) {
@@ -357,9 +357,9 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   if (onProgress) onProgress(0.82, 'progress.weldingMesh');
   await new Promise(r => setTimeout(r, 0));
 
-  // Deduplicate vertices using TolerantPointMap (1 µm tolerance)
-  // Guarantees zero open edges across cut planes and grid boundaries
-  const welder = new TolerantPointMap(0.001);
+  // Deduplicate vertices using TolerantPointMap (0.2 µm tolerance)
+  // Guarantees zero open edges across cut planes and grid boundaries without collapsing micro-facets
+  const welder = new TolerantPointMap(0.0002);
   const triIdx = new Uint32Array(triCount * 3);
 
   for (let i = 0; i < triCount; i++) {

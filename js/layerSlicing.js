@@ -498,7 +498,7 @@ export function applyLayerAlignedDisplacement(
         const p1_bot_z = p1[2];
 
         const p0_top_x = Math.fround(p0[0] + dispTop0 * unx0);
-        const p0_top_y = Math.fround(p0[0] + dispTop0 * uny0);
+        const p0_top_y = Math.fround(p0[1] + dispTop0 * uny0);
         const p0_top_z = p0[2];
 
         const p1_top_x = Math.fround(p1[0] + dispTop1 * unx1);

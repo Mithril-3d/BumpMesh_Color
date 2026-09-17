@@ -18,7 +18,7 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260912_111';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260918_127';
 import { quantizeImage, getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {
@@ -28,7 +28,7 @@ import {
   computeColorBlendWeight,
   generateInterleavedTable
 } from './layerBlending.js?v=20260912_102';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260912_111';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260918_127';
 import { sampleRGBBilinear } from './displacement.js?v=20260912_102';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260913_120';
+import { APP_VERSION } from './version.js?v=20260918_127';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
