@@ -5450,7 +5450,7 @@ async function handleExport(format = 'stl') {
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
     const effectiveRefineLength = isLayerBlendMode
-      ? Math.max(settings.refineLength, 1.5)
+      ? Math.max(settings.refineLength, 2.5)
       : settings.refineLength;
 
     const effectiveSettings = {
