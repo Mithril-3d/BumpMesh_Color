@@ -28,7 +28,7 @@ import {
   computeColorBlendWeight,
   generateInterleavedTable
 } from './layerBlending.js?v=20260912_102';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260918_133';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260918_134';
 import { sampleRGBBilinear } from './displacement.js?v=20260912_102';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -37,7 +37,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260918_133';
+import { APP_VERSION } from './version.js?v=20260918_134';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -5450,7 +5450,7 @@ async function handleExport(format = 'stl') {
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
     const effectiveRefineLength = isLayerBlendMode
-      ? Math.max(settings.refineLength, 2.5)
+      ? Math.max(settings.refineLength, 0.6)
       : settings.refineLength;
 
     const effectiveSettings = {
