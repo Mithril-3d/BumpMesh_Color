@@ -41,7 +41,7 @@
 
 ---
 
-## [v1.0.25] - 2026-09-17
+## [v1.0.25] - 2026-09-17 ★（φ80 安定版）
 ### Fixed / Performance
 - **交互積層3MFエクスポート時の `Invalid array length` エラー解消**:
   - 進捗78%（レイヤー整合テクスチャを変形適用中）において、V8（Brave/Chrome）の配列サイズ上限およびメモリ制限に抵触して発生していた `RangeError: Invalid array length` を根本修正。
