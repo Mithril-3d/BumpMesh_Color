@@ -5282,7 +5282,8 @@ function buildCombinedFaceWeights(geometry, excludedFaces, invert, settings) {
   const weights = buildFaceWeights(geometry, excludedFaces, invert);
 
   const hasAngleMask = settings.bottomAngleLimit > 0 || settings.topAngleLimit > 0;
-  if (!hasAngleMask) return weights;
+  const isCylindrical = settings.mappingMode === 3;
+  if (!hasAngleMask && !isCylindrical) return weights;
 
   const posAttr = geometry.attributes.position;
   const triCount = posAttr.count / 3;
@@ -5292,6 +5293,7 @@ function buildCombinedFaceWeights(geometry, excludedFaces, invert, settings) {
   const edge1 = new THREE.Vector3();
   const edge2 = new THREE.Vector3();
   const faceNrm = new THREE.Vector3();
+  const capThresholdDeg = settings.capAngle ?? 20;
 
   for (let t = 0; t < triCount; t++) {
     if (weights[t * 3] > 0.99) continue; // already excluded
@@ -5302,11 +5304,21 @@ function buildCombinedFaceWeights(geometry, excludedFaces, invert, settings) {
     edge2.subVectors(vC, vA);
     faceNrm.crossVectors(edge1, edge2);
     const faceArea  = faceNrm.length();
-    const faceNzNorm = faceArea > 1e-12 ? faceNrm.z / faceArea : 0;
+    const faceNzNorm = faceArea > 1e-12 ? Math.min(1, Math.max(-1, faceNrm.z / faceArea)) : 0;
     const faceAngle  = Math.acos(Math.abs(faceNzNorm)) * (180 / Math.PI);
-    const angleMasked = faceNzNorm < 0
-      ? (settings.bottomAngleLimit > 0 && faceAngle <= settings.bottomAngleLimit)
-      : (settings.topAngleLimit    > 0 && faceAngle <= settings.topAngleLimit);
+
+    let angleMasked = false;
+    if (hasAngleMask) {
+      angleMasked = faceNzNorm < 0
+        ? (settings.bottomAngleLimit > 0 && faceAngle <= settings.bottomAngleLimit)
+        : (settings.topAngleLimit    > 0 && faceAngle <= settings.topAngleLimit);
+    }
+    // Cylindrical mode: top/bottom cap surfaces are untextured flat areas;
+    // skip subdividing them to save hundreds of thousands of triangles and prevent OOM
+    if (!angleMasked && isCylindrical && faceAngle <= capThresholdDeg) {
+      angleMasked = true;
+    }
+
     if (angleMasked) {
       weights[t * 3]     = 1.0;
       weights[t * 3 + 1] = 1.0;
@@ -5418,10 +5430,11 @@ async function handleExport(format = 'stl') {
     if (exportToken !== myToken) return;
 
     // Build per-vertex exclusion weights combining user-painted exclusion + angle masking.
-    // Faces masked by top/bottom angle limits are treated the same as user-excluded faces
-    // so subdivision skips their interior edges too, saving triangles where no
-    // displacement will be applied.
-    const hasAngleMask = settings.bottomAngleLimit > 0 || settings.topAngleLimit > 0;
+    // Faces masked by top/bottom angle limits (or cylindrical flat caps) are treated the same
+    // as user-excluded faces so subdivision skips their interior edges too, saving triangles where
+    // no displacement will be applied and preventing Out of Memory browser crashes.
+    const isCylindrical = settings.mappingMode === 3;
+    const hasAngleMask = settings.bottomAngleLimit > 0 || settings.topAngleLimit > 0 || isCylindrical;
     const faceWeights = (excludedFaces.size > 0 || selectionMode || hasAngleMask)
       ? buildCombinedFaceWeights(currentGeometry, excludedFaces, selectionMode, settings)
       : null;
@@ -5431,8 +5444,18 @@ async function handleExport(format = 'stl') {
     // responsive and background-tab throttling can't stall it. Falls back to
     // running inline if the worker can't initialise. See exportPipeline.js.
     const isLayerBlendMode = (format === 'multicolor-3mf' && currentColorSubMode === 1);
+    // In interleaved layer mode, Z resolution is directly determined by the slicer
+    // (e.g. 0.20mm cut planes). Base mesh subdivision only needs to provide horizontal
+    // (circumference / XY) detail. Enforce a safe refineLength lower bound (>= 1.0mm)
+    // to prevent multi-million triangle explosions and Out of Memory crashes while
+    // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
+    const effectiveRefineLength = isLayerBlendMode
+      ? Math.max(settings.refineLength, 1.0)
+      : settings.refineLength;
+
     const effectiveSettings = {
       ...settings,
+      refineLength: effectiveRefineLength,
       colorSubMode: currentColorSubMode,
       palette: currentColorPalette,
       interleavedThickness: interleavedSettings.layerThickness || 0.20,
@@ -5447,7 +5470,7 @@ async function handleExport(format = 'stl') {
         amplitude: 0,
         harvestFlatFaces: false,
         regularizeEnabled: false,
-        maxTriangles: 2000000
+        maxTriangles: 1000000
       } : {})
     };
     const result = await runPipeline({
@@ -5529,10 +5552,12 @@ async function handleExport(format = 'stl') {
         const aspectV = tmax / Math.max(exportEntry.height, 1);
         const settingsWithAspect = { ...settings, textureAspectU: aspectU, textureAspectV: aspectV };
 
+        const _sampleTmpP = new THREE.Vector3();
+        const _sampleTmpN = new THREE.Vector3();
         const sampleFn = (x, y, z, nx, ny, nz) => {
-          const tmpP = new THREE.Vector3(x + currentPoseTrans.x, y + currentPoseTrans.y, z + originMinZ + currentPoseTrans.z);
-          const tmpN = new THREE.Vector3(nx, ny, nz);
-          const uvResult = computeUV(tmpP, tmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds);
+          _sampleTmpP.set(x + currentPoseTrans.x, y + currentPoseTrans.y, z + originMinZ + currentPoseTrans.z);
+          _sampleTmpN.set(nx, ny, nz);
+          const uvResult = computeUV(_sampleTmpP, _sampleTmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds);
           let u = 0, v = 0;
           if (uvResult && uvResult.triplanar) {
             let maxW = -1;

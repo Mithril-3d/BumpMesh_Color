@@ -398,7 +398,9 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   emit('      </vertices>\n      <triangles>\n');
 
   // Multi-material triangle classification with deduplication:
+  // Use BigInt bit-packing when possible to eliminate millions of heap string allocations
   const seenFacesMulti = new Set();
+  const canBitPack = vertCount < 2000000;
   for (let i = 0; i < triCount; i++) {
     const v1 = triIdx[i * 3];
     const v2 = triIdx[i * 3 + 1];
@@ -410,7 +412,9 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     let mid = v1 + v2 + v3 - lo - hi;
     if (mid > hi) { const t = mid; mid = hi; hi = t; }
     if (lo > mid) { const t = lo; lo = mid; mid = t; }
-    const faceKey = `${lo},${mid},${hi}`;
+    const faceKey = canBitPack
+      ? ((BigInt(lo) << 42n) | (BigInt(mid) << 21n) | BigInt(hi))
+      : `${lo},${mid},${hi}`;
     if (seenFacesMulti.has(faceKey)) continue;
     seenFacesMulti.add(faceKey);
 
