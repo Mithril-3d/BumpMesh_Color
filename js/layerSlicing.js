@@ -353,31 +353,36 @@ export function applyLayerAlignedDisplacement(
   const outNrm = outNrmList[0];
   const triTools = new Int32Array(triCount);
 
-  // Determine model vertical bounds to identify pristine top and bottom cap rims
-  let modelMinZ = Infinity, modelMaxZ = -Infinity;
-  for (let i = 2; i < inPos.length; i += 3) {
-    const z = inPos[i];
-    if (z < modelMinZ) modelMinZ = z;
-    if (z > modelMaxZ) modelMaxZ = z;
+  // Find the actual highest layer index present in the sliced mesh
+  let actualMaxLay = 0;
+  for (let i = 0; i < inLay.length; i++) {
+    if (inLay[i] > actualMaxLay) actualMaxLay = inLay[i];
   }
 
-  // Smooth fadeout distance near top and bottom caps (approx 6 layers / 1.2mm)
-  // Ensures C1-smooth convergence to original cylinder contour, completely eliminating
-  // overhang overhangs, gap-fill infill combs, and boundary rim open edges.
-  const fadeDist = Math.max(t * 6, 1.2);
+  // Pristine boundary protection with layer-based fade:
+  // 1. Topmost 2 layers and bottommost 1 layer have zero displacement (pristine base mesh).
+  //    This guarantees the top rim connects to the flat cap with ZERO shelves, ZERO open edges,
+  //    and a 100% strictly vertical cylindrical contour that slicers process flawlessly.
+  // 2. All vertices within any single layer share the EXACT same uniform layerFade,
+  //    keeping sidewall polygons 100% strictly vertical (zero taper / zero overhang).
+  // 3. Smoothstep layer-based fade over 4 transitional layers eliminates any abrupt steps.
+  const pristineTopLayers = 2;
+  const pristineBotLayers = 1;
+  const fadeLayers = 4;
 
-  function getFade(zVal) {
-    if (zVal >= modelMaxZ - 1e-4 || zVal <= modelMinZ + 1e-4) return 0;
-    let u = 1.0;
-    if (zVal > modelMaxZ - fadeDist) {
-      u = (modelMaxZ - zVal) / fadeDist;
-    } else if (zVal < modelMinZ + fadeDist) {
-      u = (zVal - modelMinZ) / fadeDist;
-    } else {
-      return 1.0;
+  function getLayerFade(lay) {
+    if (lay > actualMaxLay - pristineTopLayers || lay < pristineBotLayers) return 0.0;
+    const topTrans = actualMaxLay - pristineTopLayers;
+    if (lay > topTrans - fadeLayers) {
+      const u = (topTrans - lay) / fadeLayers;
+      return u * u * (3 - 2 * u);
     }
-    u = Math.max(0, Math.min(1, u));
-    return u * u * (3 - 2 * u); // Smoothstep for C1-continuous transition
+    const botTrans = pristineBotLayers;
+    if (lay < botTrans + fadeLayers) {
+      const u = (lay - botTrans) / fadeLayers;
+      return u * u * (3 - 2 * u);
+    }
+    return 1.0;
   }
 
   for (let i = 0; i < triCount; i++) {
@@ -398,6 +403,8 @@ export function applyLayerAlignedDisplacement(
     const isHorizontalCap = avgHlen < 0.15;
     triTools[i] = isHorizontalCap ? untexturedTool : activeTool;
 
+    const layerFade = getLayerFade(lay);
+
     for (let v = 0; v < 3; v++) {
       const idx = b + v * 3;
       const x = inPos[idx];
@@ -408,9 +415,8 @@ export function applyLayerAlignedDisplacement(
       const nz = inNrm ? inNrm[idx + 2] : 1;
 
       const hlen = Math.hypot(nx, ny);
-      const fade = getFade(z);
 
-      if (hlen < 0.15 || isHorizontalCap || fade <= 1e-6) {
+      if (hlen < 0.15 || isHorizontalCap || layerFade <= 1e-6) {
         // Horizontal surface (top/bottom flat caps and boundary rim): keep pristine base position
         outPos[idx]     = x;
         outPos[idx + 1] = y;
@@ -440,7 +446,7 @@ export function applyLayerAlignedDisplacement(
           blendWeight,
           shadingMode
         );
-        disp *= fade;
+        disp *= layerFade;
 
         outPos[idx]     = Math.fround(x + disp * unx);
         outPos[idx + 1] = Math.fround(y + disp * uny);
@@ -500,8 +506,9 @@ export function applyLayerAlignedDisplacement(
       const topTool = getInterleavedToolAtLayer(topLay, toolIds);
       const zCut = zCuts ? zCuts[cutIdx] : (minZ + (cutIdx + 1) * t);
 
-      const shelfFade = getFade(zCut);
-      if (shelfFade <= 1e-6) continue; // Boundary rim is pristine cylinder; no shelf needed
+      const botFade = getLayerFade(botLay);
+      const topFade = getLayerFade(topLay);
+      if (botFade <= 1e-6 && topFade <= 1e-6) continue; // Boundary rim is pristine cylinder; no shelf needed
 
       for (const [id0, id1] of edges) {
         const p0 = uniqueVerts[id0];
@@ -521,10 +528,10 @@ export function applyLayerAlignedDisplacement(
         const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
         const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
 
-        const dispBot0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * shelfFade : 0;
-        const dispBot1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * shelfFade : 0;
-        const dispTop0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * shelfFade : 0;
-        const dispTop1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * shelfFade : 0;
+        const dispBot0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * botFade : 0;
+        const dispBot1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * botFade : 0;
+        const dispTop0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * topFade : 0;
+        const dispTop1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * topFade : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;
