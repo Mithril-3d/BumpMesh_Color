@@ -351,10 +351,10 @@ export function applyLayerAlignedDisplacement(
     if (z > modelMaxZ) modelMaxZ = z;
   }
 
-  // Smooth fadeout distance near top and bottom caps (approx 4-5 layers)
+  // Smooth fadeout distance near top and bottom caps (approx 6 layers / 1.2mm)
   // Ensures C1-smooth convergence to original cylinder contour, completely eliminating
   // overhang overhangs, gap-fill infill combs, and boundary rim open edges.
-  const fadeDist = Math.max(t * 4, 0.8);
+  const fadeDist = Math.max(t * 6, 1.2);
 
   function getFade(zVal) {
     if (zVal >= modelMaxZ - 1e-4 || zVal <= modelMinZ + 1e-4) return 0;
