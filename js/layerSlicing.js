@@ -351,6 +351,25 @@ export function applyLayerAlignedDisplacement(
     if (z > modelMaxZ) modelMaxZ = z;
   }
 
+  // Smooth fadeout distance near top and bottom caps (approx 4-5 layers)
+  // Ensures C1-smooth convergence to original cylinder contour, completely eliminating
+  // overhang overhangs, gap-fill infill combs, and boundary rim open edges.
+  const fadeDist = Math.max(t * 4, 0.8);
+
+  function getFade(zVal) {
+    if (zVal >= modelMaxZ - 1e-4 || zVal <= modelMinZ + 1e-4) return 0;
+    let u = 1.0;
+    if (zVal > modelMaxZ - fadeDist) {
+      u = (modelMaxZ - zVal) / fadeDist;
+    } else if (zVal < modelMinZ + fadeDist) {
+      u = (zVal - modelMinZ) / fadeDist;
+    } else {
+      return 1.0;
+    }
+    u = Math.max(0, Math.min(1, u));
+    return u * u * (3 - 2 * u); // Smoothstep for C1-continuous transition
+  }
+
   for (let i = 0; i < triCount; i++) {
     const lay = inLay[i];
     const activeTool = getInterleavedToolAtLayer(lay, toolIds);
@@ -379,9 +398,10 @@ export function applyLayerAlignedDisplacement(
       const nz = inNrm ? inNrm[idx + 2] : 1;
 
       const hlen = Math.hypot(nx, ny);
-      const isRimToCap = (z >= modelMaxZ - 1e-3 || z <= modelMinZ + 1e-3);
-      if (hlen < 0.15 || isHorizontalCap || isRimToCap) {
-        // Horizontal surface (top/bottom flat caps and their boundary rim): keep base position
+      const fade = getFade(z);
+
+      if (hlen < 0.15 || isHorizontalCap || fade <= 1e-6) {
+        // Horizontal surface (top/bottom flat caps and boundary rim): keep pristine base position
         outPos[idx]     = x;
         outPos[idx + 1] = y;
         outPos[idx + 2] = z;
@@ -396,7 +416,7 @@ export function applyLayerAlignedDisplacement(
         const { targetTool, blendWeight } = sampleFn(x, y, z, nx, ny, nz);
 
         // Compute displacement strictly for this layer and its active tool
-        const disp = computeLayerDisplacementByLayer(
+        let disp = computeLayerDisplacementByLayer(
           activeTool,
           targetTool,
           lay,
@@ -410,6 +430,7 @@ export function applyLayerAlignedDisplacement(
           blendWeight,
           shadingMode
         );
+        disp *= fade;
 
         outPos[idx]     = x + disp * unx;
         outPos[idx + 1] = y + disp * uny;
@@ -469,6 +490,9 @@ export function applyLayerAlignedDisplacement(
       const topTool = getInterleavedToolAtLayer(topLay, toolIds);
       const zCut = zCuts ? zCuts[cutIdx] : (minZ + (cutIdx + 1) * t);
 
+      const shelfFade = getFade(zCut);
+      if (shelfFade <= 1e-6) continue; // Boundary rim is pristine cylinder; no shelf needed
+
       for (const [id0, id1] of edges) {
         const p0 = uniqueVerts[id0];
         const p1 = uniqueVerts[id1];
@@ -487,13 +511,10 @@ export function applyLayerAlignedDisplacement(
         const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
         const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
 
-        const isRim0 = (p0[2] >= modelMaxZ - 1e-3 || p0[2] <= modelMinZ + 1e-3);
-        const isRim1 = (p1[2] >= modelMaxZ - 1e-3 || p1[2] <= modelMinZ + 1e-3);
-
-        const dispBot0 = (!isRim0 && hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) : 0;
-        const dispBot1 = (!isRim1 && hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) : 0;
-        const dispTop0 = (!isRim0 && hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) : 0;
-        const dispTop1 = (!isRim1 && hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) : 0;
+        const dispBot0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * shelfFade : 0;
+        const dispBot1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * shelfFade : 0;
+        const dispTop0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * shelfFade : 0;
+        const dispTop1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * shelfFade : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;
