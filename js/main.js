@@ -10,7 +10,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setProjection, requestRender,
           clearDiagOverlays, setDiagEdges, addDiagFaces,
           setRotationGizmo, isGizmoDragging, getViewerThumbnail,
-          generateColorThumbnail } from './viewer.js?v=20260918_139';
+          generateColorThumbnail } from './viewer.js?v=20260918_140';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
@@ -19,7 +19,7 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260918_136';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260918_140';
 import { quantizeImage, getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {

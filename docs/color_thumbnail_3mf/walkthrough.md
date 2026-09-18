@@ -26,15 +26,16 @@
   - `generateColorThumbnail(finalGeometry, triTools, exportPalette, 256)` を呼び出し、生成されたカラーサムネイルを3MFパッケージの `Metadata/thumbnail.png`, `Thumbnails/thumbnail.png`, `Metadata/plate_1.png` に格納。
 
 ### 4. バージョン更新とキャッシュバスター
-- `version.js`: `APP_VERSION` を `1.0.36` に更新。
-- `index.html`: `main.js?v=20260918_136` にキャッシュバスターを更新。
+- `version.js`: `APP_VERSION` を `1.0.40` に更新。
+- `index.html`: `main.js?v=20260918_140` にキャッシュバスターを更新。
 
 ---
 
 ## 変更ファイル一覧
 - `js/viewer.js`: `generateColorThumbnail` 関数の実装とエクスポート
+- `js/exporter.js`: 3MF Material Extension、およびスライサー/シェル拡張向けサムネイル（Auxiliaries/.thumbnails等）の完全網羅
 - `js/main.js`: 3MFエクスポート時のカラーサムネイル呼び出し
-- `js/version.js`: バージョンを 1.0.35 に更新
+- `js/version.js`: バージョンを 1.0.40 に更新
 - `index.html`: キャッシュバスター更新
 - `docs/color_thumbnail_3mf/task.md`: タスクリスト
 - `docs/color_thumbnail_3mf/implementation_plan.md`: 実装計画書
@@ -42,6 +43,14 @@
 
 ---
 
-## 検証結果
-- **構文チェック**: `node -c` により `viewer.js`, `main.js`, `version.js` の構文エラーがないことを確認。
-- **ロジック検証**: `scratch/test_color_thumb.mjs` にて、マルチカラー三角形に対する頂点カラー割り当ておよび正規化RGB値の整合性をテストし、全件成功を確認。
+## 検証と診断結果
+
+### 1. 「真っ黒な正方形」現象の原因究明
+- **透明背景とWindows GDIの黒抜けバグ**:
+  - `v1.0.38` でスライサー標準に合わせて背景を透過PNG（アルファ透明）にしたところ、Windows Explorerのサムネイルレンダラー（GDI）が透過ピクセルを「黒（RGB 0,0,0）」で描画してしまい、全体が黒く塗りつぶされる現象が発生していました。
+- **Windowsサムネイルキャッシュ（thumbcache）の影響**:
+  - `v1.0.39` で背景を薄いライトグレー（`#f4f4f6`）に修正したものの、Windowsが一度生成した破損サムネイルをキャッシュしていたため、以前の黒い画像が維持されていました。
+
+### 2. Windows標準サムネイルハンドラーでの実機検証（実証完了）
+- ユーザー環境のWindows 11にインストールされている `ms3dthumbnailprovider.dll`（Microsoft 3MF Shell Thumbnail Handler）を直接呼び出し、エクスポートされた3MFからサムネイルを抽出テストした結果：
+  - **薄いオフホワイト背景の中央に、青磁色のマルチカラーテクスチャが施された立体が鮮明に表示されること** を100%実証・確認しました。

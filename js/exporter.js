@@ -507,6 +507,7 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     relsXml +=
       '<Relationship Target="/Metadata/thumbnail.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
       '<Relationship Target="/Thumbnails/thumbnail.png" Id="rel-2-spec" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Target="/Auxiliaries/.thumbnails/thumbnail_3mf.png" Id="rel-2-bambu" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
       '<Relationship Target="/Metadata/plate_1.png" Id="rel-3" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
       '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
@@ -521,11 +522,14 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   };
 
   if (thumbBytes) {
-    zipFiles['Metadata/thumbnail.png']       = thumbBytes;
-    zipFiles['Metadata/thumbnail_small.png'] = thumbBytes;
-    zipFiles['Thumbnails/thumbnail.png']     = thumbBytes;
-    zipFiles['Metadata/plate_1.png']         = thumbBytes;
-    zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
+    zipFiles['Metadata/thumbnail.png']                       = thumbBytes;
+    zipFiles['Metadata/thumbnail_small.png']                 = thumbBytes;
+    zipFiles['Thumbnails/thumbnail.png']                     = thumbBytes;
+    zipFiles['Auxiliaries/.thumbnails/thumbnail_3mf.png']    = thumbBytes;
+    zipFiles['Auxiliaries/.thumbnails/thumbnail_middle.png'] = thumbBytes;
+    zipFiles['Auxiliaries/.thumbnails/thumbnail_small.png']  = thumbBytes;
+    zipFiles['Metadata/plate_1.png']                         = thumbBytes;
+    zipFiles['Metadata/plate_1_small.png']                   = thumbBytes;
   }
 
   zipFiles['_rels/.rels']                    = strToU8(relsXml);
