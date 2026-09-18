@@ -14,13 +14,20 @@
 - **フェイルセーフ**:
   - 万が一パレットやツール情報が不完全な場合は、従来の `getViewerThumbnail` に自動フォールバック。
 
-### 2. `main.js`: 3MFエクスポート処理の連携
-- マルチカラー3MFエクスポート（レイヤーブレンドモード / 通常量子化モード）において：
-  - `generateColorThumbnail(finalGeometry, triTools, exportPalette, 256)` を呼び出し、生成されたカラーサムネイルを3MFパッケージの `Metadata/thumbnail.png` および `Metadata/plate_1.png` に格納。
+### 2. `exporter.js`: 3MF Material Extension (`m:colorgroup` / `pid` / `p1`) の標準対応
+- **Windowsエクスプローラー（サムネイルハンドラー）対応**:
+  - Windows 10/11 のエクスプローラーサムネイル生成（`ms3dthumbnailprovider.dll`）は、画像ファイル（`thumbnail.png`）ではなく `3D/3dmodel.model` を直接パースして自前レンダリングします。
+  - 従来の出力ではSlic3r独自属性（`slic3rpe:mmu_segmentation`）のみ出力されていたため、Windows側で色情報なし（グレー）と判定されていました。
+  - 公式の 3MF Materials and Properties Extension 仕様（`xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02"`）に準拠し、`<resources>` に `<m:colorgroup>` を追加。各三角形に `pid="2" p1="${colorIdx}"` を付与することで、**Windowsエクスプローラーの大アイコン表示でも各ツールごとのカラーで綺麗に3Dレンダリングされるよう対応**しました。
+  - 3MF Core Spec に準拠した `/Thumbnails/thumbnail.png` も併せてzip内に格納。
 
-### 3. バージョン更新とキャッシュバスター
-- `version.js`: `APP_VERSION` を `1.0.35` に更新。
-- `index.html`: `main.js?v=20260918_135` にキャッシュバスターを更新。
+### 3. `main.js`: 3MFエクスポート処理の連携
+- マルチカラー3MFエクスポート（レイヤーブレンドモード / 通常量子化モード）において：
+  - `generateColorThumbnail(finalGeometry, triTools, exportPalette, 256)` を呼び出し、生成されたカラーサムネイルを3MFパッケージの `Metadata/thumbnail.png`, `Thumbnails/thumbnail.png`, `Metadata/plate_1.png` に格納。
+
+### 4. バージョン更新とキャッシュバスター
+- `version.js`: `APP_VERSION` を `1.0.36` に更新。
+- `index.html`: `main.js?v=20260918_136` にキャッシュバスターを更新。
 
 ---
 

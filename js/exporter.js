@@ -375,14 +375,40 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   if (onProgress) onProgress(0.88, 'progress.building3mf');
   await new Promise(r => setTimeout(r, 0));
 
+  // Build 3MF Material Extension colorgroup for native Windows Explorer & 3D Builder color rendering
+  const colorGroupId = 2;
+  const toolToColorIdx = new Map();
+  let colorgroupXml = `    <m:colorgroup id="${colorGroupId}">\n`;
+  if (palette && palette.length > 0) {
+    palette.forEach((p, idx) => {
+      let hexStr = '#FFFFFF';
+      if (p.hex && p.hex.startsWith('#')) {
+        hexStr = p.hex.toUpperCase();
+      } else if (Array.isArray(p.color) && p.color.length >= 3) {
+        const r = ('0' + Math.max(0, Math.min(255, Math.round(p.color[0]))).toString(16)).slice(-2);
+        const g = ('0' + Math.max(0, Math.min(255, Math.round(p.color[1]))).toString(16)).slice(-2);
+        const b = ('0' + Math.max(0, Math.min(255, Math.round(p.color[2]))).toString(16)).slice(-2);
+        hexStr = `#${r}${g}${b}`.toUpperCase();
+      }
+      colorgroupXml += `      <m:color color="${hexStr}"/>\n`;
+      toolToColorIdx.set(p.toolId, idx);
+    });
+  } else {
+    colorgroupXml += '      <m:color color="#CCCCCC"/>\n';
+    toolToColorIdx.set(1, 0);
+  }
+  colorgroupXml += '    </m:colorgroup>\n';
+
   emit(
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
+    'xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02" ' +
     'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
     '<metadata name="Application">BumpMesh Color</metadata>\n' +
     (thumbBytes ? '<metadata name="Thumbnail">/Metadata/thumbnail.png</metadata>\n' : '') +
-    '<resources>\n'
+    '<resources>\n' +
+    colorgroupXml
   );
 
   // Single watertight solid object
@@ -420,8 +446,9 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
 
     const toolId = (triTools && triTools[i]) ? triTools[i] : 1;
     const paintCode = encodeTrianglePaint(toolId);
+    const colorIdx = toolToColorIdx.has(toolId) ? toolToColorIdx.get(toolId) : 0;
     emit(
-      `        <triangle v1="${v1}" v2="${v2}" v3="${v3}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
+      `        <triangle v1="${v1}" v2="${v2}" v3="${v3}" pid="${colorGroupId}" p1="${colorIdx}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
     );
   }
 
@@ -479,6 +506,7 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   if (thumbBytes) {
     relsXml +=
       '<Relationship Target="/Metadata/thumbnail.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
+      '<Relationship Target="/Thumbnails/thumbnail.png" Id="rel-2-spec" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>\n' +
       '<Relationship Target="/Metadata/plate_1.png" Id="rel-3" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/>\n' +
       '<Relationship Target="/Metadata/plate_1_small.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/>\n';
   }
@@ -495,6 +523,7 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   if (thumbBytes) {
     zipFiles['Metadata/thumbnail.png']       = thumbBytes;
     zipFiles['Metadata/thumbnail_small.png'] = thumbBytes;
+    zipFiles['Thumbnails/thumbnail.png']     = thumbBytes;
     zipFiles['Metadata/plate_1.png']         = thumbBytes;
     zipFiles['Metadata/plate_1_small.png']   = thumbBytes;
   }
