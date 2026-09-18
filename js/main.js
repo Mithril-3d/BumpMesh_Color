@@ -10,7 +10,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setProjection, requestRender,
           clearDiagOverlays, setDiagEdges, addDiagFaces,
           setRotationGizmo, isGizmoDragging, getViewerThumbnail,
-          generateColorThumbnail } from './viewer.js?v=20260918_137';
+          generateColorThumbnail } from './viewer.js?v=20260918_138';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
@@ -38,7 +38,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260918_137';
+import { APP_VERSION } from './version.js?v=20260918_138';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────

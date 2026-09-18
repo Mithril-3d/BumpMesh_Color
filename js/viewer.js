@@ -1176,12 +1176,23 @@ export function getViewerThumbnail(maxDim = 256) {
     const ctx = thumbCanvas.getContext('2d');
     if (!ctx) return null;
 
-    // Solid dark background matching viewer
-    ctx.fillStyle = '#18181c';
-    ctx.fillRect(0, 0, maxDim, maxDim);
+    // Transparent background matching standard slicer thumbnails
+    ctx.clearRect(0, 0, maxDim, maxDim);
 
     if (renderer && scene && camera) {
+      const origBg = scene.background;
+      const origClearColor = new THREE.Color();
+      renderer.getClearColor(origClearColor);
+      const origClearAlpha = renderer.getClearAlpha();
+
+      scene.background = null;
+      renderer.setClearColor(0x000000, 0);
+
       renderer.render(scene, camera);
+
+      scene.background = origBg;
+      renderer.setClearColor(origClearColor, origClearAlpha);
+
       const srcCanvas = renderer.domElement;
       if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
         const sw = srcCanvas.width;
@@ -1318,8 +1329,21 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
     const sphere = coloredGeo.boundingSphere || new THREE.Sphere(new THREE.Vector3(0, 0, 0), 50);
     fitCamera(sphere);
 
+    // Setup transparent rendering for crisp slicer/explorer preview icon
+    const origBg = scene.background;
+    const origClearColor = new THREE.Color();
+    renderer.getClearColor(origClearColor);
+    const origClearAlpha = renderer.getClearAlpha();
+
+    scene.background = null;
+    renderer.setClearColor(0x000000, 0);
+
     // Render through the active viewer camera & lighting pipeline
     renderer.render(scene, camera);
+
+    // Restore background immediately
+    scene.background = origBg;
+    renderer.setClearColor(origClearColor, origClearAlpha);
 
     const srcCanvas = renderer.domElement;
     const thumbCanvas = document.createElement('canvas');
@@ -1328,8 +1352,8 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
     const ctx = thumbCanvas.getContext('2d');
     if (!ctx) return getViewerThumbnail(maxDim);
 
-    ctx.fillStyle = '#18181c';
-    ctx.fillRect(0, 0, maxDim, maxDim);
+    // Transparent canvas
+    ctx.clearRect(0, 0, maxDim, maxDim);
 
     if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
       const sw = srcCanvas.width;
