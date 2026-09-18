@@ -1216,3 +1216,169 @@ export function getViewerThumbnail(maxDim = 256) {
     return null;
   }
 }
+
+/**
+ * Generate a multi-color thumbnail PNG data URL using the exported geometry,
+ * per-triangle tool assignments, and user-configured color palette.
+ * Embeds high-fidelity colored previews in 3MF packages for slicers & file managers.
+ *
+ * @param {THREE.BufferGeometry} geometry
+ * @param {Int32Array|Uint8Array|Array<number>} triTools
+ * @param {Array<{ toolId: number, color?: number[], hex?: string }>} palette
+ * @param {number} [maxDim=256]
+ * @returns {string|null} Base64 PNG data URL
+ */
+export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256) {
+  if (!geometry || !triTools || !palette || palette.length === 0) {
+    return getViewerThumbnail(maxDim);
+  }
+
+  let coloredGeo = null;
+  let tempMat = null;
+  let tempScene = null;
+
+  try {
+    const posAttr = geometry.attributes.position;
+    if (!posAttr) return getViewerThumbnail(maxDim);
+
+    const vertexCount = posAttr.count;
+    const triCount = (vertexCount / 3) | 0;
+
+    // Build tool ID -> [r, g, b] map (normalized 0.0 .. 1.0)
+    const toolColorMap = new Map();
+    const _c = new THREE.Color();
+    for (const item of palette) {
+      if (!item) continue;
+      const tid = item.toolId;
+      if (Array.isArray(item.color) && item.color.length >= 3) {
+        toolColorMap.set(tid, [item.color[0] / 255, item.color[1] / 255, item.color[2] / 255]);
+      } else if (item.hex) {
+        _c.set(item.hex);
+        toolColorMap.set(tid, [_c.r, _c.g, _c.b]);
+      }
+    }
+
+    const defaultColor = (palette[0] && Array.isArray(palette[0].color))
+      ? [palette[0].color[0] / 255, palette[0].color[1] / 255, palette[0].color[2] / 255]
+      : [0.85, 0.85, 0.85];
+
+    // Assign per-vertex colors
+    const colors = new Float32Array(vertexCount * 3);
+    for (let i = 0; i < triCount; i++) {
+      const tid = triTools[i];
+      const rgb = toolColorMap.get(tid) || defaultColor;
+      const offset = i * 9;
+      colors[offset]     = rgb[0];
+      colors[offset + 1] = rgb[1];
+      colors[offset + 2] = rgb[2];
+
+      colors[offset + 3] = rgb[0];
+      colors[offset + 4] = rgb[1];
+      colors[offset + 5] = rgb[2];
+
+      colors[offset + 6] = rgb[0];
+      colors[offset + 7] = rgb[1];
+      colors[offset + 8] = rgb[2];
+    }
+
+    coloredGeo = geometry.clone();
+    coloredGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    if (!coloredGeo.attributes.normal) {
+      coloredGeo.computeVertexNormals();
+    }
+
+    coloredGeo.computeBoundingSphere();
+    const sphere = coloredGeo.boundingSphere || new THREE.Sphere(new THREE.Vector3(0, 0, 0), 50);
+    const center = sphere.center;
+    const radius = Math.max(sphere.radius, 1);
+
+    // Build isolated scene
+    tempScene = new THREE.Scene();
+    tempScene.background = new THREE.Color('#18181c');
+
+    const ambLight = new THREE.AmbientLight(0xffffff, 0.90);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    keyLight.position.set(1.2, 1.8, 2.0).normalize();
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.40);
+    fillLight.position.set(-1.2, -1.0, -0.8).normalize();
+    tempScene.add(ambLight, keyLight, fillLight);
+
+    tempMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.45,
+      metalness: 0.08,
+      side: THREE.DoubleSide,
+    });
+
+    const tempMesh = new THREE.Mesh(coloredGeo, tempMat);
+    tempScene.add(tempMesh);
+
+    // Camera setup: inherit current viewer orientation or use isometric view
+    const tempCamera = new THREE.PerspectiveCamera(40, 1, 0.1, radius * 12);
+    let viewDir = new THREE.Vector3(1, 1.2, 1.4).normalize();
+    if (camera && controls) {
+      const curDir = new THREE.Vector3().subVectors(camera.position, controls.target);
+      if (curDir.lengthSq() > 0.001) {
+        viewDir.copy(curDir).normalize();
+        if (Math.abs(viewDir.z) > 0.95) {
+          viewDir.x += 0.35;
+          viewDir.y += 0.35;
+          viewDir.normalize();
+        }
+      }
+    }
+
+    const dist = radius * 2.35;
+    tempCamera.position.copy(center).addScaledVector(viewDir, dist);
+    tempCamera.up.set(0, 0, 1);
+    tempCamera.lookAt(center);
+
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = maxDim;
+    thumbCanvas.height = maxDim;
+    const ctx = thumbCanvas.getContext('2d');
+    if (!ctx) return getViewerThumbnail(maxDim);
+
+    ctx.fillStyle = '#18181c';
+    ctx.fillRect(0, 0, maxDim, maxDim);
+
+    if (renderer) {
+      renderer.render(tempScene, tempCamera);
+      const srcCanvas = renderer.domElement;
+      if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
+        const sw = srcCanvas.width;
+        const sh = srcCanvas.height;
+        const scale = Math.min((maxDim * 0.92) / sw, (maxDim * 0.92) / sh);
+        const dw = Math.round(sw * scale);
+        const dh = Math.round(sh * scale);
+        const dx = Math.round((maxDim - dw) / 2);
+        const dy = Math.round((maxDim - dh) / 2);
+
+        ctx.drawImage(srcCanvas, dx, dy, dw, dh);
+
+        // Restore main viewer render
+        if (scene && camera) {
+          renderer.render(scene, camera);
+        }
+
+        const dataUrl = thumbCanvas.toDataURL('image/png');
+        if (dataUrl && dataUrl.length > 100) {
+          return dataUrl;
+        }
+      }
+    }
+
+    return getViewerThumbnail(maxDim);
+  } catch (err) {
+    console.warn('[generateColorThumbnail] Failed to capture color thumbnail:', err);
+    return getViewerThumbnail(maxDim);
+  } finally {
+    if (tempMat) tempMat.dispose();
+    if (coloredGeo) coloredGeo.dispose();
+    if (tempScene) tempScene.clear();
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
+  }
+}
+

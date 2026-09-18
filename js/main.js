@@ -8,8 +8,9 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          getControls, getCamera, getCurrentMesh,
          setExclusionOverlay, setHoverPreview, setViewerTheme,
          setProjection, requestRender,
-         clearDiagOverlays, setDiagEdges, addDiagFaces,
-         setRotationGizmo, isGizmoDragging, getViewerThumbnail } from './viewer.js?v=20260912_111';
+          clearDiagOverlays, setDiagEdges, addDiagFaces,
+          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
+          generateColorThumbnail } from './viewer.js?v=20260918_color_thumb';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
@@ -5606,7 +5607,7 @@ async function handleExport(format = 'stl') {
         if (aligned.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(aligned.normals, 3));
         const triTools = aligned.triTools;
 
-        const thumbUrl = getViewerThumbnail(256);
+        const thumbUrl = generateColorThumbnail(finalGeometry, triTools, exportPalette, 256);
         const subModeLabel = 'interleaved';
         await exportMultiColor3MF(
           finalGeometry,
@@ -5647,8 +5648,8 @@ async function handleExport(format = 'stl') {
         // 2. Restore original model pose on the solid geometry
         _restoreOriginalPose(result.positions, result.normals);
 
-        const thumbUrl = getViewerThumbnail(256);
         const exportPalette = currentColorPalette;
+        const thumbUrl = generateColorThumbnail(finalGeometry, triTools, exportPalette, 256);
         const subModeLabel = 'quantized';
         await exportMultiColor3MF(
           finalGeometry,
