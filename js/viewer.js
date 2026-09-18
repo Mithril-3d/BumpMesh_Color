@@ -1233,9 +1233,13 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
     return getViewerThumbnail(maxDim);
   }
 
+  let coloredMesh = null;
   let coloredGeo = null;
   let tempMat = null;
-  let tempScene = null;
+  let prevMeshVisible = true;
+  let prevGridVisible = true;
+  let prevAxesVisible = true;
+  let prevDimVisible = true;
 
   try {
     const posAttr = geometry.attributes.position;
@@ -1281,58 +1285,43 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
       colors[offset + 8] = rgb[2];
     }
 
+    // Clone geometry, add vertex colors, and center at (0, 0, 0)
     coloredGeo = geometry.clone();
     coloredGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     if (!coloredGeo.attributes.normal) {
       coloredGeo.computeVertexNormals();
     }
-
+    coloredGeo.center();
     coloredGeo.computeBoundingSphere();
-    const sphere = coloredGeo.boundingSphere || new THREE.Sphere(new THREE.Vector3(0, 0, 0), 50);
-    const center = sphere.center;
-    const radius = Math.max(sphere.radius, 1);
 
-    // Build isolated scene
-    tempScene = new THREE.Scene();
-    tempScene.background = new THREE.Color('#18181c');
-
-    const ambLight = new THREE.AmbientLight(0xffffff, 0.90);
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
-    keyLight.position.set(1.2, 1.8, 2.0).normalize();
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.40);
-    fillLight.position.set(-1.2, -1.0, -0.8).normalize();
-    tempScene.add(ambLight, keyLight, fillLight);
+    // Temporarily hide existing overlays in the viewer scene
+    if (meshGroup) { prevMeshVisible = meshGroup.visible; meshGroup.visible = false; }
+    if (grid) { prevGridVisible = grid.visible; grid.visible = false; }
+    if (axesGroup) { prevAxesVisible = axesGroup.visible; axesGroup.visible = false; }
+    if (dimensionGroup) { prevDimVisible = dimensionGroup.visible; dimensionGroup.visible = false; }
 
     tempMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.45,
+      roughness: 0.50,
       metalness: 0.08,
       side: THREE.DoubleSide,
     });
 
-    const tempMesh = new THREE.Mesh(coloredGeo, tempMat);
-    tempScene.add(tempMesh);
+    coloredMesh = new THREE.Mesh(coloredGeo, tempMat);
+    scene.add(coloredMesh);
 
-    // Camera setup: inherit current viewer orientation or use isometric view
-    const tempCamera = new THREE.PerspectiveCamera(40, 1, 0.1, radius * 12);
-    let viewDir = new THREE.Vector3(1, 1.2, 1.4).normalize();
-    if (camera && controls) {
-      const curDir = new THREE.Vector3().subVectors(camera.position, controls.target);
-      if (curDir.lengthSq() > 0.001) {
-        viewDir.copy(curDir).normalize();
-        if (Math.abs(viewDir.z) > 0.95) {
-          viewDir.x += 0.35;
-          viewDir.y += 0.35;
-          viewDir.normalize();
-        }
-      }
-    }
+    // Save camera & controls state, then fit to centered colored model
+    const origTarget = controls ? controls.target.clone() : null;
+    const origCamPos = camera ? camera.position.clone() : null;
 
-    const dist = radius * 2.35;
-    tempCamera.position.copy(center).addScaledVector(viewDir, dist);
-    tempCamera.up.set(0, 0, 1);
-    tempCamera.lookAt(center);
+    if (controls) controls.target.set(0, 0, 0);
+    const sphere = coloredGeo.boundingSphere || new THREE.Sphere(new THREE.Vector3(0, 0, 0), 50);
+    fitCamera(sphere);
 
+    // Render through the active viewer camera & lighting pipeline
+    renderer.render(scene, camera);
+
+    const srcCanvas = renderer.domElement;
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = maxDim;
     thumbCanvas.height = maxDim;
@@ -1342,40 +1331,40 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
     ctx.fillStyle = '#18181c';
     ctx.fillRect(0, 0, maxDim, maxDim);
 
-    if (renderer) {
-      renderer.render(tempScene, tempCamera);
-      const srcCanvas = renderer.domElement;
-      if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
-        const sw = srcCanvas.width;
-        const sh = srcCanvas.height;
-        const scale = Math.min((maxDim * 0.92) / sw, (maxDim * 0.92) / sh);
-        const dw = Math.round(sw * scale);
-        const dh = Math.round(sh * scale);
-        const dx = Math.round((maxDim - dw) / 2);
-        const dy = Math.round((maxDim - dh) / 2);
+    if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
+      const sw = srcCanvas.width;
+      const sh = srcCanvas.height;
+      const scale = Math.min((maxDim * 0.92) / sw, (maxDim * 0.92) / sh);
+      const dw = Math.round(sw * scale);
+      const dh = Math.round(sh * scale);
+      const dx = Math.round((maxDim - dw) / 2);
+      const dy = Math.round((maxDim - dh) / 2);
 
-        ctx.drawImage(srcCanvas, dx, dy, dw, dh);
-
-        // Restore main viewer render
-        if (scene && camera) {
-          renderer.render(scene, camera);
-        }
-
-        const dataUrl = thumbCanvas.toDataURL('image/png');
-        if (dataUrl && dataUrl.length > 100) {
-          return dataUrl;
-        }
-      }
+      ctx.drawImage(srcCanvas, dx, dy, dw, dh);
     }
 
+    const dataUrl = thumbCanvas.toDataURL('image/png');
+
+    // Restore original camera & controls state
+    if (controls && origTarget) controls.target.copy(origTarget);
+    if (camera && origCamPos) camera.position.copy(origCamPos);
+    if (camera && camera.updateProjectionMatrix) camera.updateProjectionMatrix();
+
+    if (dataUrl && dataUrl.length > 100) {
+      return dataUrl;
+    }
     return getViewerThumbnail(maxDim);
   } catch (err) {
     console.warn('[generateColorThumbnail] Failed to capture color thumbnail:', err);
     return getViewerThumbnail(maxDim);
   } finally {
+    if (coloredMesh && scene) scene.remove(coloredMesh);
     if (tempMat) tempMat.dispose();
     if (coloredGeo) coloredGeo.dispose();
-    if (tempScene) tempScene.clear();
+    if (meshGroup) meshGroup.visible = prevMeshVisible;
+    if (grid) grid.visible = prevGridVisible;
+    if (axesGroup) axesGroup.visible = prevAxesVisible;
+    if (dimensionGroup) dimensionGroup.visible = prevDimVisible;
     if (renderer && scene && camera) {
       renderer.render(scene, camera);
     }
