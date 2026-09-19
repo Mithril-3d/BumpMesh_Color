@@ -1192,13 +1192,13 @@ export function getViewerThumbnail(maxDim = 256) {
       if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
         const sw = srcCanvas.width;
         const sh = srcCanvas.height;
-        const scale = Math.min((maxDim * 0.92) / sw, (maxDim * 0.92) / sh);
-        const dw = Math.round(sw * scale);
-        const dh = Math.round(sh * scale);
-        const dx = Math.round((maxDim - dw) / 2);
-        const dy = Math.round((maxDim - dh) / 2);
+        const side = Math.min(sw, sh);
+        const sx = Math.round((sw - side) / 2);
+        const sy = Math.round((sh - side) / 2);
+        const pad = Math.round(maxDim * 0.04);
+        const drawDim = maxDim - pad * 2;
 
-        ctx.drawImage(srcCanvas, dx, dy, dw, dh);
+        ctx.drawImage(srcCanvas, sx, sy, side, side, pad, pad, drawDim, drawDim);
         const dataUrl = thumbCanvas.toDataURL('image/png');
         if (dataUrl && dataUrl.length > 100) {
           return dataUrl;
@@ -1316,20 +1316,38 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
     coloredMesh = new THREE.Mesh(coloredGeo, tempMat);
     scene.add(coloredMesh);
 
-    // Save camera & controls state, then fit to centered colored model
+    // Save camera & controls state, then fit tightly to centered colored model
     const origTarget = controls ? controls.target.clone() : null;
     const origCamPos = camera ? camera.position.clone() : null;
 
-    if (controls) controls.target.set(0, 0, 0);
     const sphere = coloredGeo.boundingSphere || new THREE.Sphere(new THREE.Vector3(0, 0, 0), 50);
-    fitCamera(sphere);
+    const sz = renderer.getSize(new THREE.Vector2());
+    const aspect = sz.x / sz.y;
+    // Tight fit: use 1.06x radius so model occupies ~88% of thumbnail frame without clipping
+    const halfH = sphere.radius * 1.06;
+
+    orthoCamera.left   = -halfH * aspect;
+    orthoCamera.right  =  halfH * aspect;
+    orthoCamera.top    =  halfH;
+    orthoCamera.bottom = -halfH;
+    orthoCamera.near   = -sphere.radius * 200;
+    orthoCamera.far    =  sphere.radius * 200;
+    orthoCamera.zoom   = 1;
+    orthoCamera.updateProjectionMatrix();
+
+    // Standard isometric view direction from front-right-above in Z-up space
+    const dir = new THREE.Vector3(0.6, -1.2, 0.8).normalize();
+    orthoCamera.position.copy(sphere.center).addScaledVector(dir, halfH * 4);
+    orthoCamera.up.set(0, 0, 1);
+    orthoCamera.lookAt(sphere.center);
+    if (controls) controls.target.copy(sphere.center);
 
     // Render with clean bright off-white background (#f4f4f6)
     // Ensures universal compatibility across all Windows Explorer shell extensions & slicers
     const origBg = scene.background;
     scene.background = new THREE.Color('#f4f4f6');
 
-    renderer.render(scene, camera);
+    renderer.render(scene, orthoCamera);
 
     scene.background = origBg;
 
@@ -1346,13 +1364,15 @@ export function generateColorThumbnail(geometry, triTools, palette, maxDim = 256
     if (srcCanvas && srcCanvas.width > 0 && srcCanvas.height > 0) {
       const sw = srcCanvas.width;
       const sh = srcCanvas.height;
-      const scale = Math.min((maxDim * 0.92) / sw, (maxDim * 0.92) / sh);
-      const dw = Math.round(sw * scale);
-      const dh = Math.round(sh * scale);
-      const dx = Math.round((maxDim - dw) / 2);
-      const dy = Math.round((maxDim - dh) / 2);
+      // Extract central square from renderer to eliminate horizontal letterboxing
+      const side = Math.min(sw, sh);
+      const sx = Math.round((sw - side) / 2);
+      const sy = Math.round((sh - side) / 2);
+      // Leave a clean ~3.5% margin inside the 256x256 frame
+      const pad = Math.round(maxDim * 0.035);
+      const drawDim = maxDim - pad * 2;
 
-      ctx.drawImage(srcCanvas, dx, dy, dw, dh);
+      ctx.drawImage(srcCanvas, sx, sy, side, side, pad, pad, drawDim, drawDim);
     }
 
     const dataUrl = thumbCanvas.toDataURL('image/png');
