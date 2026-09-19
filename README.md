@@ -1,7 +1,11 @@
 # BumpMesh_Color
 
+[![Latest Release](https://img.shields.io/badge/version-v1.1.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
+
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
-> *(No installation required — runs 100% locally in your browser)*
+> *(No installation required — runs 100% locally in your browser)*  
+> 📜 *See [CHANGELOG.md](./CHANGELOG.md) for full version history.*
 
 **Author:** [@Mithril_MEX](https://x.com/Mithril_MEX)  
 **Web App:** https://mithril-3d.github.io/BumpMesh_Color/  
@@ -136,8 +140,12 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.1.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
+
 > 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
-> *(インストール不要・完全ローカル処理で安心)*
+> *(インストール不要・完全ローカル処理で安心)*  
+> 📜 *詳細な更新履歴は [CHANGELOG.md](./CHANGELOG.md) をご覧ください。*
 
 **作者:** [@Mithril_MEX](https://x.com/Mithril_MEX)  
 **公開URL (Web App):** https://mithril-3d.github.io/BumpMesh_Color/  
