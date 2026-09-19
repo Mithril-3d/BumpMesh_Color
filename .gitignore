@@ -16,3 +16,4 @@ scratch/
 *.gcode
 .DS_Store
 vercel.json
+docs/color_thumbnail_3mf/
