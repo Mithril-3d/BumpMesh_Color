@@ -19,7 +19,7 @@ import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260918_141';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260919_110';
 import { quantizeImage, getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {

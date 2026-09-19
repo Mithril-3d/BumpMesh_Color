@@ -4,6 +4,22 @@
 
 ---
 
+## [v1.1.0] - 2026-09-19
+### Added
+- **マルチカラー3MFエクスポート時のカラーサムネイル自動生成機能**:
+  - **オフスクリーン・高精細3Dレンダリング**:
+    - エクスポート時、各ツールの配色パレット（`exportPalette`）と三角形ツール割り当て（`triTools`）を反映したカラー3Dモデルをブラウザ内で一時レンダリングし、高精細な 256x256 PNG サムネイルを自動撮影・生成。
+    - 明るいオフホワイト背景（`#f4f4f6`）と最適なアイソメトリック見下ろしアングルにより、Windows エクスプローラーの白背景・黒背景のどちらでも美しく立体が際立つデザインを採用。
+  - **全スライサー・全OS規格のサムネイル完全網羅（全乗せ）**:
+    - **Bambu Studio / OrcaSlicer**: `/Metadata/plate_1.png`、`/Auxiliaries/.thumbnails/`、公式 Relationship（`cover-thumbnail-middle`, `cover-thumbnail-small`）を格納。
+    - **PrusaSlicer**: `/Metadata/thumbnail.png`、XML 内 `<metadata name="Thumbnail">` を格納。
+    - **Windows 標準（Microsoft 3MF Shell Thumbnail Handler）**: 3MF Core / OpenXML 公式規格（`_rels/.rels`）に準拠したサムネイル定義を完全網羅。ZIP の先頭にサムネイルを配置して高速ストリーミング読み込みに対応。
+    - これにより、Bambu Studio や PrusaSlicer をお使いの環境はもちろん、スライサーを導入していない Windows 標準環境でも、エクスプローラー上で即座に鮮やかなカラーサムネイルが表示されるよう対応。
+- **外部3Dビューワー（F3D等）との完全互換性確保**:
+  - 一部ビューワーの 3MF パーサー（Assimp 5.4.0 等）でマテリアル未解決エラーを引き起こす原因となっていた非標準の属性を安全に整理し、スライサーのマルチカラー認識（`slic3rpe:mmu_segmentation` / `paint_color`）を完全維持したまま、外部ビューワーでも破損やブラックアウトを起こさずクリーンに描画されるよう最適化。
+
+---
+
 ## [v1.0.34] - 2026-09-18
 ### Fixed
 - **交互積層モードにおける解像度低下（鳥の羽や輪郭が粗い多角形になる問題）の完全解消**:
