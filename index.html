@@ -222,8 +222,19 @@
       <!-- Load STL -->
       <section class="panel-section">
         <div class="model-presets-row">
-          <span class="model-presets-label" data-i18n="ui.presetModels">Preset Models</span>
-          <div class="model-preset-btns">
+          <div class="model-presets-header">
+            <span class="model-presets-label" id="model-presets-title" data-i18n="ui.presetModels" title="Double click for secret Auto-fit Mode">Preset Models</span>
+            <button type="button" id="secret-mode-trigger" class="secret-mode-trigger" title="Experimental Auto-fit Mode" aria-label="Experimental Auto-fit Mode">✦</button>
+          </div>
+
+          <!-- Mode switcher (visible when unlocked) -->
+          <div id="model-mode-tabs" class="model-mode-tabs hidden">
+            <button type="button" class="model-mode-tab active" data-mode="preset" data-i18n="ui.modeStandard">Standard</button>
+            <button type="button" class="model-mode-tab" data-mode="autofit" data-i18n="ui.modeAutoFit">Auto-fit (Image)</button>
+          </div>
+
+          <!-- Standard Preset Buttons -->
+          <div id="standard-preset-btns" class="model-preset-btns">
             <button type="button" id="preset-model-cube" class="model-preset-btn active" data-preset="cube" title="Cube (50×50×50 mm)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
               <span data-i18n="ui.presetCube">Cube</span>
@@ -236,6 +247,51 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9c0 7.18 4.48 13 10 13s10-5.82 10-13H2z"/><line x1="2" y1="9" x2="22" y2="9"/></svg>
               <span data-i18n="ui.presetBowl">Bowl</span>
             </button>
+            <label class="model-preset-btn" for="stl-file-input" style="cursor:pointer;" title="Upload custom model">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span data-i18n="ui.uploadShort">Upload</span>
+            </label>
+          </div>
+
+          <!-- Auto-fit Panel (Hidden mode) -->
+          <div id="autofit-controls" class="autofit-controls hidden">
+            <div class="model-preset-btns autofit-shape-btns">
+              <button type="button" id="autofit-shape-ngon" class="model-preset-btn active" data-autofit-shape="ngon" title="Regular n-gon Prism">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 21 8.5 21 15.5 12 22 3 15.5 3 8.5 12 2"/></svg>
+                <span data-i18n="ui.shapeNgon">n-gon</span>
+              </button>
+              <button type="button" id="autofit-shape-cylinder" class="model-preset-btn" data-autofit-shape="cylinder" title="Cylinder">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+                <span data-i18n="ui.presetCylinder">Cylinder</span>
+              </button>
+              <button type="button" id="autofit-shape-bowl" class="model-preset-btn" data-autofit-shape="bowl" title="Bowl">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9c0 7.18 4.48 13 10 13s10-5.82 10-13H2z"/><line x1="2" y1="9" x2="22" y2="9"/></svg>
+                <span data-i18n="ui.presetBowl">Bowl</span>
+              </button>
+              <label class="model-preset-btn" for="stl-file-input" style="cursor:pointer;" title="Upload custom model">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span data-i18n="ui.uploadShort">Upload</span>
+              </label>
+            </div>
+
+            <div class="autofit-param-grid">
+              <div class="autofit-param-field">
+                <label for="autofit-height-input" data-i18n="ui.autofitHeight">Height (mm)</label>
+                <input type="number" id="autofit-height-input" value="100" min="5" max="500" step="1">
+              </div>
+              <div class="autofit-param-field">
+                <label for="autofit-repeat-input" data-i18n="ui.autofitRepeat">Panel count</label>
+                <input type="number" id="autofit-repeat-input" value="1" min="1" max="20" step="1">
+              </div>
+              <div class="autofit-param-field" id="autofit-ngon-field">
+                <label for="autofit-ngon-input" data-i18n="ui.autofitSides">Sides (n ≧ 3)</label>
+                <input type="number" id="autofit-ngon-input" value="6" min="3" max="64" step="1">
+              </div>
+            </div>
+
+            <div class="autofit-info-box" id="autofit-info-box">
+              外周: -- mm · 直径: -- mm
+            </div>
           </div>
         </div>
         <div class="load-stl-row">

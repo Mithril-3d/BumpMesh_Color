@@ -16,7 +16,13 @@ import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
 import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260913_order';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
+import {
+  computeAutoFitDimensions,
+  createCylinderGeometry,
+  createNgonPrismGeometry,
+  createBowlGeometry,
+  createCubeGeometry,
+} from './proceduralModels.js';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260919_110';
@@ -36,7 +42,7 @@ import { buildAdjacency, bucketFill,
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
-import { getScaleReferenceLengths, computeUV } from './mapping.js?v=20260908d';
+import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
 import { APP_VERSION } from './version.js?v=20260919_110';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
@@ -62,6 +68,15 @@ let previewMaterial   = null;
 let isExporting       = false;
 let isBaking          = false;
 let previewDebounce   = null;
+
+// ── Preset & Auto-fit Model State ─────────────────────────────────────────────
+let autoFitUnlocked   = false;   // secret mode unlocked
+let currentModelMode  = 'preset'; // 'preset' | 'autofit'
+let currentPresetKey  = 'cube';
+let autoFitShape      = 'ngon';   // 'ngon' | 'cylinder' | 'bowl'
+let autoFitHeight     = 100;      // mm
+let autoFitRepeat     = 1;        // panels per circumference
+let autoFitNgon       = 6;        // sides for n-gon (>= 3)
 
 // Boundary edge data texture for per-fragment falloff in bump-only preview
 let _boundaryEdgeTex   = null;
@@ -268,6 +283,16 @@ const brushCursorEl  = document.getElementById('brush-cursor');
 const dropZone       = document.getElementById('drop-zone');
 const dropHint       = document.getElementById('drop-hint');
 const stlFileInput   = document.getElementById('stl-file-input');
+const modelPresetsTitle  = document.getElementById('model-presets-title');
+const secretModeTrigger  = document.getElementById('secret-mode-trigger');
+const modelModeTabs      = document.getElementById('model-mode-tabs');
+const standardPresetBtns = document.getElementById('standard-preset-btns');
+const autofitControls    = document.getElementById('autofit-controls');
+const autofitHeightInput = document.getElementById('autofit-height-input');
+const autofitRepeatInput = document.getElementById('autofit-repeat-input');
+const autofitNgonInput   = document.getElementById('autofit-ngon-input');
+const autofitNgonField   = document.getElementById('autofit-ngon-field');
+const autofitInfoBox     = document.getElementById('autofit-info-box');
 const textureInput   = document.getElementById('texture-file-input');
 const presetGrid     = document.getElementById('preset-grid');
 const activeMapName  = document.getElementById('active-map-name');
@@ -1206,6 +1231,12 @@ loadAllThumbnails().then(thumbs => {
 
 // ── Preset grid ───────────────────────────────────────────────────────────────
 
+function _onTextureChanged() {
+  if (currentModelMode === 'autofit') {
+    loadAutoFitModel();
+  }
+}
+
 function resetTextureSmoothing() {
   settings.textureSmoothing = 0;
   textureSmoothingSlider.value = 0;
@@ -1233,6 +1264,7 @@ async function selectPreset(idx, swatchEl, applyDefaults = true) {
   if (entry.texture) {
     activeMapEntry = entry;
     runColorQuantization();
+    _onTextureChanged();
     updatePreview();
     return;
   }
@@ -1246,6 +1278,7 @@ async function selectPreset(idx, swatchEl, applyDefaults = true) {
     activeMapEntry = PRESETS[idx];
     runColorQuantization();
     swatchEl.classList.remove('preset-loading-full');
+    _onTextureChanged();
     updatePreview();
   } catch (err) {
     console.error('Failed to load full texture:', err);
@@ -1661,13 +1694,78 @@ function trapFocus(overlay) {
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
 function wireEvents() {
-  // ── Preset Model buttons ──
-  document.querySelectorAll('.model-preset-btn').forEach(btn => {
+  // ── Preset Model buttons (Standard mode) ──
+  document.querySelectorAll('#standard-preset-btns .model-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const presetKey = btn.dataset.preset;
       if (presetKey) loadPresetModel(presetKey);
     });
   });
+
+  // ── Secret mode trigger (Auto-fit mode) ──
+  if (secretModeTrigger) {
+    secretModeTrigger.addEventListener('click', toggleSecretMode);
+  }
+  if (modelPresetsTitle) {
+    modelPresetsTitle.addEventListener('dblclick', toggleSecretMode);
+  }
+
+  // ── Model mode switcher tabs ──
+  if (modelModeTabs) {
+    modelModeTabs.querySelectorAll('.model-mode-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchModelMode(tab.dataset.mode);
+      });
+    });
+  }
+
+  // ── Auto-fit Shape buttons ──
+  document.querySelectorAll('.autofit-shape-btns .model-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const shape = btn.dataset.autofitShape;
+      if (shape) {
+        autoFitShape = shape;
+        updateModelModeUI();
+        loadAutoFitModel();
+      }
+    });
+  });
+
+  // ── Auto-fit Parameter inputs ──
+  if (autofitHeightInput) {
+    autofitHeightInput.addEventListener('input', () => {
+      const val = parseFloat(autofitHeightInput.value);
+      if (!isNaN(val) && val > 0) {
+        autoFitHeight = val;
+        loadAutoFitModel();
+      }
+    });
+  }
+  if (autofitRepeatInput) {
+    autofitRepeatInput.addEventListener('input', () => {
+      const val = parseInt(autofitRepeatInput.value, 10);
+      if (!isNaN(val) && val >= 1) {
+        autoFitRepeat = val;
+        loadAutoFitModel();
+      }
+    });
+  }
+  if (autofitNgonInput) {
+    autofitNgonInput.addEventListener('input', () => {
+      const val = parseInt(autofitNgonInput.value, 10);
+      if (!isNaN(val) && val >= 3) {
+        autoFitNgon = val;
+        loadAutoFitModel();
+      }
+    });
+  }
+
+  // URL parameter check for auto-fit secret mode
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('mode') === 'auto' || urlParams.get('mode') === 'autofit' || urlParams.get('dev') === '1') {
+    unlockAutoFitMode();
+    switchModelMode('autofit');
+  }
 
   // ── Model loading ──
   stlFileInput.addEventListener('change', (e) => {
@@ -1762,6 +1860,7 @@ function wireEvents() {
       customMapSwatch.classList.add('active');
       resetTextureSmoothing();
       runColorQuantization();
+      _onTextureChanged();
       updatePreview();
     } catch (err) {
       console.error('Failed to load texture:', err);
@@ -3361,71 +3460,24 @@ function formatM(n) {
 
 function createPresetGeometry(type) {
   if (type === 'cylinder') {
-    // 直径80mm (半径40mm), 高さ100mm の円柱 (ソリッド)
-    // heightSegments = 100 (1セグメント=1.00mm) にすることで、
-    // レイヤー厚み 0.20mm (5層分) や 0.10mm (10層分) と完全な整数比になり、
-    // 周期ズレによるモアレ干渉縞（規則的な横筋）を物理的に根絶。
-    // radialSegments = 128 で円周のポリゴンも極めて滑らかに。
-    const cyl = new THREE.CylinderGeometry(40, 40, 100, 128, 100, false);
-    // Z-up（3Dプリント座標系）で直立するように回転
-    cyl.rotateX(Math.PI / 2);
-    const nonIndexed = cyl.toNonIndexed();
-    cyl.dispose();
-    return nonIndexed;
+    return createCylinderGeometry({ radius: 40, height: 100, radialSegments: 128, heightSegments: 100 });
   } else if (type === 'bowl') {
-    // 直径80mm, 高さ45mm のお椀型立体 (ソリッド・上面完全フラット)
-    // 3Dプリンタでサポートなしで造形できるよう、底面立ち上がり45°から上縁90°(垂直)へ滑らかに立ち上がる設計
-    const points = [];
-    const R_outer = 40;       // 上部外径80mm (半径40mm)
-    const H_total = 45;       // 高さ45mm
-    const R_base = 17.5;      // 底面の平らな座面 半径17.5mm (直径35mm)
-
-    // 1. 底面中心 (0, 0)
-    points.push(new THREE.Vector2(0, 0));
-    // 2. 底面の平らな座面縁 (R_base, 0)
-    points.push(new THREE.Vector2(R_base, 0));
-
-    // 3. 外側カーブ: dr/dz = 1 - z/H_total
-    // 底面 z=0 でちょうど45°傾斜 (オーバーハング45°)、上縁 z=H_total で90°垂直へ滑らかに変化
-    const outerSteps = 45;
-    for (let i = 1; i <= outerSteps; i++) {
-      const z = (i / outerSteps) * H_total;
-      const r = R_base + z - (z * z) / (2 * H_total);
-      points.push(new THREE.Vector2(r, z));
-    }
-
-    // 4. 上面: 完全に水平フラットに中心まで閉じる (z = H_total 一定)
-    const topSteps = 8;
-    for (let i = 1; i <= topSteps; i++) {
-      const t = i / topSteps;
-      const r = R_outer * (1 - t);
-      points.push(new THREE.Vector2(r, H_total));
-    }
-
-    const lathe = new THREE.LatheGeometry(points, 128);
-    // Z-up 空間に合わせる
-    lathe.rotateX(Math.PI / 2);
-    lathe.center();
-    const nonIndexed = lathe.toNonIndexed();
-    lathe.dispose();
-    return nonIndexed;
+    return createBowlGeometry({ outerRadius: 40, height: 45, radialSegments: 128, heightSteps: 45 });
   } else {
-    // デフォルト: 立方体 (50×50×50 mm)
-    // 50分割 (各分割 1.00mm = 0.20mm層のちょうど5層分) で円柱プリセットと同様にエッジを整列
-    const box = new THREE.BoxGeometry(50, 50, 50, 50, 50, 50);
-    const nonIndexed = box.toNonIndexed();
-    box.dispose();
-    return nonIndexed;
+    // デフォルト: 立方体 (50×50×50 mm, 50分割)
+    return createCubeGeometry(50, 50);
   }
 }
 
-function loadPresetModel(presetKey = 'cube') {
-  // Update active state on preset buttons
-  document.querySelectorAll('.model-preset-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.preset === presetKey);
-  });
+function updateAutoFitInfo(dim) {
+  if (!autofitInfoBox) return;
+  const c = dim.circumference.toFixed(1);
+  const d = (dim.radius * 2).toFixed(1);
+  const w = (dim.shape === 'ngon' ? dim.sideLength : dim.widthSingle).toFixed(1);
+  autofitInfoBox.textContent = t('ui.autofitStats', { c, d, w });
+}
 
-  const geo = createPresetGeometry(presetKey);
+function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
   geo.computeBoundingBox();
   geo.computeVertexNormals();
 
@@ -3439,25 +3491,18 @@ function loadPresetModel(presetKey = 'cube') {
   currentBounds   = computeBounds(geo);
   currentPoseRot   = new THREE.Quaternion(); // authored at the origin — nothing to restore
   currentPoseTrans = new THREE.Vector3();
+  currentStlName   = modelName;
+  currentStlExt    = '.stl';
 
-  if (presetKey === 'cylinder') {
-    currentStlName = 'cylinder_d80_h100';
-    // シリンダー投影の初期軸設定（中心 (0, 0)、半径40mm）
-    settings.cylinderCenterX = 0;
-    settings.cylinderCenterY = 0;
-    settings.cylinderRadius = 40;
-  } else if (presetKey === 'bowl') {
-    currentStlName = 'bowl_d80_h45';
-    settings.cylinderCenterX = 0;
-    settings.cylinderCenterY = 0;
-    settings.cylinderRadius = 40;
+  if (cylinderOptions) {
+    settings.cylinderCenterX = cylinderOptions.centerX ?? 0;
+    settings.cylinderCenterY = cylinderOptions.centerY ?? 0;
+    settings.cylinderRadius  = cylinderOptions.radius ?? 40;
   } else {
-    currentStlName = 'cube_50x50x50';
     settings.cylinderCenterX = null;
     settings.cylinderCenterY = null;
-    settings.cylinderRadius = null;
+    settings.cylinderRadius  = null;
   }
-  currentStlExt   = '.stl';
   checkAmplitudeWarning();
 
   // Dispose old preview material if needed
@@ -3479,8 +3524,6 @@ function loadPresetModel(presetKey = 'cube') {
   exclusionTool     = null;
   eraseMode         = false;
   isPainting        = false;
-  // Exclude reverts to the neutral (unhighlighted) default; include-only
-  // persists across loads and stays highlighted.
   maskModeChosen    = selectionMode;
   updateMaskModeButtons();
   if (placeOnFaceActive) togglePlaceOnFace(false);
@@ -3504,11 +3547,22 @@ function loadPresetModel(presetKey = 'cube') {
   triangleFaceNormals = adjData.faceNormals;
   autoMaskTopSurface();
 
-  // Pre-calculate an initial tile size that looks nice on this model; from
-  // here on the value is absolute (mm) and independent of the model bounds.
-  const tileMm = _defaultTileMm();
-  settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
-  settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
+  // Initial tile size / mapping configuration
+  if (cylinderOptions && cylinderOptions.autoFitDim) {
+    const dim = cylinderOptions.autoFitDim;
+    // Set cylindrical mapping mode automatically for auto-fit
+    settings.mappingMode = MODE_CYLINDRICAL;
+    mappingSelect.value = String(MODE_CYLINDRICAL);
+    // Align tile scale to exactly 1 panel width x height
+    const tileW = Math.max(0.1, dim.widthSingle);
+    const tileH = Math.max(0.1, dim.height);
+    settings.scaleU = tileW; scaleUSlider.value = scaleToPos(tileW); scaleUVal.value = fmtScaleVal(tileW);
+    settings.scaleV = tileH; scaleVSlider.value = scaleToPos(tileH); scaleVVal.value = fmtScaleVal(tileH);
+  } else {
+    const tileMm = _defaultTileMm();
+    settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
+    settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
+  }
   settings.offsetU = 0; offsetUSlider.value = 0; offsetUVal.value = 0;
   settings.offsetV = 0; offsetVSlider.value = 0; offsetVVal.value = 0;
   triLimitWarning.classList.add('hidden');
@@ -3533,6 +3587,124 @@ function loadPresetModel(presetKey = 'cube') {
   updateSmartResBtnState();
   updateCylinderUIVisibility();
   updatePreview();
+}
+
+function loadPresetModel(presetKey = 'cube') {
+  currentModelMode = 'preset';
+  currentPresetKey = presetKey;
+  updateModelModeUI();
+
+  // Update active state on preset buttons
+  document.querySelectorAll('#standard-preset-btns .model-preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === presetKey);
+  });
+
+  const geo = createPresetGeometry(presetKey);
+  let modelName = 'cube_50x50x50';
+  let cylOptions = null;
+
+  if (presetKey === 'cylinder') {
+    modelName = 'cylinder_d80_h100';
+    cylOptions = { centerX: 0, centerY: 0, radius: 40 };
+  } else if (presetKey === 'bowl') {
+    modelName = 'bowl_d80_h45';
+    cylOptions = { centerX: 0, centerY: 0, radius: 40 };
+  }
+
+  _applyLoadedPresetGeometry(geo, modelName, cylOptions);
+}
+
+function loadAutoFitModel() {
+  currentModelMode = 'autofit';
+  updateModelModeUI();
+
+  const imgW = activeMapEntry ? (activeMapEntry.width || 1000) : 1000;
+  const imgH = activeMapEntry ? (activeMapEntry.height || 1000) : 1000;
+
+  const dim = computeAutoFitDimensions({
+    imageWidth: imgW,
+    imageHeight: imgH,
+    targetHeight: autoFitHeight,
+    repeatCount: autoFitRepeat,
+    shape: autoFitShape,
+    n: autoFitNgon,
+  });
+
+  updateAutoFitInfo(dim);
+
+  let geo = null;
+  let modelName = 'autofit';
+
+  if (autoFitShape === 'cylinder') {
+    geo = createCylinderGeometry({ radius: dim.radius, height: dim.height });
+    modelName = `cylinder_autofit_h${dim.height}_r${Math.round(dim.radius)}`;
+  } else if (autoFitShape === 'bowl') {
+    geo = createBowlGeometry({ outerRadius: dim.radius, height: dim.height });
+    modelName = `bowl_autofit_h${dim.height}_r${Math.round(dim.radius)}`;
+  } else if (autoFitShape === 'ngon') {
+    geo = createNgonPrismGeometry({ n: dim.n, radius: dim.radius, height: dim.height });
+    modelName = `ngon_${dim.n}_autofit_h${dim.height}`;
+  }
+
+  if (!geo) return;
+
+  _applyLoadedPresetGeometry(geo, modelName, {
+    centerX: 0,
+    centerY: 0,
+    radius: dim.radius,
+    autoFitDim: dim,
+  });
+}
+
+function switchModelMode(mode) {
+  currentModelMode = mode;
+  updateModelModeUI();
+  if (mode === 'autofit') {
+    loadAutoFitModel();
+  } else {
+    loadPresetModel(currentPresetKey);
+  }
+}
+
+function updateModelModeUI() {
+  if (modelModeTabs) {
+    modelModeTabs.querySelectorAll('.model-mode-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.mode === currentModelMode);
+    });
+  }
+
+  if (currentModelMode === 'autofit') {
+    if (standardPresetBtns) standardPresetBtns.classList.add('hidden');
+    if (autofitControls) autofitControls.classList.remove('hidden');
+  } else {
+    if (standardPresetBtns) standardPresetBtns.classList.remove('hidden');
+    if (autofitControls) autofitControls.classList.add('hidden');
+  }
+
+  // Update auto-fit shape buttons
+  document.querySelectorAll('.autofit-shape-btns .model-preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.autofitShape === autoFitShape);
+  });
+
+  // Toggle n-gon sides field
+  if (autofitNgonField) {
+    autofitNgonField.style.display = (autoFitShape === 'ngon') ? '' : 'none';
+  }
+}
+
+function unlockAutoFitMode() {
+  autoFitUnlocked = true;
+  if (secretModeTrigger) secretModeTrigger.classList.add('active');
+  if (modelModeTabs) modelModeTabs.classList.remove('hidden');
+}
+
+function toggleSecretMode() {
+  autoFitUnlocked = !autoFitUnlocked;
+  if (secretModeTrigger) secretModeTrigger.classList.toggle('active', autoFitUnlocked);
+  if (modelModeTabs) modelModeTabs.classList.toggle('hidden', !autoFitUnlocked);
+  if (!autoFitUnlocked && currentModelMode === 'autofit') {
+    switchModelMode('preset');
+  }
 }
 
 function loadDefaultCube() {
