@@ -11,7 +11,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          clearDiagOverlays, setDiagEdges, addDiagFaces,
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
-         updateSceneBounds, fitCameraToMesh } from './viewer.js?v=20260920_112';
+         updateSceneBounds, fitCameraToMesh } from './viewer.js?v=20260920_113';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
@@ -486,6 +486,7 @@ const interleavedToolList             = document.getElementById('interleaved-too
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
 
 let currentColorPalette          = [];
+let _userAssignedToolIds         = [1, 2, 3, 4, 5, 6, 7, 8];
 let currentQuantizedResult       = null;
 let _quantizedTextureCache       = null;
 let currentColorSubMode          = 0; // 0 = Quantize, 1 = Interleaved Layer Blending
@@ -1511,6 +1512,13 @@ function runColorQuantization() {
   currentQuantizedResult = quantizeImage(activeMapEntry.imageData, k);
   currentColorPalette = currentQuantizedResult.palette;
 
+  // Restore remembered user tool assignments across texture loads
+  currentColorPalette.forEach((item, idx) => {
+    if (_userAssignedToolIds[idx] != null) {
+      item.toolId = _userAssignedToolIds[idx];
+    }
+  });
+
   renderPaletteUI();
   updateUntexturedToolOptions();
   renderInterleavedUI();
@@ -1544,7 +1552,7 @@ function renderPaletteUI() {
   paletteList.innerHTML = '';
   if (!currentColorPalette || currentColorPalette.length === 0) return;
 
-  currentColorPalette.forEach((item) => {
+  currentColorPalette.forEach((item, idx) => {
     const row = document.createElement('div');
     row.className = 'palette-item';
 
@@ -1589,7 +1597,9 @@ function renderPaletteUI() {
     }
 
     select.addEventListener('change', (e) => {
-      item.toolId = parseInt(e.target.value, 10);
+      const newTool = parseInt(e.target.value, 10);
+      item.toolId = newTool;
+      _userAssignedToolIds[idx] = newTool;
       updateUntexturedToolOptions();
       renderInterleavedUI();
       updatePreview();
@@ -6539,6 +6549,7 @@ function getSettingsSnapshot() {
       snap.activeMapName = (prev && prev.activeMapName) || null;
     } catch { snap.activeMapName = null; }
   }
+  snap.userAssignedToolIds = [..._userAssignedToolIds];
   return snap;
 }
 
@@ -6673,6 +6684,9 @@ function applySettingsSnapshot(snap) {
   if ('cylinderPanelMinimized' in snap) {
     settings.cylinderPanelMinimized = !!snap.cylinderPanelMinimized;
     cylinderPanel.classList.toggle('minimized', settings.cylinderPanelMinimized);
+  }
+  if (Array.isArray(snap.userAssignedToolIds)) {
+    _userAssignedToolIds = [...snap.userAssignedToolIds];
   }
   updateCylinderUIVisibility();
 }
