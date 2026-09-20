@@ -21,7 +21,7 @@
   <meta name="twitter:description" content="Add displacement textures and multi-color tool assignments to 3D models directly in your browser. Preview, mask, and export printable meshes locally." />
 
   <link rel="icon" type="image/png" href="logo.png" />
-  <link rel="stylesheet" href="style.css?v=20260920_111" />
+  <link rel="stylesheet" href="style.css?v=20260920_112" />
   <script>
     // Apply saved theme before first paint to avoid flash
     (function() {
@@ -202,6 +202,40 @@
       </div>
       <div id="viewport-footer">
         <span id="mesh-info" class="mesh-info"></span>
+        <div id="model-scale-controls" class="model-scale-controls" title="Model scale (%)" data-i18n-title="ui.modelScaleTitle">
+          <span class="scale-label" data-i18n="ui.modelScale">Scale:</span>
+          <button type="button" id="model-scale-lock-btn" class="model-scale-lock-btn active" title="Uniform scaling (keep aspect ratio)" data-i18n-title="ui.uniformScaleOn" aria-label="Uniform scaling">
+            <svg class="lock-icon locked" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <svg class="lock-icon unlocked" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+            </svg>
+          </button>
+          <div class="scale-axis-item scale-axis-x">
+            <label for="model-scale-x">X</label>
+            <input type="number" id="model-scale-x" class="scale-val-input" value="100" min="0.001" step="any" />
+            <span class="scale-unit">%</span>
+          </div>
+          <div class="scale-axis-item scale-axis-y">
+            <label for="model-scale-y">Y</label>
+            <input type="number" id="model-scale-y" class="scale-val-input" value="100" min="0.001" step="any" />
+            <span class="scale-unit">%</span>
+          </div>
+          <div class="scale-axis-item scale-axis-z">
+            <label for="model-scale-z">Z</label>
+            <input type="number" id="model-scale-z" class="scale-val-input" value="100" min="0.001" step="any" />
+            <span class="scale-unit">%</span>
+          </div>
+          <button type="button" id="model-scale-fit-btn" class="model-scale-btn" title="Fit Camera to Model" data-i18n-title="ui.fitCamera" aria-label="Fit Camera">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+            </svg>
+          </button>
+          <button type="button" id="model-scale-reset-btn" class="model-scale-btn" title="Reset Scale to 100%" data-i18n-title="ui.scaleReset">100%</button>
+        </div>
         <label class="wireframe-toggle">
           <input type="checkbox" id="wireframe-toggle" />
           <span data-i18n="ui.wireframe">Wireframe</span>
@@ -935,6 +969,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=20260920_111b"></script>
+  <script type="module" src="js/main.js?v=20260920_112"></script>
 </body>
 </html>

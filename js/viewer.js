@@ -623,6 +623,69 @@ export function setMeshGeometry(geometry) {
     wireframeLines = null;
   }
   if (wireframeVisible) _buildWireframe(geometry);
+}
+
+/**
+ * Update the scene bounds, grid position, axes indicator, and dimension annotations
+ * for the current mesh geometry without recreating the mesh.
+ * @param {THREE.BufferGeometry} geometry
+ * @param {boolean} [refitCamera=false]
+ */
+export function updateSceneBounds(geometry, refitCamera = false) {
+  if (!currentMesh || !geometry) return;
+
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  const groundZ = box.min.z - 0.01;
+  if (grid) grid.position.z = groundZ;
+
+  const sphere = new THREE.Sphere();
+  geometry.computeBoundingSphere();
+  sphere.copy(geometry.boundingSphere);
+
+  if (refitCamera) {
+    fitCamera(sphere);
+  }
+
+  if (axesGroup) {
+    disposeGroup(axesGroup);
+    scene.remove(axesGroup);
+  }
+  const axisSize = sphere.radius * 0.30;
+  axesGroup = buildAxesIndicator(axisSize);
+  const axisPad = axisSize * 1.8;
+  axesGroup.position.set(box.min.x - axisPad, box.min.y - axisPad, groundZ);
+  scene.add(axesGroup);
+
+  if (dimensionGroup) {
+    disposeGroup(dimensionGroup);
+    scene.remove(dimensionGroup);
+  }
+  dimensionGroup = buildDimensions(box, groundZ, sphere.radius);
+  scene.add(dimensionGroup);
+
+  if (wireframeVisible) {
+    if (wireframeLines) {
+      meshGroup.remove(wireframeLines);
+      wireframeLines.geometry.dispose();
+      wireframeLines.material.dispose();
+      wireframeLines = null;
+    }
+    _buildWireframe(geometry);
+  }
+
+  requestRender();
+}
+
+/**
+ * Fit camera view to the current mesh.
+ */
+export function fitCameraToMesh() {
+  if (!currentMesh || !currentMesh.geometry) return;
+  const sphere = new THREE.Sphere();
+  currentMesh.geometry.computeBoundingSphere();
+  sphere.copy(currentMesh.geometry.boundingSphere);
+  fitCamera(sphere);
   requestRender();
 }
 

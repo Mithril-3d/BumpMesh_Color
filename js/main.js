@@ -8,9 +8,10 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          getControls, getCamera, getCurrentMesh,
          setExclusionOverlay, setHoverPreview, setViewerTheme,
          setProjection, requestRender,
-          clearDiagOverlays, setDiagEdges, addDiagFaces,
-          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
-          generateColorThumbnail } from './viewer.js?v=20260919_110';
+         clearDiagOverlays, setDiagEdges, addDiagFaces,
+         setRotationGizmo, isGizmoDragging, getViewerThumbnail,
+         generateColorThumbnail,
+         updateSceneBounds, fitCameraToMesh } from './viewer.js?v=20260920_112';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
@@ -301,6 +302,138 @@ const customMapRow      = document.getElementById('custom-map-row');
 const customMapSwatch   = document.getElementById('custom-map-swatch');
 const customMapRemoveBtn = document.getElementById('custom-map-remove');
 const meshInfo       = document.getElementById('mesh-info');
+const modelScaleControls = document.getElementById('model-scale-controls');
+const modelScaleLockBtn  = document.getElementById('model-scale-lock-btn');
+const modelScaleXInput   = document.getElementById('model-scale-x');
+const modelScaleYInput   = document.getElementById('model-scale-y');
+const modelScaleZInput   = document.getElementById('model-scale-z');
+const modelScaleFitBtn   = document.getElementById('model-scale-fit-btn');
+const modelScaleResetBtn = document.getElementById('model-scale-reset-btn');
+
+let _baseGeometryPositions = null;
+let _basePoseTrans = null;
+let _modelScale = { x: 100, y: 100, z: 100 };
+let _scaleUniform = true;
+
+function initModelScale(geometry) {
+  if (!geometry || !geometry.attributes || !geometry.attributes.position) {
+    _baseGeometryPositions = null;
+    _basePoseTrans = null;
+    return;
+  }
+  _baseGeometryPositions = new Float32Array(geometry.attributes.position.array);
+  _basePoseTrans = currentPoseTrans ? currentPoseTrans.clone() : new THREE.Vector3();
+  _modelScale = { x: 100, y: 100, z: 100 };
+  if (modelScaleXInput) modelScaleXInput.value = '100';
+  if (modelScaleYInput) modelScaleYInput.value = '100';
+  if (modelScaleZInput) modelScaleZInput.value = '100';
+}
+
+function applyModelScale(scaleXPct, scaleYPct, scaleZPct, refitCamera = false) {
+  if (!currentGeometry || !_baseGeometryPositions) return;
+
+  const sx = scaleXPct / 100;
+  const sy = scaleYPct / 100;
+  const sz = scaleZPct / 100;
+
+  const pos = currentGeometry.attributes.position.array;
+  const base = _baseGeometryPositions;
+
+  for (let i = 0; i < pos.length; i += 3) {
+    pos[i]     = base[i]     * sx;
+    pos[i + 1] = base[i + 1] * sy;
+    pos[i + 2] = base[i + 2] * sz;
+  }
+  currentGeometry.attributes.position.needsUpdate = true;
+
+  // Recompute normals
+  currentGeometry.computeVertexNormals();
+  if (currentGeometry.attributes.normal) {
+    currentGeometry.attributes.normal.needsUpdate = true;
+  }
+  if (currentGeometry.attributes.faceNormal) {
+    currentGeometry.deleteAttribute('faceNormal');
+  }
+
+  // Scale origin offset pose translation
+  if (_basePoseTrans) {
+    currentPoseTrans.set(_basePoseTrans.x * sx, _basePoseTrans.y * sy, _basePoseTrans.z * sz);
+  }
+
+  // Update bounds
+  currentBounds = computeBounds(currentGeometry);
+
+  // Update viewer scene bounds (grid, axes, dimension lines)
+  updateSceneBounds(currentGeometry, refitCamera);
+
+  // Update mesh-info display (sx, sy, sz)
+  const triCount = getTriangleCount(currentGeometry);
+  const mb = ((pos.byteLength) / 1024 / 1024).toFixed(2);
+  const bx = currentBounds.size.x.toFixed(2);
+  const by = currentBounds.size.y.toFixed(2);
+  const bz = currentBounds.size.z.toFixed(2);
+  _setMeshInfo(triCount, mb, bx, by, bz);
+
+  // Auto-tune refineLength to new dimensions
+  const diag = Math.sqrt(currentBounds.size.x ** 2 + currentBounds.size.y ** 2 + currentBounds.size.z ** 2);
+  const defaultEdge = Math.max(0.05, Math.min(5.0, +(diag / 250).toFixed(2)));
+  settings.refineLength = defaultEdge;
+  refineLenSlider.value = defaultEdge;
+  refineLenVal.value = defaultEdge;
+  checkResolutionWarning();
+
+  // Update mask overlay if active
+  if (excludedFaces && excludedFaces.size > 0) {
+    refreshExclusionOverlay();
+  }
+
+  // Reset displacement preview if active
+  if (dispPreviewToggle && dispPreviewToggle.checked) {
+    if (dispPreviewGeometry) { dispPreviewGeometry.dispose(); dispPreviewGeometry = null; }
+    settings.useDisplacement = false;
+    dispPreviewToggle.checked = false;
+  }
+
+  updatePreview();
+}
+
+function onModelScaleInput(changedAxis, refitCamera = false) {
+  if (!currentGeometry || !_baseGeometryPositions) return;
+
+  let valX = parseFloat(modelScaleXInput.value);
+  let valY = parseFloat(modelScaleYInput.value);
+  let valZ = parseFloat(modelScaleZInput.value);
+
+  if (_scaleUniform) {
+    let sourceVal = 100;
+    if (changedAxis === 'x') sourceVal = valX;
+    else if (changedAxis === 'y') sourceVal = valY;
+    else if (changedAxis === 'z') sourceVal = valZ;
+
+    if (!isNaN(sourceVal) && sourceVal > 0) {
+      valX = sourceVal;
+      valY = sourceVal;
+      valZ = sourceVal;
+      if (changedAxis !== 'x') modelScaleXInput.value = sourceVal;
+      if (changedAxis !== 'y') modelScaleYInput.value = sourceVal;
+      if (changedAxis !== 'z') modelScaleZInput.value = sourceVal;
+    }
+  }
+
+  if (isNaN(valX) || valX <= 0 || isNaN(valY) || valY <= 0 || isNaN(valZ) || valZ <= 0) {
+    return;
+  }
+
+  valX = Math.min(100000, Math.max(0.001, valX));
+  valY = Math.min(100000, Math.max(0.001, valY));
+  valZ = Math.min(100000, Math.max(0.001, valZ));
+
+  _modelScale.x = valX;
+  _modelScale.y = valY;
+  _modelScale.z = valZ;
+
+  applyModelScale(valX, valY, valZ, refitCamera);
+}
 const importProgress    = document.getElementById('import-progress');
 const importProgBar     = document.getElementById('import-progress-bar');
 const importProgPct     = document.getElementById('import-progress-pct');
@@ -2031,6 +2164,50 @@ function wireEvents() {
     toggleDisplacementPreview(dispPreviewToggle.checked);
   });
 
+  // ── Model Scale Controls ──
+  if (modelScaleControls) {
+    modelScaleLockBtn.addEventListener('click', () => {
+      _scaleUniform = !_scaleUniform;
+      modelScaleLockBtn.classList.toggle('active', _scaleUniform);
+      modelScaleLockBtn.title = _scaleUniform ? t('ui.uniformScaleOn') : t('ui.uniformScaleOff');
+      if (_scaleUniform) {
+        const valX = parseFloat(modelScaleXInput.value) || 100;
+        modelScaleYInput.value = valX;
+        modelScaleZInput.value = valX;
+        onModelScaleInput('x', false);
+      }
+    });
+
+    modelScaleResetBtn.addEventListener('click', () => {
+      if (!currentGeometry || !_baseGeometryPositions) return;
+      modelScaleXInput.value = '100';
+      modelScaleYInput.value = '100';
+      modelScaleZInput.value = '100';
+      onModelScaleInput('x', false);
+      fitCameraToMesh();
+    });
+
+    modelScaleFitBtn.addEventListener('click', () => {
+      fitCameraToMesh();
+    });
+
+    [modelScaleXInput, modelScaleYInput, modelScaleZInput].forEach((inp, idx) => {
+      const axis = ['x', 'y', 'z'][idx];
+      inp.addEventListener('input', () => {
+        onModelScaleInput(axis, false);
+      });
+      inp.addEventListener('change', () => {
+        onModelScaleInput(axis, false);
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          inp.blur();
+          fitCameraToMesh();
+        }
+      });
+    });
+  }
+
   // ── Place on Face ──
   placeOnFaceBtn.addEventListener('click', () => {
     togglePlaceOnFace(!placeOnFaceActive);
@@ -3000,6 +3177,7 @@ function handlePlaceOnFaceClick(e) {
   bakeBtn.disabled = (activeMapEntry === null);
   updateSmartResBtnState();
   updatePreview();
+  initModelScale(currentGeometry);
 
   // Rebuild exclusion overlay with new vertex positions (face indices unchanged)
   if (excludedFaces.size > 0) {
@@ -3174,6 +3352,7 @@ function _rotateFinalize() {
   checkAmplitudeWarning();
   checkResolutionWarning();
   updatePreview();
+  initModelScale(currentGeometry);
 }
 
 function refreshExclusionOverlay() {
@@ -3588,6 +3767,7 @@ function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
   updateSmartResBtnState();
   updateCylinderUIVisibility();
   updatePreview();
+  initModelScale(geo);
 }
 
 function loadPresetModel(presetKey = 'cube') {
@@ -3949,6 +4129,7 @@ async function handleModelFile(file, stepSettings = null) {
     export3mfBtn.disabled = (activeMapEntry === null);
     updateSmartResBtnState();
     updatePreview();
+    initModelScale(currentGeometry);
   } catch (err) {
     // A superseded STEP import (user dropped another file mid-tessellation)
     // is not a failure — the newer load owns the UI now.
@@ -6303,6 +6484,7 @@ function adoptBakedGeometry(geometry, bounds, opts = {}) {
   updateSmartResBtnState();
 
   updatePreview();
+  initModelScale(currentGeometry);
 
   // Bake is a destructive transform — undo history references the pre-bake
   // triangle set, so it's no longer meaningful.
