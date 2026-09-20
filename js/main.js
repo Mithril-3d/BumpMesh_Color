@@ -23,6 +23,7 @@ import {
   createBowlGeometry,
   createCubeGeometry,
 } from './proceduralModels.js';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260919_110';
