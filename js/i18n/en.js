@@ -304,6 +304,8 @@ export default {
   "color.shadingModeTitle": "Color tonal mapping. Sharp gives solid binary levels; Gradient smoothly blends heights based on image luminance.",
   "color.shadingSharp": "Sharp (Binary / 0-1)",
   "color.shadingGradient": "Gradient (Continuous)",
+  "color.interleavedGamma": "Tonal Gamma",
+  "color.interleavedGammaTitle": "Tonal curve mapping (gamma correction). 1.0 is linear full range, higher deepens blacks, lower brightens shadows.",
   "color.interleavedTools": "Interleaved Tools",
   "color.interleavedStructure": "🔄 Interleaved Slice Structure",
   "color.infoPitch": "• Layer height: {pitch} mm (Total layers: ~{layers})",

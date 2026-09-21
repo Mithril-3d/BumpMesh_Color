@@ -306,6 +306,8 @@ export default {
   "color.shadingModeTitle": "色の階調表現。シャープはくっきりした二値、グラデーションは元画像の連続階調に応じて出っ張り量を無段階制御します。",
   "color.shadingSharp": "シャープ (二値 / 0-1)",
   "color.shadingGradient": "グラデーション (連続階調)",
+  "color.interleavedGamma": "階調調整 (ガンマ)",
+  "color.interleavedGammaTitle": "グラデーションの明暗カーブ（ガンマ補正）。1.0が標準フルレンジ、値が大きいほど黒が引き締まり、小さいほど暗部が明るくなります。",
   "color.interleavedTools": "交互積層ツール",
   "color.interleavedStructure": "🔄 交互積層スライス構造",
   "color.infoPitch": "• 積層ピッチ: {pitch} mm (総レイヤー数: 約{layers}層)",

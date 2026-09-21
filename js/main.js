@@ -24,7 +24,7 @@ import {
   createBowlGeometry,
   createCubeGeometry,
 } from './proceduralModels.js';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260912_sticky';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260921_120';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260919_110';
@@ -37,7 +37,7 @@ import {
   computeColorBlendWeight,
   computeLuminanceBlendWeight,
   generateInterleavedTable
-} from './layerBlending.js?v=20260912_102';
+} from './layerBlending.js?v=20260921_120';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260918_134';
 import { sampleRGBBilinear } from './displacement.js?v=20260912_102';
 import { buildAdjacency, bucketFill,
@@ -1658,11 +1658,6 @@ function updateUntexturedToolOptions() {
 // ── Phase 2: Interleaved Layer Blending (交互積層マルチツール振り重ね) ──────────
 
 function renderInterleavedUI() {
-  if (!interleavedToolList || !interleavedInfoText) return;
-
-  // Clear previous chips
-  interleavedToolList.innerHTML = '';
-
   const palette = (currentColorPalette && currentColorPalette.length > 0)
     ? currentColorPalette
     : [
@@ -1670,43 +1665,40 @@ function renderInterleavedUI() {
         { toolId: 2, hex: '#d32f2f', color: [211, 47, 47] }
       ];
 
-  // Tool chips preview
-  palette.forEach((item) => {
-    const chip = document.createElement('div');
-    chip.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--border,#444);font-size:11px;';
-    
-    const colorDot = document.createElement('span');
-    colorDot.style.cssText = `width:12px;height:12px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);`;
+  // Tool chips preview if element exists
+  if (interleavedToolList) {
+    interleavedToolList.innerHTML = '';
+    palette.forEach((item) => {
+      const chip = document.createElement('div');
+      chip.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--border,#444);font-size:11px;';
+      
+      const colorDot = document.createElement('span');
+      colorDot.style.cssText = `width:12px;height:12px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);`;
 
-    const label = document.createElement('span');
-    label.style.cssText = 'font-weight:600;color:var(--text,#fff);';
-    label.textContent = `Tool ${item.toolId}`;
+      const label = document.createElement('span');
+      label.style.cssText = 'font-weight:600;color:var(--text,#fff);';
+      label.textContent = `Tool ${item.toolId}`;
 
-    chip.appendChild(colorDot);
-    chip.appendChild(label);
-    interleavedToolList.appendChild(chip);
-  });
+      chip.appendChild(colorDot);
+      chip.appendChild(label);
+      interleavedToolList.appendChild(chip);
+    });
+  }
 
   // Layer slice info
   const thickness = interleavedSettings.layerThickness || 0.20;
   const toolIds = palette.map(p => p.toolId);
-  const minZ = currentBounds ? currentBounds.min.z : 0;
-  const maxZ = currentBounds ? currentBounds.max.z : 20;
-  const { table, totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
 
-  const isLouver = (interleavedSettings.profileMode === 1);
-  const isGradient = (interleavedSettings.shadingMode === 1);
-  const profileStr = isLouver ? t('color.profileLouver') : t('color.profileStep');
-  const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
-
-  const pitchLine = t('color.infoPitch', { pitch: thickness.toFixed(2), layers: totalLayers });
-  const convexLine = t('color.infoConvex', { val: interleavedSettings.convexAmp.toFixed(2) });
-  const concaveLine = t('color.infoConcave', { val: interleavedSettings.concaveAmp.toFixed(2) });
-  const profileLine = t('color.infoProfile', { profile: profileStr });
-  const shadingLine = t('color.infoShading', { shading: shadingStr });
-  const patternLine = t('color.infoPattern', { pattern: toolIds.map(t => 'Tool ' + t).join(' → ') });
-
-  interleavedInfoText.textContent = `${pitchLine}\n${convexLine}\n${concaveLine}\n${profileLine}\n${shadingLine}\n${patternLine}`;
+  if (interleavedInfoText) {
+    const minZ = currentBounds ? currentBounds.min.z : 0;
+    const maxZ = currentBounds ? currentBounds.max.z : 20;
+    const { totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
+    const isLouver = (interleavedSettings.profileMode === 1);
+    const isGradient = (interleavedSettings.shadingMode === 1);
+    const profileStr = isLouver ? t('color.profileLouver') : t('color.profileStep');
+    const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
+    interleavedInfoText.textContent = `• ピッチ: ${thickness.toFixed(2)}mm (${totalLayers}層) • 断面: ${profileStr} • 階調: ${shadingStr}`;
+  }
 
   // Pass parameters to settings for preview and export
   settings.interleavedThickness   = thickness;
@@ -1721,6 +1713,9 @@ function renderInterleavedUI() {
   if (interleavedGammaRow) {
     interleavedGammaRow.style.display = (interleavedSettings.shadingMode === 1) ? 'flex' : 'none';
   }
+
+  // Make sure shared palette UI is rendered
+  renderPaletteUI();
 }
 
 function switchColorSubMode(subMode, triggerUpdate = true) {

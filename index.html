@@ -434,41 +434,25 @@
             </label>
           </div>
 
-          <div class="untextured-tool-row">
-            <label for="untextured-tool-select" data-i18n="color.untexturedTool" data-i18n-title="color.untexturedToolTitle" title="マスク領域やテクスチャを適用しない面（底面など）に割り当てるツール">非テクスチャ部ツール</label>
-            <select id="untextured-tool-select">
-              <option value="1">Tool 1</option>
-              <option value="2">Tool 2</option>
-              <option value="3">Tool 3</option>
-              <option value="4" selected>Tool 4</option>
-            </select>
+          <!-- Extruder Count (Top & Prominent) -->
+          <div class="form-row slider-row" style="margin-top:4px;margin-bottom:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:6px;padding:8px 10px;">
+            <label for="color-count-slider" data-i18n="color.extruderCount" data-i18n-title="color.extruderCountTitle" title="減色する代表色の数（Extruder数）" style="font-weight:700;color:var(--accent,#38bdf8);">Extruder数 (色数)</label>
+            <input type="range" id="color-count-slider" min="2" max="8" step="1" value="4" />
+            <span class="val" id="color-count-val" style="font-weight:700;font-size:13px;color:var(--accent,#38bdf8);">4</span>
+          </div>
+
+          <!-- Color Palette List (Shared across both Quantize and Interleaved tabs) -->
+          <div class="palette-container" id="palette-list" style="margin-bottom:10px;">
+            <!-- JSで動的にカラーパレットカードを生成 -->
           </div>
 
           <!-- Tab 1: Color Quantization Panel (Phase 1) -->
           <div id="quantize-controls-container">
-            <div class="form-row slider-row" style="margin-top:6px;">
-              <label for="color-count-slider" data-i18n="color.extruderCount" data-i18n-title="color.extruderCountTitle" title="減色する代表色の数（Extruder数）">Extruder数 (色数)</label>
-              <input type="range" id="color-count-slider" min="2" max="8" step="1" value="4" />
-              <span class="val" id="color-count-val">4</span>
-            </div>
-
-            <div class="palette-container" id="palette-list" style="margin-top:8px;">
-              <!-- JSで動的にカラーパレットカードを生成 -->
-            </div>
+            <!-- パレットとExtruder数が共通化したため、このタブ内はスッキリ -->
           </div>
 
           <!-- Tab 2: Interleaved Layer Blending Panel (Phase 2) -->
           <div id="layerblend-controls-container" class="hidden" style="margin-top:6px;">
-            <div style="font-size:11px;color:var(--text-muted,#aaa);margin-bottom:8px;line-height:1.4;" data-i18n="color.interleavedDesc">
-              カラー量子化の各ツールを一定厚みで交互に積層し、目的色の領域で凸、非目的色の領域で凹を生成します。
-            </div>
-
-            <div class="form-row slider-row" style="margin-bottom:8px;">
-              <label for="interleaved-color-count-slider" data-i18n="color.extruderCount" data-i18n-title="color.extruderCountTitle" title="減色する代表色の数（Extruder数）">Extruder数 (色数)</label>
-              <input type="range" id="interleaved-color-count-slider" min="2" max="8" step="1" value="4" />
-              <span class="val" id="interleaved-color-count-val">4</span>
-            </div>
-
             <div class="form-row slider-row" style="margin-bottom:8px;">
               <label for="interleaved-layer-thickness" data-i18n="color.layerThickness" data-i18n-title="color.layerThicknessTitle" title="各ツールの1層あたりの厚み（スライサーの積層ピッチに合わせます）">積層厚み (mm)</label>
               <input type="range" id="interleaved-layer-thickness" min="0.08" max="0.40" step="0.04" value="0.20" />
@@ -503,7 +487,7 @@
               </select>
             </div>
 
-            <div class="form-row" id="interleaved-gamma-row" style="margin-bottom:8px;">
+            <div class="form-row" id="interleaved-gamma-row" style="margin-bottom:10px;">
               <label for="interleaved-gamma" data-i18n="color.interleavedGamma" data-i18n-title="color.interleavedGammaTitle" title="グラデーションの明暗カーブ（ガンマ補正）。1.0が標準フルレンジ、値が大きいほど黒が引き締まり、小さいほど暗部が明るくなります。">階調調整 (ガンマ)</label>
               <div class="slider-row" style="display:flex;align-items:center;gap:8px;">
                 <input type="range" id="interleaved-gamma" min="0.4" max="2.2" step="0.05" value="1.0" style="flex:1;">
@@ -511,25 +495,21 @@
               </div>
             </div>
 
-            <div style="margin-top:10px;">
-              <span style="font-size:11px;color:var(--text-muted,#aaa);font-weight:600;" data-i18n="color.interleavedTools">交互積層ツール</span>
-              <div id="interleaved-tool-list" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
-                <!-- JSでカラー量子化パレットのツールチップを表示 -->
-              </div>
-            </div>
+            <!-- Independent prominent preview button -->
+            <button id="interleaved-preview-map-btn" type="button" class="btn btn-secondary" style="width:100%;margin-top:4px;margin-bottom:6px;font-size:11px;padding:7px 10px;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:var(--accent,#38bdf8);border-radius:4px;cursor:pointer;">
+              <span>🖼️ 振り重ね変調画像（2Dマップ）を確認</span>
+            </button>
+          </div>
 
-            <!-- Interleaved Slicing Preview / Info -->
-            <div class="slicing-guide-box" style="margin-top:12px;border-radius:6px;padding:8px;">
-              <div style="font-size:11px;font-weight:600;color:var(--accent,#3b82f6);margin-bottom:4px;" data-i18n="color.interleavedStructure">
-                🔄 交互積層スライス構造
-              </div>
-              <div id="interleaved-info-text" style="font-size:10px;line-height:1.4;color:var(--text-muted,#bbb);">
-                <!-- JSで積層情報（総レイヤー数や交互パターン）を表示 -->
-              </div>
-              <button id="interleaved-preview-map-btn" type="button" class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:11px;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:var(--accent,#38bdf8);border-radius:4px;cursor:pointer;">
-                <span>🖼️ 振り重ね変調画像（2Dマップ）を確認</span>
-              </button>
-            </div>
+          <!-- Bottom & Discreet: Untextured Tool -->
+          <div class="untextured-tool-row" style="margin-top:10px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;opacity:0.8;">
+            <label for="untextured-tool-select" data-i18n="color.untexturedTool" data-i18n-title="color.untexturedToolTitle" title="マスク領域やテクスチャを適用しない面（底面など）に割り当てるツール" style="font-size:10px;color:var(--text-muted,#888);">非テクスチャ部ツール (底面等)</label>
+            <select id="untextured-tool-select" style="font-size:10px;padding:2px 6px;height:24px;">
+              <option value="1">Tool 1</option>
+              <option value="2">Tool 2</option>
+              <option value="3">Tool 3</option>
+              <option value="4" selected>Tool 4</option>
+            </select>
           </div>
         </div>
       </section>
@@ -1045,6 +1025,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=20260921_114"></script>
+  <script type="module" src="js/main.js?v=20260921_120"></script>
 </body>
 </html>
