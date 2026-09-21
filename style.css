@@ -2694,12 +2694,12 @@ input[type="number"].val:focus { outline: none; border-color: var(--accent); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 4px 8px 4px;
+  padding: 10px 16px 10px 16px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
   border-radius: 0;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   gap: 8px;
 }
 
