@@ -1345,7 +1345,9 @@ loadAllThumbnails().then(thumbs => {
 
   let persistedName = null;
   try {
-    const raw = sessionStorage.getItem('bumpmesh-settings');
+    const storageMode = localStorage.getItem('bumpmesh-storage-mode');
+    const store = (storageMode === 'local') ? localStorage : sessionStorage;
+    const raw = store.getItem('bumpmesh-settings');
     if (raw) persistedName = (JSON.parse(raw) || {}).activeMapName || null;
   } catch { /* ignore */ }
 
@@ -1711,28 +1713,31 @@ function renderInterleavedUI() {
   settings.colorSubMode           = currentColorSubMode;
 }
 
+function switchColorSubMode(subMode, triggerUpdate = true) {
+  currentColorSubMode = (subMode === 1) ? 1 : 0;
+  settings.colorSubMode = currentColorSubMode;
+  if (tabColorQuantize && tabColorLayerBlend) {
+    tabColorQuantize.classList.toggle('active', currentColorSubMode === 0);
+    tabColorLayerBlend.classList.toggle('active', currentColorSubMode === 1);
+  }
+  if (quantizeControlsContainer) {
+    quantizeControlsContainer.classList.toggle('hidden', currentColorSubMode !== 0);
+  }
+  if (layerblendControlsContainer) {
+    layerblendControlsContainer.classList.toggle('hidden', currentColorSubMode !== 1);
+  }
+  if (currentColorSubMode === 1) {
+    renderInterleavedUI();
+  }
+  if (triggerUpdate) {
+    updatePreview();
+  }
+}
+
 function initInterleavedEvents() {
   if (tabColorQuantize && tabColorLayerBlend) {
-    tabColorQuantize.addEventListener('click', () => {
-      currentColorSubMode = 0;
-      tabColorQuantize.classList.add('active');
-      tabColorLayerBlend.classList.remove('active');
-      if (quantizeControlsContainer) quantizeControlsContainer.classList.remove('hidden');
-      if (layerblendControlsContainer) layerblendControlsContainer.classList.add('hidden');
-      settings.colorSubMode = 0;
-      updatePreview();
-    });
-
-    tabColorLayerBlend.addEventListener('click', () => {
-      currentColorSubMode = 1;
-      tabColorLayerBlend.classList.add('active');
-      tabColorQuantize.classList.remove('active');
-      if (layerblendControlsContainer) layerblendControlsContainer.classList.remove('hidden');
-      if (quantizeControlsContainer) quantizeControlsContainer.classList.add('hidden');
-      settings.colorSubMode = 1;
-      renderInterleavedUI();
-      updatePreview();
-    });
+    tabColorQuantize.addEventListener('click', () => switchColorSubMode(0));
+    tabColorLayerBlend.addEventListener('click', () => switchColorSubMode(1));
   }
 
   if (interleavedLayerThicknessSlider) {
@@ -6506,17 +6511,63 @@ function yieldFrame() {
   return new Promise(r => setTimeout(r, 0));
 }
 
-// ── Project save/load (.bumpmesh) + sessionStorage auto-save ────────────────
+// ── Project save/load (.bumpmesh) + storage auto-save (session/local) ─────────
 // .bumpmesh is a ZIP containing: settings.json (required), model.stl (optional),
 // texture.png (optional custom displacement map). Settings alone are also
-// auto-persisted to sessionStorage — so a reload inside the same tab restores
-// the session, but closing the tab (or opening a fresh one later) starts from
-// defaults. One-time migration wipes any legacy localStorage payload.
+// auto-persisted to sessionStorage (short-term) or localStorage (long-term),
+// configurable by the user.
 
 const PROJECT_STORAGE_KEY = 'bumpmesh-settings';
+const STORAGE_MODE_KEY    = 'bumpmesh-storage-mode';
 const PROJECT_VERSION     = 1;
 const PROJECT_MAX_IMPORT  = 500 * 1024 * 1024; // 500 MB cap on imports
-try { localStorage.removeItem(PROJECT_STORAGE_KEY); } catch { /* ignore */ }
+
+const storageModeSessionBtn = document.getElementById('storage-mode-session');
+const storageModeLocalBtn   = document.getElementById('storage-mode-local');
+
+let currentStorageMode = 'session';
+try {
+  const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
+  if (savedMode === 'local' || savedMode === 'session') {
+    currentStorageMode = savedMode;
+  }
+} catch { /* quota / private mode */ }
+
+function getActiveStorage() {
+  return currentStorageMode === 'local' ? localStorage : sessionStorage;
+}
+
+function setStorageMode(mode, saveCurrent = true) {
+  if (mode !== 'session' && mode !== 'local') return;
+  const oldMode = currentStorageMode;
+  currentStorageMode = mode;
+  try { localStorage.setItem(STORAGE_MODE_KEY, mode); } catch { /* quota / private mode */ }
+
+  if (storageModeSessionBtn) storageModeSessionBtn.classList.toggle('active', mode === 'session');
+  if (storageModeLocalBtn)   storageModeLocalBtn.classList.toggle('active', mode === 'local');
+
+  if (oldMode !== mode && saveCurrent) {
+    try {
+      // Remove from old inactive storage to prevent stale data conflicts
+      const inactive = (mode === 'local') ? sessionStorage : localStorage;
+      inactive.removeItem(PROJECT_STORAGE_KEY);
+      // Immediately save current snapshot to the new active storage
+      const active = (mode === 'local') ? localStorage : sessionStorage;
+      const payload = { version: PROJECT_VERSION, ...getSettingsSnapshot() };
+      active.setItem(PROJECT_STORAGE_KEY, JSON.stringify(payload));
+    } catch { /* quota exceeded or disabled — ignore */ }
+  }
+}
+
+// Initialise storage mode UI buttons
+if (storageModeSessionBtn) {
+  storageModeSessionBtn.addEventListener('click', () => setStorageMode('session'));
+}
+if (storageModeLocalBtn) {
+  storageModeLocalBtn.addEventListener('click', () => setStorageMode('local'));
+}
+// Sync initial active button styling without triggering redundant resave
+setStorageMode(currentStorageMode, false);
 
 // Persisted setting keys — excludes `useDisplacement` (transient UI state).
 const PERSISTED_KEYS = [
@@ -6545,11 +6596,40 @@ function getSettingsSnapshot() {
     // Thumbnails may not have finished loading yet; preserve any previously
     // persisted preset name so a mid-load autosave doesn't wipe it.
     try {
-      const prev = JSON.parse(sessionStorage.getItem(PROJECT_STORAGE_KEY) || 'null');
+      const prev = JSON.parse(getActiveStorage().getItem(PROJECT_STORAGE_KEY) || 'null');
       snap.activeMapName = (prev && prev.activeMapName) || null;
     } catch { snap.activeMapName = null; }
   }
   snap.userAssignedToolIds = [..._userAssignedToolIds];
+
+  // Color / Multi-Tool state
+  snap.colorModeEnabled    = Boolean(colorModeToggle?.checked);
+  snap.colorPreviewEnabled = Boolean(colorPreviewToggle?.checked);
+  snap.colorCount          = colorCountSlider ? parseInt(colorCountSlider.value, 10) : 4;
+  snap.colorSubMode        = currentColorSubMode;
+  snap.untexturedToolId    = settings.untexturedToolId ?? 1;
+  snap.palette             = currentColorPalette ? currentColorPalette.map(p => ({ ...p })) : [];
+
+  // Interleaved Layer Blending state
+  snap.interleavedThickness   = interleavedSettings.layerThickness;
+  snap.interleavedConvex      = interleavedSettings.convexAmp;
+  snap.interleavedConcave     = interleavedSettings.concaveAmp;
+  snap.interleavedProfileMode = interleavedSettings.profileMode;
+  snap.interleavedShadingMode = interleavedSettings.shadingMode;
+
+  // Model Scale state
+  snap.modelScale   = { x: _modelScale.x, y: _modelScale.y, z: _modelScale.z };
+  snap.scaleUniform = _scaleUniform;
+
+  // Auto-fit & Preset Model state
+  snap.autoFitUnlocked  = autoFitUnlocked;
+  snap.currentModelMode = currentModelMode;
+  snap.currentPresetKey = currentPresetKey;
+  snap.autoFitShape     = autoFitShape;
+  snap.autoFitHeight    = autoFitHeight;
+  snap.autoFitRepeat    = autoFitRepeat;
+  snap.autoFitNgon      = autoFitNgon;
+
   return snap;
 }
 
@@ -6688,6 +6768,126 @@ function applySettingsSnapshot(snap) {
   if (Array.isArray(snap.userAssignedToolIds)) {
     _userAssignedToolIds = [...snap.userAssignedToolIds];
   }
+
+  // ── Color / Multi-Tool state restoration ──
+  if (snap.colorModeEnabled != null && colorModeToggle) {
+    colorModeToggle.checked = !!snap.colorModeEnabled;
+    colorModeToggle.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  if (snap.colorPreviewEnabled != null && colorPreviewToggle) {
+    colorPreviewToggle.checked = !!snap.colorPreviewEnabled;
+    colorPreviewToggle.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  if (snap.colorCount != null && colorCountSlider) {
+    colorCountSlider.value = snap.colorCount;
+    colorCountSlider.dispatchEvent(new Event('input', { bubbles: true }));
+    colorCountSlider.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  if (snap.colorSubMode != null) {
+    switchColorSubMode(snap.colorSubMode, false);
+  }
+  if (snap.untexturedToolId != null && untexturedToolSelect) {
+    settings.untexturedToolId = snap.untexturedToolId;
+    untexturedToolSelect.value = String(snap.untexturedToolId);
+    untexturedToolSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  if (Array.isArray(snap.palette) && snap.palette.length > 0) {
+    currentColorPalette = snap.palette.map(p => ({ ...p }));
+    if (typeof updatePaletteUI === 'function') updatePaletteUI();
+    if (typeof updateInterleavedToolList === 'function') updateInterleavedToolList();
+  }
+
+  // ── Interleaved Layer Blending state restoration ──
+  if (snap.interleavedThickness != null) {
+    interleavedSettings.layerThickness = snap.interleavedThickness;
+    if (interleavedLayerThicknessSlider) {
+      interleavedLayerThicknessSlider.value = snap.interleavedThickness;
+      if (interleavedLayerThicknessVal) interleavedLayerThicknessVal.textContent = snap.interleavedThickness.toFixed(2);
+    }
+  }
+  if (snap.interleavedConvex != null) {
+    interleavedSettings.convexAmp = snap.interleavedConvex;
+    if (interleavedConvexAmpSlider) {
+      interleavedConvexAmpSlider.value = snap.interleavedConvex;
+      if (interleavedConvexAmpVal) interleavedConvexAmpVal.textContent = snap.interleavedConvex.toFixed(2);
+    }
+  }
+  if (snap.interleavedConcave != null) {
+    interleavedSettings.concaveAmp = snap.interleavedConcave;
+    if (interleavedConcaveAmpSlider) {
+      interleavedConcaveAmpSlider.value = snap.interleavedConcave;
+      if (interleavedConcaveAmpVal) interleavedConcaveAmpVal.textContent = snap.interleavedConcave.toFixed(2);
+    }
+  }
+  if (snap.interleavedProfileMode != null) {
+    interleavedSettings.profileMode = snap.interleavedProfileMode;
+    if (interleavedProfileModeSelect) interleavedProfileModeSelect.value = String(snap.interleavedProfileMode);
+  }
+  if (snap.interleavedShadingMode != null) {
+    interleavedSettings.shadingMode = snap.interleavedShadingMode;
+    if (interleavedShadingModeSelect) interleavedShadingModeSelect.value = String(snap.interleavedShadingMode);
+  }
+  if (typeof renderInterleavedUI === 'function') renderInterleavedUI();
+
+  // ── Model Scale state restoration ──
+  if (snap.scaleUniform != null) {
+    _scaleUniform = Boolean(snap.scaleUniform);
+    if (modelScaleLockBtn) {
+      modelScaleLockBtn.classList.toggle('active', _scaleUniform);
+      modelScaleLockBtn.setAttribute('title', _scaleUniform ? t('ui.uniformScaleOn') : t('ui.uniformScaleOff'));
+    }
+  }
+  if (snap.modelScale && typeof snap.modelScale === 'object') {
+    const sx = Number(snap.modelScale.x) || 100;
+    const sy = Number(snap.modelScale.y) || 100;
+    const sz = Number(snap.modelScale.z) || 100;
+    _modelScale = { x: sx, y: sy, z: sz };
+    if (modelScaleXInput) modelScaleXInput.value = String(sx);
+    if (modelScaleYInput) modelScaleYInput.value = String(sy);
+    if (modelScaleZInput) modelScaleZInput.value = String(sz);
+    if (currentGeometry && _baseGeometryPositions) {
+      applyModelScale(sx, sy, sz, false);
+    }
+  }
+
+  // ── Auto-fit & Preset Model state restoration ──
+  if (snap.autoFitUnlocked) {
+    unlockAutoFitMode();
+  }
+  if (snap.autoFitShape) {
+    autoFitShape = snap.autoFitShape;
+    document.querySelectorAll('.autofit-shape-btns .model-preset-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.autofitShape === autoFitShape);
+    });
+    const ngonField = document.getElementById('autofit-ngon-field');
+    if (ngonField) ngonField.classList.toggle('hidden', autoFitShape !== 'ngon');
+  }
+  if (snap.autoFitHeight != null) {
+    autoFitHeight = snap.autoFitHeight;
+    const hInput = document.getElementById('autofit-height-input');
+    if (hInput) hInput.value = String(autoFitHeight);
+  }
+  if (snap.autoFitRepeat != null) {
+    autoFitRepeat = snap.autoFitRepeat;
+    const rInput = document.getElementById('autofit-repeat-input');
+    if (rInput) rInput.value = String(autoFitRepeat);
+  }
+  if (snap.autoFitNgon != null) {
+    autoFitNgon = snap.autoFitNgon;
+    const nInput = document.getElementById('autofit-ngon-input');
+    if (nInput) nInput.value = String(autoFitNgon);
+  }
+  if (snap.currentPresetKey) {
+    currentPresetKey = snap.currentPresetKey;
+    document.querySelectorAll('#standard-preset-btns .model-preset-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.preset === currentPresetKey);
+    });
+  }
+  if (snap.currentModelMode) {
+    currentModelMode = snap.currentModelMode;
+    updateModelModeUI();
+  }
+
   updateCylinderUIVisibility();
 }
 
@@ -6706,7 +6906,7 @@ function _selectPresetByName(name, applyDefaults = false) {
   return true;
 }
 
-// ── localStorage auto-save ───────────────────────────────────────────────────
+// ── Storage auto-save (sessionStorage or localStorage) ─────────────────────────
 
 let _autoSaveTimer = null;
 let _autoSavePaused = false;
@@ -6716,14 +6916,14 @@ function _autoSaveSettings() {
   _autoSaveTimer = setTimeout(() => {
     try {
       const payload = { version: PROJECT_VERSION, ...getSettingsSnapshot() };
-      sessionStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(payload));
+      getActiveStorage().setItem(PROJECT_STORAGE_KEY, JSON.stringify(payload));
     } catch { /* quota exceeded or disabled — ignore */ }
   }, 300);
 }
 
 function _restoreSessionSettings() {
   let raw;
-  try { raw = sessionStorage.getItem(PROJECT_STORAGE_KEY); }
+  try { raw = getActiveStorage().getItem(PROJECT_STORAGE_KEY); }
   catch { return; }
   if (!raw) return;
   let data;
@@ -6731,7 +6931,7 @@ function _restoreSessionSettings() {
   if (!data || typeof data !== 'object') return;
   applySettingsSnapshot(data);
   // Preset activation is handled by the thumbnail-load auto-select path —
-  // it reads activeMapName from sessionStorage and suppresses defaults so
+  // it reads activeMapName from active storage and suppresses defaults so
   // the user's saved scaleU / textureSmoothing survive.
 }
 
@@ -6769,11 +6969,29 @@ const DEFAULT_SETTINGS_SNAPSHOT = Object.freeze({
   cylinderCenterX: null, cylinderCenterY: null, cylinderRadius: null,
   cylinderPanelMinimized: false,
   activeMapName: DEFAULT_PRESET_NAME,
+  colorModeEnabled: false,
+  colorPreviewEnabled: true,
+  colorCount: 4,
+  colorSubMode: 0,
+  untexturedToolId: 1,
+  interleavedThickness: 0.20,
+  interleavedConvex: 0.35,
+  interleavedConcave: 0.00,
+  interleavedProfileMode: 0,
+  interleavedShadingMode: 1,
+  modelScale: { x: 100, y: 100, z: 100 },
+  scaleUniform: true,
+  currentModelMode: 'preset',
+  currentPresetKey: 'cube',
+  autoFitShape: 'ngon',
+  autoFitHeight: 100,
+  autoFitRepeat: 1,
+  autoFitNgon: 6,
 });
 
 function resetSettingsToDefaults() {
   // Capture any pending edit, then push the pre-reset state so Ctrl+Z
-  // restores all 20 parameters AND the painted mask.
+  // restores all parameters AND the painted mask.
   _flushUndoCapture();
   if (_baselineSnapshot) {
     _undoStack.push(_baselineSnapshot);
@@ -6782,7 +7000,7 @@ function resetSettingsToDefaults() {
   }
   _undoApplyDepth++;
   // Pause autosave so each intermediate change event doesn't queue a save;
-  // we clear sessionStorage explicitly below.
+  // we clear storage explicitly below.
   _autoSavePaused = true;
   try {
     // Match handleModelFile: refineLength defaults to ~1/250 of the loaded
@@ -6813,6 +7031,7 @@ function resetSettingsToDefaults() {
       selectPreset(defaultIdx, _presetSwatches[defaultIdx], true);
     }
     try { sessionStorage.removeItem(PROJECT_STORAGE_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(PROJECT_STORAGE_KEY); } catch { /* ignore */ }
   } finally {
     _autoSavePaused = false;
     _undoApplyDepth--;
@@ -6905,13 +7124,16 @@ exportGoBtn.addEventListener('click', async () => {
 
 /** Pack a BufferGeometry into binary-STL bytes (80-byte header, uint32 count, 50 bytes per triangle). With restorePose, vertices/normals are mapped back to the model's original file pose (see _restoreOriginalPose) without mutating the geometry. */
 function _geometryToBinarySTL(geo, restorePose = false) {
-  const t = currentPoseTrans;
+  // If model was scaled, use base geometry positions (100% scale) so that re-applying
+  // the saved modelScale ratio on re-import does not compound into a double-scaling.
+  const useBase = _baseGeometryPositions && (_baseGeometryPositions.length === geo.attributes.position.array.length);
+  const pos = useBase ? _baseGeometryPositions : geo.attributes.position.array;
+  const t = (useBase && _basePoseTrans) ? _basePoseTrans : currentPoseTrans;
   const rotInv = (restorePose && Math.abs(currentPoseRot.w) < 1 - 1e-12)
     ? currentPoseRot.clone().invert()
     : null;
   const ox = restorePose ? t.x : 0, oy = restorePose ? t.y : 0, oz = restorePose ? t.z : 0;
   const _v = new THREE.Vector3();
-  const pos = geo.attributes.position.array;
   const nor = geo.attributes.normal ? geo.attributes.normal.array : null;
   const triCount = (pos.length / 9) | 0;
   const buf = new ArrayBuffer(84 + 50 * triCount);
@@ -7102,7 +7324,19 @@ async function importProject(file) {
       // model.stl (and never call handleModelFile, so the scale/offset/refine
       // resets don't fire) and mask.json (its indices belong to the saved
       // model, not the live one).
-      if (data) applySettingsSnapshot(data);
+      if (data) {
+        applySettingsSnapshot(data);
+        if (!currentGeometry) {
+          if (data.currentModelMode === 'autofit') {
+            loadAutoFitModel();
+          } else if (data.currentPresetKey) {
+            loadPresetModel(data.currentPresetKey);
+          }
+          if (data.modelScale) {
+            applyModelScale(data.modelScale.x, data.modelScale.y, data.modelScale.z, false);
+          }
+        }
+      }
     }
 
     await _applyImportedTexture(unzipped, data);
