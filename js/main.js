@@ -47,7 +47,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260908d';
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260920_113';
+import { APP_VERSION } from './version.js?v=20260922_120';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -7681,7 +7681,7 @@ _updateUndoButtons();
     if (statText) {
       const hexA = '#' + colorA.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
       const hexB = '#' + colorB.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
-      statText.innerHTML = `Tool 1(白側): <span style="color:#fff;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorA.join(',')}) ${hexA}</span> &nbsp;|&nbsp; Tool 2(黒側): <span style="color:#f87171;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorB.join(',')}) ${hexB}</span> &nbsp;|&nbsp; ガンマ: <span style="color:#38bdf8;font-weight:bold;">${gamma.toFixed(2)}</span>`;
+      statText.innerHTML = `Tool 1: <span style="color:#fff;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorA.join(',')}) ${hexA}</span> &nbsp;|&nbsp; Tool 2: <span style="color:#f87171;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorB.join(',')}) ${hexB}</span> &nbsp;|&nbsp; Gamma: <span style="color:#38bdf8;font-weight:bold;">${gamma.toFixed(2)}</span>`;
     }
 
     const total = w * h;
@@ -7713,7 +7713,7 @@ _updateUndoButtons();
 
   function openModal() {
     if (!activeMapEntry || !activeMapEntry.imageData) {
-      alert('先にテクスチャ画像を読み込んでください。');
+      alert(t('color.mapModalNoTexture', '先にテクスチャ画像を読み込んでください。'));
       return;
     }
     currentCache = null; // Rebuild with current texture and palette
