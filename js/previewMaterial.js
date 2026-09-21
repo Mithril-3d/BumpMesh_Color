@@ -57,6 +57,7 @@ const sharedGLSL = /* glsl */`
   uniform vec3      interleavedPalette[8];
   uniform int       interleavedShadingMode;
   uniform int       interleavedProfileMode;
+  uniform float     interleavedGamma;
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
@@ -140,16 +141,9 @@ const sharedGLSL = /* glsl */`
       int activeK = int(mod(float(layerIdx), float(numTools)));
 
       if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
-        // Continuous gradient blending between Palette 0 and Palette 1
-        vec3 p0 = interleavedPalette[0];
-        vec3 p1 = interleavedPalette[1];
-        vec3 ab = p1 - p0;
-        float ab2 = dot(ab, ab);
-        float w = 1.0;
-        if (ab2 > 1e-6) {
-          float proj = dot(cTarget - p0, ab) / ab2;
-          w = clamp(1.0 - proj, 0.0, 1.0);
-        }
+        // Full-range Rec.709 luminance (0.0=black/Tool 2, 1.0=white/Tool 1) with optional gamma
+        float lum = clamp(dot(cTarget, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+        float w = pow(lum, max(0.1, interleavedGamma));
         float ratio = 0.0;
         if (w >= 0.5) {
           ratio = (activeK == 0) ? (w - 0.5) * 2.0 : 0.0;
@@ -698,6 +692,9 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedProfileMode) u.interleavedProfileMode = { value: 0 };
   u.interleavedProfileMode.value = settings.interleavedProfileMode ?? 0;
 
+  if (!u.interleavedGamma) u.interleavedGamma = { value: 1.0 };
+  u.interleavedGamma.value = settings.interleavedGamma ?? 1.0;
+
   if (settings.layerBlendMap) {
     if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
     else u.layerBlendMap.value = settings.layerBlendMap;
@@ -762,6 +759,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedPalette:       { value: initPalette },
     interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 1 },
     interleavedProfileMode:   { value: settings.interleavedProfileMode ?? 0 },
+    interleavedGamma:         { value: settings.interleavedGamma ?? 1.0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

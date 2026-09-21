@@ -58,13 +58,24 @@ export function computeInterleavedDisplacement(
 }
 
 /**
- * Compute continuous blend weight (0.0 to 1.0) of a color along the line between colorA and colorB in RGB space.
- * 1.0 means 100% colorA, 0.0 means 100% colorB.
+ * Compute continuous blend weight (0.0 to 1.0) using full-range Rec.709 luminance with optional gamma.
+ * 1.0 means pure white (Tool 1 dominant), 0.0 means pure black (Tool 2 dominant).
  *
  * @param {Array<number>} rgb - [r, g, b] (0..255)
- * @param {Array<number>} colorA - [r, g, b] (0..255)
- * @param {Array<number>} colorB - [r, g, b] (0..255)
- * @returns {number} weight of colorA (0.0..1.0)
+ * @param {number} gamma - gamma exponent (default 1.0, <1 brightens darks, >1 deepens blacks)
+ * @returns {number} blend weight (0.0..1.0)
+ */
+export function computeLuminanceBlendWeight(rgb, gamma = 1.0) {
+  const lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255.0;
+  const clamped = Math.max(0.0, Math.min(1.0, lum));
+  if (Math.abs(gamma - 1.0) < 1e-4) {
+    return clamped;
+  }
+  return Math.pow(clamped, Math.max(0.1, gamma));
+}
+
+/**
+ * Legacy Color Blend Weight along line between colorA and colorB in RGB space.
  */
 export function computeColorBlendWeight(rgb, colorA = [255, 255, 255], colorB = [0, 0, 0]) {
   const dr = colorB[0] - colorA[0];
@@ -84,6 +95,7 @@ export function computeColorBlendWeight(rgb, colorA = [255, 255, 255], colorB = 
 
   return Math.max(0, Math.min(1, 1.0 - t));
 }
+
 
 /**
  * Compute louver (shingle/eaves) displacement with 45-degree overhang shield

@@ -35,6 +35,7 @@ import {
   getInterleavedToolAtLayer,
   computeInterleavedDisplacement,
   computeColorBlendWeight,
+  computeLuminanceBlendWeight,
   generateInterleavedTable
 } from './layerBlending.js?v=20260912_102';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260918_134';
@@ -482,6 +483,9 @@ const interleavedConcaveAmpSlider     = document.getElementById('interleaved-con
 const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
 const interleavedProfileModeSelect    = document.getElementById('interleaved-profile-mode');
 const interleavedShadingModeSelect    = document.getElementById('interleaved-shading-mode');
+const interleavedGammaRow             = document.getElementById('interleaved-gamma-row');
+const interleavedGammaSlider          = document.getElementById('interleaved-gamma');
+const interleavedGammaVal             = document.getElementById('interleaved-gamma-val');
 const interleavedToolList             = document.getElementById('interleaved-tool-list');
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
 
@@ -495,7 +499,8 @@ let interleavedSettings          = {
   convexAmp: 0.35,
   concaveAmp: 0.00,
   profileMode: 0, // 0 = Flat step (recommended), 1 = 45° Louver
-  shadingMode: 1  // 0 = Step (discrete), 1 = Gradient (continuous)
+  shadingMode: 1, // 0 = Step (discrete), 1 = Gradient (continuous)
+  gamma: 1.00     // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -1709,8 +1714,13 @@ function renderInterleavedUI() {
   settings.interleavedConcave     = interleavedSettings.concaveAmp;
   settings.interleavedProfileMode = interleavedSettings.profileMode;
   settings.interleavedShadingMode = interleavedSettings.shadingMode;
+  settings.interleavedGamma       = interleavedSettings.gamma ?? 1.0;
   settings.interleavedToolIds     = toolIds;
   settings.colorSubMode           = currentColorSubMode;
+
+  if (interleavedGammaRow) {
+    interleavedGammaRow.style.display = (interleavedSettings.shadingMode === 1) ? 'flex' : 'none';
+  }
 }
 
 function switchColorSubMode(subMode, triggerUpdate = true) {
@@ -1785,6 +1795,16 @@ function initInterleavedEvents() {
     interleavedShadingModeSelect.addEventListener('change', (e) => {
       const parsed = parseInt(e.target.value, 10);
       interleavedSettings.shadingMode = isNaN(parsed) ? 0 : parsed;
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedGammaSlider) {
+    interleavedGammaSlider.addEventListener('input', (e) => {
+      const g = parseFloat(e.target.value) || 1.0;
+      interleavedSettings.gamma = g;
+      if (interleavedGammaVal) interleavedGammaVal.textContent = g.toFixed(2);
       renderInterleavedUI();
       updatePreview();
     });
@@ -5109,6 +5129,7 @@ function getFullPreviewSettings() {
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
     interleavedProfileMode: interleavedSettings.profileMode ?? 0,
     interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
+    interleavedGamma: interleavedSettings.gamma ?? 1.0,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: null,
@@ -5833,6 +5854,7 @@ async function handleExport(format = 'stl') {
       interleavedConcave: isLayerBlendMode ? 0.0 : (interleavedSettings.concaveAmp ?? 0.00),
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
+      interleavedGamma: interleavedSettings.gamma ?? 1.0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
       // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
       // so we receive a pristine subdivided base mesh, then slice & displace strictly per layer.
@@ -5944,11 +5966,10 @@ async function handleExport(format = 'stl') {
             : 1;
 
           let blendWeight = 1.0;
-          if (effectiveSettings.interleavedShadingMode === 1 && exportPalette.length >= 2) {
+          if (effectiveSettings.interleavedShadingMode === 1) {
             const rgb = sampleRGBBilinear(exportEntry.imageData.data, exportEntry.width, exportEntry.height, u, v);
-            const colorA = exportPalette[0].color || [255, 255, 255];
-            const colorB = exportPalette[1].color || [0, 0, 0];
-            blendWeight = computeColorBlendWeight(rgb, colorA, colorB);
+            const g = effectiveSettings.interleavedGamma ?? 1.0;
+            blendWeight = computeLuminanceBlendWeight(rgb, g);
           }
 
           return { targetTool, blendWeight };
@@ -7636,6 +7657,9 @@ _updateUndoButtons();
     return { w, h, rawData, currentWeights, fullrangeWeights, colorA, colorB };
   }
 
+  const modalGammaSlider = document.getElementById('modal-interleaved-gamma');
+  const modalGammaVal    = document.getElementById('modal-interleaved-gamma-val');
+
   function renderMap() {
     if (!currentCache) {
       currentCache = buildMapData();
@@ -7652,13 +7676,17 @@ _updateUndoButtons();
     const outImgData = ctx.createImageData(w, h);
     const outData = outImgData.data;
 
-    let selectedMode = 'current';
+    let selectedMode = 'fullrange';
     modeRadios.forEach(r => { if (r.checked) selectedMode = r.value; });
+
+    const gamma = interleavedSettings.gamma ?? 1.0;
+    if (modalGammaSlider && modalGammaSlider.value != gamma) modalGammaSlider.value = gamma.toFixed(2);
+    if (modalGammaVal)    modalGammaVal.textContent = gamma.toFixed(2);
 
     if (statText) {
       const hexA = '#' + colorA.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
       const hexB = '#' + colorB.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
-      statText.innerHTML = `Tool 1(白側重心): <span style="color:#fff;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorA.join(',')}) ${hexA}</span> &nbsp;|&nbsp; Tool 2(黒側重心): <span style="color:#f87171;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorB.join(',')}) ${hexB}</span>`;
+      statText.innerHTML = `Tool 1(白側): <span style="color:#fff;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorA.join(',')}) ${hexA}</span> &nbsp;|&nbsp; Tool 2(黒側): <span style="color:#f87171;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorB.join(',')}) ${hexB}</span> &nbsp;|&nbsp; ガンマ: <span style="color:#38bdf8;font-weight:bold;">${gamma.toFixed(2)}</span>`;
     }
 
     const total = w * h;
@@ -7675,7 +7703,8 @@ _updateUndoButtons();
       }
     } else if (selectedMode === 'fullrange') {
       for (let i = 0; i < total; i++) {
-        const val = Math.round(fullrangeWeights[i] * 255);
+        const rawLum = fullrangeWeights[i];
+        const val = Math.round(Math.pow(rawLum, Math.max(0.1, gamma)) * 255);
         const idx = i * 4;
         outData[idx]     = val;
         outData[idx + 1] = val;
@@ -7694,6 +7723,8 @@ _updateUndoButtons();
     }
     currentCache = null; // Rebuild with current texture and palette
     overlay.classList.remove('hidden');
+    // Default to fullrange mode
+    modeRadios.forEach(r => { r.checked = (r.value === 'fullrange'); });
     renderMap();
   }
 
@@ -7714,6 +7745,19 @@ _updateUndoButtons();
     });
   });
 
+  if (modalGammaSlider) {
+    modalGammaSlider.addEventListener('input', (e) => {
+      const g = parseFloat(e.target.value) || 1.0;
+      interleavedSettings.gamma = g;
+      if (modalGammaVal) modalGammaVal.textContent = g.toFixed(2);
+      if (interleavedGammaSlider) interleavedGammaSlider.value = g.toFixed(2);
+      if (interleavedGammaVal) interleavedGammaVal.textContent = g.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+      renderMap();
+    });
+  }
+
   // Canvas Hover inspection
   canvas.addEventListener('mousemove', (e) => {
     if (!currentCache || !hoverText) return;
@@ -7729,17 +7773,11 @@ _updateUndoButtons();
     const g = currentCache.rawData[pIdx + 1];
     const b = currentCache.rawData[pIdx + 2];
     const curW = currentCache.currentWeights[idx];
-    const fullW = currentCache.fullrangeWeights[idx];
+    const rawLum = currentCache.fullrangeWeights[idx];
+    const gamma = interleavedSettings.gamma ?? 1.0;
+    const adjW = Math.pow(rawLum, Math.max(0.1, gamma));
 
-    let statusHtml = `X:${x}, Y:${y} | 元RGB:(${r},${g},${b}) | `;
-    if (curW <= 0.001) {
-      statusHtml += `<span style="color:#f87171;font-weight:bold;">現在重み: 0.00 (黒潰れ!)</span> | フル輝度: ${fullW.toFixed(2)}`;
-    } else if (curW >= 0.999) {
-      statusHtml += `<span style="color:#38bdf8;font-weight:bold;">現在重み: 1.00 (白飛び)</span> | フル輝度: ${fullW.toFixed(2)}`;
-    } else {
-      statusHtml += `現在重み: ${curW.toFixed(2)} | フル輝度: ${fullW.toFixed(2)}`;
-    }
-
+    let statusHtml = `X:${x}, Y:${y} | 元RGB:(${r},${g},${b}) | 重み(ガンマ適用後): <span style="color:#34d399;font-weight:bold;">${adjW.toFixed(2)}</span> (生輝度:${rawLum.toFixed(2)}) | 旧方式:${curW.toFixed(2)}`;
     hoverText.innerHTML = statusHtml;
   });
 
@@ -7747,10 +7785,10 @@ _updateUndoButtons();
   if (downloadBtn) {
     downloadBtn.addEventListener('click', () => {
       if (!canvas) return;
-      let selectedMode = 'current';
+      let selectedMode = 'fullrange';
       modeRadios.forEach(r => { if (r.checked) selectedMode = r.value; });
       const link = document.createElement('a');
-      link.download = `interleaved_map_${selectedMode}.png`;
+      link.download = `interleaved_map_${selectedMode}_gamma${(interleavedSettings.gamma ?? 1.0).toFixed(2)}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     });
