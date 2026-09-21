@@ -7572,3 +7572,188 @@ window.addEventListener('keydown', (e) => {
 _restoreSessionSettings();
 _baselineSnapshot = _captureUndoSnapshot();
 _updateUndoButtons();
+
+// ── Interleaved Modulation Map (2D Blend Weight) Preview ─────────────────────
+(function initInterleavedMapPreview() {
+  const previewBtn    = document.getElementById('interleaved-preview-map-btn');
+  const overlay       = document.getElementById('interleaved-map-overlay');
+  const closeBtn      = document.getElementById('interleaved-map-close');
+  const closeBottomBtn= document.getElementById('interleaved-map-close-btn');
+  const downloadBtn   = document.getElementById('interleaved-map-download-btn');
+  const canvas        = document.getElementById('interleaved-map-canvas');
+  const statText      = document.getElementById('interleaved-map-stat-text');
+  const hoverText     = document.getElementById('interleaved-map-hover-text');
+  const modeRadios    = document.querySelectorAll('input[name="interleaved-map-mode"]');
+
+  if (!previewBtn || !overlay || !canvas) return;
+
+  let currentCache = null; // { width, height, rawData, currentWeights, fullrangeWeights, colorA, colorB }
+
+  function buildMapData() {
+    if (!activeMapEntry || !activeMapEntry.imageData) return null;
+    const w = activeMapEntry.width;
+    const h = activeMapEntry.height;
+    const rawData = activeMapEntry.imageData.data;
+    const totalPixels = w * h;
+
+    const exportPalette = currentColorPalette || [];
+    let colorA = [255, 255, 255];
+    let colorB = [0, 0, 0];
+    if (exportPalette.length >= 2) {
+      colorA = exportPalette[0].color ? [...exportPalette[0].color] : [255, 255, 255];
+      colorB = exportPalette[1].color ? [...exportPalette[1].color] : [0, 0, 0];
+    }
+
+    const currentWeights   = new Float32Array(totalPixels);
+    const fullrangeWeights = new Float32Array(totalPixels);
+
+    const dr = colorB[0] - colorA[0];
+    const dg = colorB[1] - colorA[1];
+    const db = colorB[2] - colorA[2];
+    const lenSq = dr * dr + dg * dg + db * db;
+
+    for (let i = 0; i < totalPixels; i++) {
+      const idx = i * 4;
+      const r = rawData[idx];
+      const g = rawData[idx + 1];
+      const b = rawData[idx + 2];
+
+      // 1. Current K-means projection logic
+      if (lenSq < 1e-4) {
+        currentWeights[i] = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      } else {
+        const pr = r - colorA[0];
+        const pg = g - colorA[1];
+        const pb = b - colorA[2];
+        const t = (pr * dr + pg * dg + pb * db) / lenSq;
+        currentWeights[i] = Math.max(0, Math.min(1, 1.0 - t));
+      }
+
+      // 2. Full-range Rec.709 Luminance
+      fullrangeWeights[i] = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+    }
+
+    return { w, h, rawData, currentWeights, fullrangeWeights, colorA, colorB };
+  }
+
+  function renderMap() {
+    if (!currentCache) {
+      currentCache = buildMapData();
+    }
+    if (!currentCache) {
+      if (statText) statText.textContent = 'テクスチャ画像が読み込まれていません。';
+      return;
+    }
+
+    const { w, h, rawData, currentWeights, fullrangeWeights, colorA, colorB } = currentCache;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const outImgData = ctx.createImageData(w, h);
+    const outData = outImgData.data;
+
+    let selectedMode = 'current';
+    modeRadios.forEach(r => { if (r.checked) selectedMode = r.value; });
+
+    if (statText) {
+      const hexA = '#' + colorA.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
+      const hexB = '#' + colorB.map(c => Math.round(c).toString(16).padStart(2, '0')).join('');
+      statText.innerHTML = `Tool 1(白側重心): <span style="color:#fff;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorA.join(',')}) ${hexA}</span> &nbsp;|&nbsp; Tool 2(黒側重心): <span style="color:#f87171;background:#334155;padding:1px 4px;border-radius:3px;">RGB(${colorB.join(',')}) ${hexB}</span>`;
+    }
+
+    const total = w * h;
+    if (selectedMode === 'original') {
+      outData.set(rawData);
+    } else if (selectedMode === 'current') {
+      for (let i = 0; i < total; i++) {
+        const val = Math.round(currentWeights[i] * 255);
+        const idx = i * 4;
+        outData[idx]     = val;
+        outData[idx + 1] = val;
+        outData[idx + 2] = val;
+        outData[idx + 3] = 255;
+      }
+    } else if (selectedMode === 'fullrange') {
+      for (let i = 0; i < total; i++) {
+        const val = Math.round(fullrangeWeights[i] * 255);
+        const idx = i * 4;
+        outData[idx]     = val;
+        outData[idx + 1] = val;
+        outData[idx + 2] = val;
+        outData[idx + 3] = 255;
+      }
+    }
+
+    ctx.putImageData(outImgData, 0, 0);
+  }
+
+  function openModal() {
+    if (!activeMapEntry || !activeMapEntry.imageData) {
+      alert('先にテクスチャ画像を読み込んでください。');
+      return;
+    }
+    currentCache = null; // Rebuild with current texture and palette
+    overlay.classList.remove('hidden');
+    renderMap();
+  }
+
+  function closeModal() {
+    overlay.classList.add('hidden');
+  }
+
+  previewBtn.addEventListener('click', openModal);
+  if (closeBtn)       closeBtn.addEventListener('click', closeModal);
+  if (closeBottomBtn) closeBottomBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  modeRadios.forEach(r => {
+    r.addEventListener('change', () => {
+      renderMap();
+    });
+  });
+
+  // Canvas Hover inspection
+  canvas.addEventListener('mousemove', (e) => {
+    if (!currentCache || !hoverText) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = Math.min(canvas.width - 1, Math.max(0, Math.floor((e.clientX - rect.left) * scaleX)));
+    const y = Math.min(canvas.height - 1, Math.max(0, Math.floor((e.clientY - rect.top) * scaleY)));
+    const idx = y * canvas.width + x;
+    const pIdx = idx * 4;
+
+    const r = currentCache.rawData[pIdx];
+    const g = currentCache.rawData[pIdx + 1];
+    const b = currentCache.rawData[pIdx + 2];
+    const curW = currentCache.currentWeights[idx];
+    const fullW = currentCache.fullrangeWeights[idx];
+
+    let statusHtml = `X:${x}, Y:${y} | 元RGB:(${r},${g},${b}) | `;
+    if (curW <= 0.001) {
+      statusHtml += `<span style="color:#f87171;font-weight:bold;">現在重み: 0.00 (黒潰れ!)</span> | フル輝度: ${fullW.toFixed(2)}`;
+    } else if (curW >= 0.999) {
+      statusHtml += `<span style="color:#38bdf8;font-weight:bold;">現在重み: 1.00 (白飛び)</span> | フル輝度: ${fullW.toFixed(2)}`;
+    } else {
+      statusHtml += `現在重み: ${curW.toFixed(2)} | フル輝度: ${fullW.toFixed(2)}`;
+    }
+
+    hoverText.innerHTML = statusHtml;
+  });
+
+  // Download PNG
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      if (!canvas) return;
+      let selectedMode = 'current';
+      modeRadios.forEach(r => { if (r.checked) selectedMode = r.value; });
+      const link = document.createElement('a');
+      link.download = `interleaved_map_${selectedMode}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+})();
+

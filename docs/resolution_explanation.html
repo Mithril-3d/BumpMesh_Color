@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>振り重ね変調の分解能メカニズム &amp; 小型モデルでの高解像度化アプローチ</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background-color: #020617;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 1040px;
+      width: 100%;
+    }
+    .svg-wrapper {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .svg-wrapper svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .desc {
+      margin-top: 20px;
+      padding: 16px 20px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      line-height: 1.6;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="svg-wrapper">
+      <img src="./images/resolution_explanation.svg" alt="振り重ね変調の分解能メカニズム" style="width:100%; display:block;" />
+    </div>
+    <div class="desc">
+      <strong style="color: #38bdf8;">💡 要約ポイント:</strong><br>
+      1. <strong>メッシュ細分化が無効な理由:</strong> ポリゴン数をいくら増やしても、スライサーがZ方向に切る「層の厚み（0.2mmなど）」と「層の総数」は1ミリも変わらないため。<br>
+      2. <strong>小型モデルで荒くなる理由:</strong> 高さ10mmのモデルでは、0.2mmピッチだと全体で50層（各色わずか25層）しかなく、縦方向が25ピクセルの粗いモザイク画になるため。<br>
+      3. <strong>解決策:</strong> 縦の層を物理的に増やす「極小層厚（0.08mm以下）」か、プリンタが得意な「横方向（XY軸）のディザリング変調」を導入する。
+    </div>
+  </div>
+</body>
+</html>

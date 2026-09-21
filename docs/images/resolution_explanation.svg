@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1300" width="1000" height="1300" style="background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="highlightGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="100%" stop-color="#fb7185" />
+    </linearGradient>
+    <linearGradient id="successGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+    <!-- Drop Shadow Filter -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Title Header -->
+  <rect x="30" y="25" width="940" height="90" rx="12" fill="url(#cardGrad)" filter="url(#shadow)" stroke="#334155" stroke-width="1.5" />
+  <text x="60" y="65" fill="url(#headerGrad)" font-size="24" font-weight="bold">振り重ね変調の分解能メカニズム &amp; 小型モデルでの高解像度化アプローチ</text>
+  <text x="60" y="93" fill="#94a3b8" font-size="14">なぜメッシュ分割では解決しないのか？ どうすれば小さいモデルでも綺麗に色・階調が出るのか？</text>
+
+  <!-- ================= SECTION 1: なぜメッシュ分割では解決しないのか ================= -->
+  <g transform="translate(30, 135)">
+    <rect width="940" height="340" rx="12" fill="url(#cardGrad)" filter="url(#shadow)" stroke="#334155" stroke-width="1.5" />
+    <!-- Section Title -->
+    <rect x="20" y="16" width="6" height="24" rx="3" fill="#f43f5e" />
+    <text x="36" y="34" fill="#f8fafc" font-size="18" font-weight="bold">1. なぜ「三角メッシュを細かく分割」しても解決しないのか？</text>
+    <text x="36" y="58" fill="#94a3b8" font-size="13">3Dモデルのポリゴン（頂点）をいくら増やしても、3Dプリンタがスライスする「物理層（厚み）」は変わらないためです。</text>
+
+    <!-- Left: メッシュの世界 -->
+    <g transform="translate(40, 80)">
+      <rect width="400" height="230" rx="8" fill="#0f172a" stroke="#334155" />
+      <text x="20" y="30" fill="#38bdf8" font-size="15" font-weight="bold">【3Dデータ（メッシュ）の世界】</text>
+      
+      <!-- Rough mesh -->
+      <g transform="translate(30, 60)">
+        <polygon points="40,20 10,90 70,90" fill="none" stroke="#64748b" stroke-width="2" />
+        <polygon points="40,20 70,90 100,20" fill="none" stroke="#64748b" stroke-width="2" />
+        <circle cx="40" cy="20" r="4" fill="#38bdf8" />
+        <circle cx="10" cy="90" r="4" fill="#38bdf8" />
+        <circle cx="70" cy="90" r="4" fill="#38bdf8" />
+        <circle cx="100" cy="20" r="4" fill="#38bdf8" />
+        <text x="25" y="125" fill="#64748b" font-size="12">通常メッシュ</text>
+      </g>
+
+      <!-- Arrow -->
+      <path d="M 160 115 L 200 115" stroke="#f43f5e" stroke-width="3" marker-end="url(#arrow)" />
+      <text x="155" y="105" fill="#f43f5e" font-size="11" font-weight="bold">細分化</text>
+
+      <!-- Subdivided mesh -->
+      <g transform="translate(210, 60)">
+        <!-- Complex triangles -->
+        <polygon points="40,20 25,55 55,55" fill="none" stroke="#38bdf8" stroke-width="1" />
+        <polygon points="25,55 10,90 40,90" fill="none" stroke="#38bdf8" stroke-width="1" />
+        <polygon points="55,55 40,90 70,90" fill="none" stroke="#38bdf8" stroke-width="1" />
+        <polygon points="40,20 55,55 85,20" fill="none" stroke="#38bdf8" stroke-width="1" />
+        <polygon points="55,55 70,90 100,55" fill="none" stroke="#38bdf8" stroke-width="1" />
+        <polygon points="85,20 70,90 115,20" fill="none" stroke="#38bdf8" stroke-width="1" />
+        <text x="25" y="125" fill="#38bdf8" font-size="12">100万ポリゴン超</text>
+      </g>
+
+      <rect x="20" y="195" width="360" height="24" rx="4" fill="#1e293b" />
+      <text x="200" y="212" fill="#cbd5e1" font-size="12" text-anchor="middle">メッシュは超高精細・滑らかになるが...</text>
+    </g>
+
+    <!-- Right: スライサーの世界 -->
+    <g transform="translate(480, 80)">
+      <rect width="420" height="230" rx="8" fill="#0f172a" stroke="#f43f5e" stroke-width="1.5" />
+      <text x="20" y="30" fill="#f43f5e" font-size="15" font-weight="bold">【スライサー &amp; 3Dプリントの世界（物理の壁）】</text>
+
+      <!-- Slicing layers -->
+      <g transform="translate(30, 50)">
+        <!-- Layer 4 -->
+        <rect x="20" y="10" width="220" height="22" fill="#3b82f6" rx="2" />
+        <text x="250" y="26" fill="#94a3b8" font-size="11">Layer 4 (0.8mm) Tool 2</text>
+        <!-- Layer 3 -->
+        <rect x="20" y="36" width="250" height="22" fill="#f8fafc" rx="2" stroke="#475569" />
+        <text x="280" y="52" fill="#f8fafc" font-size="11" font-weight="bold">Layer 3 (0.6mm) 凸突出</text>
+        <!-- Layer 2 -->
+        <rect x="20" y="62" width="220" height="22" fill="#3b82f6" rx="2" />
+        <text x="250" y="78" fill="#94a3b8" font-size="11">Layer 2 (0.4mm) Tool 2</text>
+        <!-- Layer 1 -->
+        <rect x="20" y="88" width="250" height="22" fill="#f8fafc" rx="2" stroke="#475569" />
+        <text x="280" y="104" fill="#f8fafc" font-size="11" font-weight="bold">Layer 1 (0.2mm) 凸突出</text>
+      </g>
+
+      <rect x="20" y="175" width="380" height="44" rx="4" fill="#450a0a" stroke="#dc2626" stroke-width="1" />
+      <text x="210" y="193" fill="#fca5a5" font-size="12" font-weight="bold" text-anchor="middle">スライサーは「層厚 0.2mm」で水平に輪切り！</text>
+      <text x="210" y="210" fill="#fecaca" font-size="11" text-anchor="middle">ポリゴンがどれだけ多くても、層の数と厚みは1ミリも変わりません。</text>
+    </g>
+  </g>
+
+  <!-- ================= SECTION 2: なぜ小型モデルだと解像度が下がるのか ================= -->
+  <g transform="translate(30, 495)">
+    <rect width="940" height="320" rx="12" fill="url(#cardGrad)" filter="url(#shadow)" stroke="#334155" stroke-width="1.5" />
+    <!-- Section Title -->
+    <rect x="20" y="16" width="6" height="24" rx="3" fill="#fbbf24" />
+    <text x="36" y="34" fill="#f8fafc" font-size="18" font-weight="bold">2. なぜ「モデルのサイズが小さい」と分解能が落ちるのか？</text>
+    <text x="36" y="58" fill="#94a3b8" font-size="13">高さが低いと、Z方向に積層できる「層（ドット）の総数」が物理的に激減してしまうためです。</text>
+
+    <!-- Large Model -->
+    <g transform="translate(40, 80)">
+      <rect width="400" height="215" rx="8" fill="#0f172a" stroke="#334155" />
+      <text x="20" y="30" fill="#38bdf8" font-size="15" font-weight="bold">【大型モデル（高さ 100mm）】</text>
+      <text x="20" y="50" fill="#94a3b8" font-size="12">層厚 0.2mm → 全 500 レイヤー（各色 250回交代）</text>
+
+      <!-- High res stripe representation -->
+      <g transform="translate(20, 65)">
+        <!-- Simulate dense layers with SVG pattern -->
+        <rect width="180" height="130" fill="#1e293b" rx="4" />
+        <!-- 20 stripes representing dense layers -->
+        <path d="M 10 10 h 160 M 10 16 h 160 M 10 22 h 160 M 10 28 h 160 M 10 34 h 160 M 10 40 h 160 M 10 46 h 160 M 10 52 h 160 M 10 58 h 160 M 10 64 h 160 M 10 70 h 160 M 10 76 h 160 M 10 82 h 160 M 10 88 h 160 M 10 94 h 160 M 10 100 h 160 M 10 106 h 160 M 10 112 h 160 M 10 118 h 160" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="8,4" />
+        
+        <!-- Explanation text -->
+        <g transform="translate(195, 20)">
+          <text x="0" y="20" fill="#34d399" font-size="14" font-weight="bold">✓ 縦250ドットの表現力</text>
+          <text x="0" y="45" fill="#cbd5e1" font-size="12">縞が非常に細かく密集するため、</text>
+          <text x="0" y="65" fill="#cbd5e1" font-size="12">文字や繊細な絵柄、なめらかな</text>
+          <text x="0" y="85" fill="#cbd5e1" font-size="12">グラデーションが自然に見える！</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Small Model -->
+    <g transform="translate(480, 80)">
+      <rect width="420" height="215" rx="8" fill="#0f172a" stroke="#eab308" stroke-width="1.5" />
+      <text x="20" y="30" fill="#facc15" font-size="15" font-weight="bold">【小型モデル（高さ 10mm）】</text>
+      <text x="20" y="50" fill="#94a3b8" font-size="12">層厚 0.2mm → 全 50 レイヤー（各色 たった25回！）</text>
+
+      <!-- Low res stripes -->
+      <g transform="translate(20, 65)">
+        <rect width="180" height="130" fill="#1e293b" rx="4" />
+        <!-- Only 6 fat stripes -->
+        <rect x="10" y="12" width="160" height="14" fill="#f8fafc" rx="2" />
+        <rect x="10" y="32" width="160" height="14" fill="#3b82f6" rx="2" />
+        <rect x="10" y="52" width="160" height="14" fill="#f8fafc" rx="2" />
+        <rect x="10" y="72" width="160" height="14" fill="#3b82f6" rx="2" />
+        <rect x="10" y="92" width="160" height="14" fill="#f8fafc" rx="2" />
+        
+        <!-- Explanation text -->
+        <g transform="translate(195, 20)">
+          <text x="0" y="20" fill="#f87171" font-size="14" font-weight="bold">✗ 縦わずか25ドットのモザイク</text>
+          <text x="0" y="45" fill="#cbd5e1" font-size="12">縞が太すぎて目立ち、絵柄が</text>
+          <text x="0" y="65" fill="#cbd5e1" font-size="12">粗いボーダー柄になってしまう。</text>
+          <text x="0" y="85" fill="#cbd5e1" font-size="12">（絵が潰れる・階調が出ない）</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ================= SECTION 3: 解決案 ================= -->
+  <g transform="translate(30, 835)">
+    <rect width="940" height="435" rx="12" fill="url(#cardGrad)" filter="url(#shadow)" stroke="#334155" stroke-width="1.5" />
+    <!-- Section Title -->
+    <rect x="20" y="16" width="6" height="24" rx="3" fill="#10b981" />
+    <text x="36" y="34" fill="#f8fafc" font-size="18" font-weight="bold">3. 小さいモデルでも分解能を高くする 2大解決アプローチ</text>
+    <text x="36" y="58" fill="#94a3b8" font-size="13">縦方向（Z軸）の物理的なサンプル数を増やすか、プリンタが得意な横方向（XY軸）の精度を活用します。</text>
+
+    <!-- Solution A -->
+    <g transform="translate(30, 75)">
+      <rect width="420" height="335" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5" />
+      <rect x="15" y="15" width="130" height="26" rx="4" fill="#065f46" />
+      <text x="80" y="33" fill="#34d399" font-size="13" font-weight="bold" text-anchor="middle">解決案 A（縦の改善）</text>
+      <text x="155" y="33" fill="#f8fafc" font-size="15" font-weight="bold">極小レイヤー厚（0.08mm/0.05mm）</text>
+
+      <text x="20" y="65" fill="#94a3b8" font-size="12">同じ高さ 10mm の中に「2.5〜4倍」の層を詰め込む！</text>
+
+      <!-- Visual comparison -->
+      <g transform="translate(20, 80)">
+        <!-- 0.2mm box -->
+        <rect x="0" y="0" width="180" height="120" fill="#1e293b" rx="4" stroke="#475569" />
+        <text x="90" y="20" fill="#94a3b8" font-size="11" text-anchor="middle">従来: 0.20mm (50層)</text>
+        <rect x="15" y="30" width="150" height="16" fill="#f8fafc" rx="1" />
+        <rect x="15" y="50" width="150" height="16" fill="#3b82f6" rx="1" />
+        <rect x="15" y="70" width="150" height="16" fill="#f8fafc" rx="1" />
+        <rect x="15" y="90" width="150" height="16" fill="#3b82f6" rx="1" />
+
+        <!-- 0.08mm box -->
+        <rect x="200" y="0" width="180" height="120" fill="#064e3b" rx="4" stroke="#10b981" />
+        <text x="290" y="20" fill="#34d399" font-size="11" font-weight="bold" text-anchor="middle">薄層: 0.08mm (125層!)</text>
+        <!-- Densely packed thin stripes -->
+        <path d="M 215 30 h 150 M 215 37 h 150 M 215 44 h 150 M 215 51 h 150 M 215 58 h 150 M 215 65 h 150 M 215 72 h 150 M 215 79 h 150 M 215 86 h 150 M 215 93 h 150 M 215 100 h 150 M 215 107 h 150" stroke="#f8fafc" stroke-width="3" stroke-dasharray="10,2" />
+      </g>
+
+      <!-- Key feature callouts -->
+      <g transform="translate(20, 220)">
+        <rect width="380" height="95" rx="6" fill="#1e293b" />
+        <text x="15" y="25" fill="#34d399" font-size="13" font-weight="bold">【効果】</text>
+        <text x="15" y="45" fill="#e2e8f0" font-size="12">• 縞の周期が 0.16mm になり、肉眼の限界に迫る。</text>
+        <text x="15" y="65" fill="#e2e8f0" font-size="12">• 小型モデルでも縦方向の解像度が 2.5倍 に跳ね上がる。</text>
+        <text x="15" y="85" fill="#fbbf24" font-size="11">※BumpMesh側で薄層用の突出量（0.15mm等）へ自動補正が必要</text>
+      </g>
+    </g>
+
+    <!-- Solution B -->
+    <g transform="translate(480, 75)">
+      <rect width="430" height="335" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5" />
+      <rect x="15" y="15" width="130" height="26" rx="4" fill="#0369a1" />
+      <text x="80" y="33" fill="#38bdf8" font-size="13" font-weight="bold" text-anchor="middle">解決案 B（横の改善）</text>
+      <text x="155" y="33" fill="#f8fafc" font-size="15" font-weight="bold">周方向（XY軸）ディザリング変調</text>
+
+      <text x="20" y="65" fill="#94a3b8" font-size="12">3Dプリンタの「XY軸の超高精度（0.01mm）」を味方につける！</text>
+
+      <!-- Visual comparison -->
+      <g transform="translate(20, 80)">
+        <rect width="390" height="120" rx="4" fill="#1e293b" stroke="#475569" />
+        <text x="20" y="24" fill="#94a3b8" font-size="11">【1つの層（Layer）を上から見た壁面の比較】</text>
+        
+        <!-- Conventional: Solid straight bar -->
+        <text x="20" y="48" fill="#64748b" font-size="11">現在: 均一突出</text>
+        <rect x="120" y="38" width="250" height="12" fill="#f8fafc" rx="2" />
+
+        <!-- Dithered: Modulated bar -->
+        <text x="20" y="85" fill="#38bdf8" font-size="11" font-weight="bold">案B: 横方向ドット</text>
+        <g transform="translate(120, 74)">
+          <rect x="0" y="0" width="30" height="14" fill="#38bdf8" rx="2" />
+          <rect x="40" y="0" width="15" height="14" fill="#38bdf8" rx="2" />
+          <rect x="65" y="0" width="45" height="14" fill="#38bdf8" rx="2" />
+          <rect x="120" y="0" width="20" height="14" fill="#38bdf8" rx="2" />
+          <rect x="150" y="0" width="60" height="14" fill="#38bdf8" rx="2" />
+          <rect x="220" y="0" width="25" height="14" fill="#38bdf8" rx="2" />
+        </g>
+        <text x="120" y="105" fill="#94a3b8" font-size="10">↑ 新聞の写真（ハーフトーン）のようにドットの粗密で色を表現</text>
+      </g>
+
+      <!-- Key feature callouts -->
+      <g transform="translate(20, 220)">
+        <rect width="390" height="95" rx="6" fill="#1e293b" />
+        <text x="15" y="25" fill="#38bdf8" font-size="13" font-weight="bold">【効果】</text>
+        <text x="15" y="45" fill="#e2e8f0" font-size="12">• 縦（Z軸）の層数が少なくても、横方向の情報量でカバー。</text>
+        <text x="15" y="65" fill="#e2e8f0" font-size="12">• 1本の層の中で濃淡を表現できるため、文字の輪郭も滑らかに。</text>
+        <text x="15" y="85" fill="#38bdf8" font-size="11">※スライサーのArachne（可変押し出し幅）と連動して真価を発揮</text>
+      </g>
+    </g>
+  </g>
+</svg>
