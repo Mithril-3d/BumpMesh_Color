@@ -28,6 +28,10 @@ export const TRANSLATIONS = {
 let _currentLang = 'en';
 const _cache = {};
 
+const _v = (typeof import.meta !== 'undefined' && import.meta.url)
+  ? (new URL(import.meta.url).search || '?v=20260922_121')
+  : '?v=20260922_121';
+
 /**
  * Load a language file into the cache.
  * Returns true on success, false on failure.
@@ -39,7 +43,7 @@ async function _loadLang(lang) {
   }
 
   try {
-    const { default: strings } = await import(`./i18n/${lang}.js`);
+    const { default: strings } = await import(`./i18n/${lang}.js${_v}`);
     _cache[lang] = strings;
     return true;
   } catch (err) {

@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.1.3-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.2.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -28,6 +28,31 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ---
 
+## 🌟 What's New in Recent Updates
+
+- **v1.2.0 (Latest Release - 2026-09-22)**:
+  - **Interleaved Layer Gradient Shading with Full-Range Luminance & Gamma Control**:
+    - Eliminated dark shadow clipping and flattening. Uses ITU-R BT.709 full-range luminance and continuous gamma control (`0.40`–`2.20`, default `1.00`) for rich, smooth tone transitions from deep shadows to highlights.
+    - Complete calculation parity across the 3D viewport shader, multi-tool 3MF export geometry, and 2D modulation map preview.
+  - **2D Interleaved Modulation Map Preview Modal**:
+    - Inspect the exact slice blend-weight map directly in the browser before export.
+    - Features 3 display modes (Centroid Clipping, Tone-Preserving Full-Range, Original Texture), an interactive real-time pixel inspector, live gamma tuning, and PNG image download.
+  - **Streamlined COLOR & MULTI-TOOL UI**:
+    - Extruder count slider highlighted at the very top of the panel.
+    - Color palette list unified across both Color Quantization and Interleaved Layers tabs for seamless configuration.
+    - Dedicated bold button for one-click access to the 2D modulation map modal.
+  - **Pixel-Perfect Alignment & Dynamic i18n Cache-Busting**:
+    - Auto-save switch margins aligned with lower section headers; fixed dynamic translation asset caching.
+- **v1.1.4 (2026-09-21)**:
+  - **Full Project Save & Load (`.bumpmesh`)**: Save and restore the 3D mesh, texture image, procedural settings, and color palette into a single portable project file.
+  - **Auto-Save Mode Switching**: Instant toggle between Session (`sessionStorage`) and Persistent (`localStorage`) auto-save modes.
+  - **Privacy & Imprint Modal**: Full disclosure of 100% client-side, zero-telemetry architecture.
+- **v1.1.3 & v1.1.2 (2026-09-20)**:
+  - **Persistent Tool Assignments**: Retains custom extruder tool assignments (Tool 1–8) even when switching or reloading textures.
+  - **Interactive Real-Time Model Scaling**: Scale models by percentage (X/Y/Z) with uniform aspect ratio lock (🔒) and camera fit.
+
+---
+
 ## 🌟 Key Features Added in BumpMesh_Color
 
 ### 1. 🎨 Color Quantization & Multi-Tool Mapping
@@ -44,11 +69,19 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Profile Modes**:
   - **Flat Step (Standard / Recommended)**: Produces crisp, perpendicular step edges between color bands.
   - **45° Louver Overhang (Experimental)**: Angled overhangs that shield non-target layers from direct top-down view.
-- **Tonal Shading Modes**:
+- **Tonal Shading & Gamma Tuning**:
   - **Sharp (Binary / 0-1)**: Solid, distinct color levels.
-  - **Gradient (Continuous)**: Smoothly modulates extrusion depth based on image luminance.
+  - **Gradient (Continuous)**: Smoothly modulates extrusion depth based on full-range luminance (ITU-R BT.709) without shadow clipping.
+  - **Tonal Gamma Control (`0.40`–`2.20`)**: Fine-tune shadow contrast and midtone balance in real time.
+- **2D Modulation Map Inspector Modal**:
+  - Click **"🖼️ View Interleaved Modulation Map (2D)"** to examine the exact grayscale weight map used for layer thickness modulation.
+  - Compare algorithms side-by-side (Centroid Clipping vs. Tone-Preserving Full-Range) and hover over any pixel to inspect RGB, luminance, and blend weights.
 
 ![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
+*Fig. 1: Updated Interleaved Layers configuration panel with Extruder Count, palette mapping, and real-time 3D preview.*
+
+![BumpMesh_Color Interleaved Modulation Map Preview Modal](docs/images/interleaved_modulation_modal.png)
+*Fig. 2: 2D Interleaved Modulation Map Inspector modal with live gamma tuning and pixel inspection.*
 
 | Actual Printed Result (White & Black Filament) | Sliced Preview (Infill 0%, Perimeters 2) |
 | :---: | :---: |
@@ -73,7 +106,17 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Windows Explorer Thumbnail**: Automatically embeds compliant PNG thumbnails so files display high-res preview icons in Windows File Explorer.
 - **Non-blocking Progress**: Asynchronous export pipeline with realistic 0%–100% progress reporting that never freezes the browser.
 
-### 4. 🌐 Comprehensive 14-Language Localization
+### 4. 💾 Full Project Save & Auto-Save (.bumpmesh)
+- **All-in-One Portable Archives**: Save loaded 3D models, textures, parameter adjustments, and multi-color tool assignments in a single `.bumpmesh` project file.
+- **Auto-Save Switch**: Choose between **Session** (`sessionStorage`) and **Persistent** (`localStorage`) modes directly from the header.
+- **Tool Memory Retention**: Custom tool mappings (e.g. Tool 7, Tool 8) persist across texture replacements.
+
+### 5. 📐 Interactive Real-Time Model Scaling
+- **Live Percent Scaling**: Resize X / Y / Z with instantaneous viewport rendering and bounding box millimeter updates.
+- **Uniform Aspect Ratio Lock (🔒)**: Lock proportions or unlock for anisotropic scaling.
+- **1-Click Reset & Fit**: One-click 100% restore and camera frame fitting (⛶).
+
+### 6. 🌐 Comprehensive 14-Language Localization
 Fully localized UI with instant language switching:
 - English, Japanese (日本語), German (Deutsch), French (Français), Spanish (Español), Italian (Italiano), Portuguese (Português), Chinese (中文), Korean (한국어), Russian (Русский), Ukrainian (Українська), Polish (Polski), Danish (Dansk), Turkish (Türkçe).
 
@@ -140,7 +183,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.1.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.2.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -168,6 +211,29 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ---
 
+## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v1.2.0 (最新安定版 - 2026-09-22)**:
+  - **振り重ねグラデーション階調保持（フルレンジ輝度＆ガンマ補正）**:
+    - 従来の暗部（影や髪の毛など）の黒潰れ・平坦化を解消。ITU-R BT.709フルレンジ輝度とガンマ補正（`0.40`〜`2.20`、標準 `1.00`）により、暗部から明部まで豊かな連続階調表現を実現。
+    - 3Dビューポートのプレビューシェーダー、マルチツール3MFエクスポート、2D変調プレビューで同一の計算式を適用し、完全一致を保証。
+  - **振り重ね変調画像（2Dマップ）確認プレビューモーダル新設**:
+    - スライス・エクスポート前に、実際に層ごとの厚み変調に使われる重みマップ画像を画面上で直接確認できるモーダルを新設。
+    - 3つの表示モード（重心クリッピング旧方式、フルレンジ階調保持、元テクスチャ画像）、インタラクティブインスペクター（ピクセル情報表示）、ライブガンマ調整、PNG画像保存に対応。
+  - **COLOR & MULTI-TOOL パネルのUI配置最適化**:
+    - 最重要パラメータである Extruder 数スライダーを最上部に際立たせ、カラーパレット一覧を共通化。操作性を大幅に向上。
+  - **UI細部調和・多言語辞書のキャッシュバスティング対応**:
+    - 自動保存スイッチの余白垂直統一、および言語切り替え時のブラウザキャッシュによるキー名表示不具合を解消。
+- **v1.1.4 (2026-09-21)**:
+  - **プロジェクト保存・読込（`.bumpmesh`）の完全対応**: メッシュ、画像、パラメータ、パレットを丸ごと保存・復元。
+  - **自動保存モード切替**: 短期保存（`sessionStorage`）と長期保存（`localStorage`）をワンクリック切替。
+  - **プライバシーポリシー明記**: 完全ローカル実行・Cookie不使用・通信ゼロの安全性を明文化。
+- **v1.1.3 & v1.1.2 (2026-09-20)**:
+  - **ツール番号の短期記憶保持**: テクスチャを変更・再読込しても設定したツール番号（Tool 1〜8）をセッション中に維持。
+  - **リアルタイムモデル拡大縮小（スケーリング）**: パーセント即時入力、縦横比固定ロック（🔒）、カメラフィット。
+
+---
+
 ## 🌟 BumpMesh_Color の主な新機能
 
 ### 1. 🎨 カラー量子化とマルチツール割り当て
@@ -184,11 +250,19 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **断面プロファイル選択**:
   - **フラット段差（標準ステップ・推奨）**: 色の境界が直角で美しい、くっきりとした標準仕上げ。
   - **45° ルーバー庇（実験的）**: 上からの視線に対して他色層を隠す庇（ひさし）形状。
-- **階調表現**:
+- **階調表現とガンマ調整**:
   - **シャープ（二値 / 0-1）**: はっきりとしたコントラストの二値表現。
-  - **グラデーション（連続階調）**: 画像の明暗に応じて出っ張り量を連続的・無段階に制御。
+  - **グラデーション（連続階調）**: フルレンジ輝度（ITU-R BT.709）により暗部クリッピングなしで滑らかに変調。
+  - **階調調整 (ガンマ) スライダー（`0.40`〜`2.20`）**: 暗部の引き締めや明暗バランスをリアルタイム調整。
+- **振り重ね変調画像（2Dマップ）確認プレビューモーダル**:
+  - **「🖼️ 振り重ね変調画像（2Dマップ）を確認」** ボタンから、実際にスライス変調に用いられるモノクロ重みマップを全画面モーダルで検査可能。
+  - 表示モード切替やピクセルごとのRGB・輝度・ブレンド重みのリアルタイムインスペクター、PNG画像保存を搭載。
 
 ![BumpMesh_Color 振り重ねプレビュー画面](docs/images/interleaved_app_screen.png)
+*図1: 最新の振り重ね設定パネル（最上部Extruder数、共通パレット、3Dプレビュー連動）*
+
+![BumpMesh_Color 振り重ね変調画像プレビューモーダル](docs/images/interleaved_modulation_modal.png)
+*図2: 2D変調画像インスペクターモーダル（表示モード切替・リアルタイムガンマ調整・ピクセル情報インスペクター）*
 
 | 実際のプリント出力例 (白・黒 2色フィラメント) | スライサーでのスライス結果 (インフィル0%, ペリメータ2) |
 | :---: | :---: |
@@ -213,7 +287,17 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **Windows エクスプローラーのサムネイル表示**: 標準的な3MFサムネイル仕様に準拠しており、Windowsのエクスプローラー上で高解像度プレビューアイコンが表示されます。
 - **フリーズしない非同期進捗バー**: 大規模なメッシュでもブラウザが固まらず、0%〜100%の進捗がスムーズに表示されます。
 
-### 4. 🌐 14言語の完全ローカライズ
+### 4. 💾 プロジェクト保存・復元 & 自動保存 (.bumpmesh)
+- **オールインワンのプロジェクト保存**: 読み込んだ3Dモデル、テクスチャ画像、調整パラメータ、マルチカラーのツール割り当てをすべて1つの `.bumpmesh` ファイル（ZIP形式）として保存・復元可能。
+- **自動保存モード切替**: ヘッダーから短期保存（`sessionStorage`）と長期保存（`localStorage`）をワンクリックで切り替え可能。
+- **ツール番号設定の記憶保持**: テクスチャを別の画像に差し替えても、ユーザーが設定した各色のツール番号（Tool 1〜8）をセッション中に自動保持。
+
+### 5. 📐 リアルタイムモデル拡大縮小（スケーリング）
+- **パーセント即時入力**: X / Y / Z の%数値を入力すると即座に3Dビューポートと寸法線に反映。
+- **縦横比固定ロック（🔒）**: ロック時はプロポーションを維持したまま一括スケーリング。解除で各軸個別変倍に対応。
+- **1クリック復元＆カメラフィット**: 100%リセットや、モデル全体を収めるカメラフィット（⛶）に対応。
+
+### 6. 🌐 14言語の完全ローカライズ
 日本語および英語をはじめ、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、中国語、韓国語、ロシア語、ウクライナ語、ポーランド語、デンマーク語、トルコ語の計14言語に完全対応。右上の言語セレクターからいつでも即座に切り替え可能です。
 
 ---
