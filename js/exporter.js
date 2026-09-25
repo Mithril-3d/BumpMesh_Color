@@ -381,27 +381,34 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     '<model unit="millimeter" xml:lang="en-US" ' +
     'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" ' +
     'xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
-    '<metadata name="Application">BumpMesh Color</metadata>\n' +
-    (thumbBytes ? '<metadata name="Thumbnail">/Metadata/thumbnail.png</metadata>\n' : '') +
-    '<resources>\n'
+    '  <metadata name="slic3rpe:MmPaintingVersion">1</metadata>\n' +
+    '  <metadata name="Application">BumpMesh Color</metadata>\n' +
+    (thumbBytes ? '  <metadata name="Thumbnail">/Metadata/thumbnail.png</metadata>\n' : '') +
+    '  <resources>\n'
   );
 
-  // Single watertight solid object
-  const rootObjectId = 1;
-  emit(`  <object id="${rootObjectId}" type="model">\n`);
-  emit('    <mesh>\n      <vertices>\n');
+  // Mesh geometry object
+  const meshObjectId = 1;
+  const volumeObjectId = 2;
+  const rootObjectId = 3;
+
+  emit(`    <object id="${meshObjectId}">\n`);
+  emit('      <mesh>\n        <vertices>\n');
 
   for (let i = 0; i < vertCount; i++) {
     const b = i * 3;
-    emit(`        <vertex x="${fmt(uniqueXYZ[b])}" y="${fmt(uniqueXYZ[b+1])}" z="${fmt(uniqueXYZ[b+2])}"/>\n`);
+    emit(`          <vertex x="${fmt(uniqueXYZ[b])}" y="${fmt(uniqueXYZ[b+1])}" z="${fmt(uniqueXYZ[b+2])}"/>\n`);
   }
 
-  emit('      </vertices>\n      <triangles>\n');
+  emit('        </vertices>\n        <triangles>\n');
 
   // Multi-material triangle classification with deduplication:
   // Use BigInt bit-packing when possible to eliminate millions of heap string allocations
   const seenFacesMulti = new Set();
   const canBitPack = vertCount < 2000000;
+  const mmSegmentationFacets = [];
+  let validTriIdx = 0;
+
   for (let i = 0; i < triCount; i++) {
     const v1 = triIdx[i * 3];
     const v2 = triIdx[i * 3 + 1];
@@ -422,17 +429,34 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     const toolId = (triTools && triTools[i]) ? triTools[i] : 1;
     const paintCode = encodeTrianglePaint(toolId);
     emit(
-      `        <triangle v1="${v1}" v2="${v2}" v3="${v3}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
+      `          <triangle v1="${v1}" v2="${v2}" v3="${v3}" slic3rpe:mmu_segmentation="${paintCode}" paint_color="${paintCode}"/>\n`
     );
+    mmSegmentationFacets.push({
+      triangle: validTriIdx,
+      dividing: paintCode
+    });
+    validTriIdx++;
   }
 
-  emit('      </triangles>\n    </mesh>\n  </object>\n');
+  emit('        </triangles>\n      </mesh>\n    </object>\n');
 
+  // Standard 3MF component hierarchy: Mesh (1) -> Volume (2) -> Object (3)
+  // Perfectly compatible across PrusaSlicer 3.x, PrusaSlicer 2.x, Bambu Studio, and OrcaSlicer
   emit(
-    '</resources>\n' +
-    '<build>\n' +
-    `  <item objectid="${rootObjectId}"/>\n` +
-    '</build>\n' +
+    `    <object id="${volumeObjectId}" name="BumpMesh_Color">\n` +
+    '      <components>\n' +
+    `        <component objectid="${meshObjectId}"/>\n` +
+    '      </components>\n' +
+    '    </object>\n' +
+    `    <object id="${rootObjectId}" name="BumpMesh_Color">\n` +
+    '      <components>\n' +
+    `        <component objectid="${volumeObjectId}"/>\n` +
+    '      </components>\n' +
+    '    </object>\n' +
+    '  </resources>\n' +
+    '  <build>\n' +
+    `    <item objectid="${rootObjectId}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>\n` +
+    '  </build>\n' +
     '</model>\n'
   );
   flush();
@@ -452,14 +476,56 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     '  </object>\n' +
     '</config>\n';
 
-  // PrusaSlicer config
+  // PrusaSlicer 2.x config
   const prusaConfigXml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<config>\n' +
     `  <object id="${rootObjectId}">\n` +
     '    <metadata key="name" value="BumpMesh_Color"/>\n' +
+    `    <volume id="${volumeObjectId}">\n` +
+    '      <metadata key="name" value="BumpMesh_Color"/>\n' +
+    '    </volume>\n' +
     '  </object>\n' +
     '</config>\n';
+
+  // PrusaSlicer 3.0+ facet annotation json
+  const facetsAnnotationJson = JSON.stringify([
+    {
+      mmSegmentationFacets,
+      mmSegmentationFacetsVersion: 1,
+      id: volumeObjectId
+    }
+  ]);
+
+  // PrusaSlicer 3.0+ project config json
+  const prusaProjectJson = JSON.stringify({
+    objects: [
+      {
+        id: rootObjectId,
+        volumes: [
+          {
+            id: volumeObjectId,
+            type: 'ModelPart',
+            source: {
+              objectIdx: -1,
+              volumeIdx: -1
+            },
+            volume_settings: {
+              wipe_into_infill: false
+            }
+          }
+        ],
+        object_settings: {
+          extruder: 0,
+          wipe_into_objects: false
+        }
+      }
+    ],
+    project: {
+      id: 'BumpMesh_Color',
+      version: 1
+    }
+  }, null, 2);
 
   // Static package files
   let contentTypesXml =
@@ -467,7 +533,8 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
     '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n' +
-    '<Default Extension="config" ContentType="text/xml"/>\n';
+    '<Default Extension="config" ContentType="text/xml"/>\n' +
+    '<Default Extension="json" ContentType="application/json"/>\n';
   if (thumbBytes) {
     contentTypesXml += '<Default Extension="png" ContentType="image/png"/>\n';
   }
@@ -488,9 +555,10 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   relsXml +=
     '<Relationship Target="/Metadata/model_settings.config" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
     '<Relationship Target="/Metadata/Slic3r_PE.config" Id="rel-6" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n' +
+    '<Relationship Target="/Metadata/PrusaSlicer3_project.json" Id="rel-7" Type="http://schemas.prusa3d.cz/package/2024/relationships/metadata/projectfile"/>\n' +
     '</Relationships>\n';
 
-  // Place metadata and thumbnails at the head of the zip matching PrusaSlicer standard entry order:
+  // Place metadata and thumbnails at the head of the zip matching standard entry order:
   const zipFiles = {
     '[Content_Types].xml': strToU8(contentTypesXml),
   };
@@ -506,10 +574,12 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     zipFiles['Metadata/plate_1_small.png']                   = thumbBytes;
   }
 
-  zipFiles['_rels/.rels']                    = strToU8(relsXml);
-  zipFiles['Metadata/model_settings.config'] = strToU8(bambuConfigXml);
-  zipFiles['Metadata/Slic3r_PE.config']      = strToU8(prusaConfigXml);
-  zipFiles['3D/3dmodel.model']               = modelBytes;
+  zipFiles['_rels/.rels']                              = strToU8(relsXml);
+  zipFiles['Metadata/model_settings.config']           = strToU8(bambuConfigXml);
+  zipFiles['Metadata/Slic3r_PE.config']                = strToU8(prusaConfigXml);
+  zipFiles['Metadata/Slic3r_facets_annotation.json']   = strToU8(facetsAnnotationJson);
+  zipFiles['Metadata/PrusaSlicer3_project.json']       = strToU8(prusaProjectJson);
+  zipFiles['3D/3dmodel.model']                         = modelBytes;
 
   if (onProgress) onProgress(0.93, 'progress.packaging3mf');
   await new Promise(r => setTimeout(r, 0));

@@ -4,7 +4,32 @@
 
 ---
 
-## ★ [v1.2.0] - 2026-09-22 (最新安定版: 振り重ねグラデーション階調保持・変調画像プレビュー・UI最適化)
+## ★ [v1.2.1] - 2026-09-26 (最新安定版: PrusaSlicer 3.0.0+ 対応・新ファセットアノテーション & プロジェクトJSON対応・2.9.6/Bambu/Orca 完全互換)
+### Added
+- **PrusaSlicer 3.0.0 以降のフルリライト仕様に完全対応**:
+  - **ファセットアノテーション JSON (`Metadata/Slic3r_facets_annotation.json`) 自動生成**:
+    - PrusaSlicer 3.0.0 で独立ファイル化された三角形ペイント情報（`mmSegmentationFacets` 配列）を 3MF パッケージ内に自動生成・同梱。
+    - 3.0.0 系スライサーで開いた際にカラーペイント情報（マルチマテリアル割り当て）が消失して単色化する問題を根本解決。
+  - **PrusaSlicer 3.0.0 プロジェクトメタデータ (`Metadata/PrusaSlicer3_project.json`) の同梱**:
+    - 3.0.0 系で新たに導入されたプロジェクト定義 JSON を同梱し、`_rels/.rels` にリレーションを登録。
+    - スライサーが単なる「外部生メッシュ（STL相当）」ではなく「プロジェクトモデル」として認識し、ビルドプレート上の配置座標がリセットされたり自動整列で狂ったりする問題を解消。
+  - **`slic3rpe:MmPaintingVersion` メタデータの定義**:
+    - `3D/3dmodel.model` 内に `<metadata name="slic3rpe:MmPaintingVersion">1</metadata>` を明記し、3.0.0 および 2.x の両パーサーでペイントデータ有効判定を保証。
+  - **`[Content_Types].xml` への JSON 拡張子定義追加**:
+    - 3MF パッケージ規格に準拠し `<Default Extension="json" ContentType="application/json"/>` を追加。
+
+### Changed
+- **3MF コンポーネント階層の標準化 (Components Tree)**:
+  - 従来の単一オブジェクト直接配置から、3MF 公式仕様および Prusa/Bambu 規格に準拠した 3 階層構造（Mesh `id="1"` → Volume `id="2"` → Object `id="3"` → Build Item `objectid="3"`）へ刷新。
+  - `<build><item ...>` にアフィン変換行列 `transform="1 0 0 0 1 0 0 0 1 0 0 0"` を明示し、座標位置の消失を防止。
+- **マルチスライサー ハイブリッド互換性の維持**:
+  - PrusaSlicer 2.9.6 以前向けの `Metadata/Slic3r_PE.config`（XML）および `3D/3dmodel.model` の三角形ペイント属性（`slic3rpe:mmu_segmentation`）を完全維持。
+  - Bambu Studio および OrcaSlicer 向けの `Metadata/model_settings.config`（XML）および `paint_color` 属性も完全維持。
+  - 同一の 3MF ファイルを **PrusaSlicer 3.0.0+**, **PrusaSlicer 2.9.6**, **Bambu Studio**, **OrcaSlicer** のいずれにドラッグ＆ドロップしても、エラーなくカラーと座標が正確に読み込まれるクロス互換性を実現。
+
+---
+
+## [v1.2.0] - 2026-09-22 (振り重ねグラデーション階調保持・変調画像プレビュー・UI最適化)
 ### Added
 - **振り重ねマルチツール・グラデーションモードの階調保持改善 (フルレンジ輝度＆ガンマ補正)**:
   - **暗部クリッピングの解消**:

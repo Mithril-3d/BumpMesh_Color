@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.2.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.2.1-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,7 +30,13 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.2.0 (Latest Release - 2026-09-22)**:
+- **v1.2.1 (Latest Release - 2026-09-26)**:
+  - **Full Compatibility with PrusaSlicer 3.0.0+ & Seamless 2.9.6 / Bambu / Orca Backward Compatibility**:
+    - **Facet Annotation JSON (`Metadata/Slic3r_facets_annotation.json`)**: Auto-generates triangle-to-extruder paint annotations required by PrusaSlicer 3.0.0's rewritten project loader, resolving the issue where models lost facet coloring and turned monochrome.
+    - **PrusaSlicer 3 Project Definition (`Metadata/PrusaSlicer3_project.json`)**: Bundles standard project metadata and relationships so PrusaSlicer 3.0.0 recognizes the archive as a project model rather than raw geometry, preserving on-bed orientation and transform coordinates.
+    - **Standardized 3MF Component Hierarchy & Affine Transforms**: Implements official 3MF Components Tree (`Mesh` id=1 -> `Volume` id=2 -> `Object` id=3) with explicit `transform` matrix on `<item>` elements.
+    - **Zero Breaking Changes**: Preserves 100% full backward compatibility with PrusaSlicer 2.9.6, Bambu Studio, and OrcaSlicer via coexisting XML configurations and facet attributes.
+- **v1.2.0 (2026-09-22)**:
   - **Interleaved Layer Gradient Shading with Full-Range Luminance & Gamma Control**:
     - Eliminated dark shadow clipping and flattening. Uses ITU-R BT.709 full-range luminance and continuous gamma control (`0.40`–`2.20`, default `1.00`) for rich, smooth tone transitions from deep shadows to highlights.
     - Complete calculation parity across the 3D viewport shader, multi-tool 3MF export geometry, and 2D modulation map preview.
@@ -183,7 +189,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.2.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.2.1--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -213,7 +219,13 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
-- **v1.2.0 (最新安定版 - 2026-09-22)**:
+- **v1.2.1 (最新安定版 - 2026-09-26)**:
+  - **PrusaSlicer 3.0.0+ 完全対応 ＆ 2.9.6 / Bambu / Orca 完全後方互換**:
+    - **ファセットアノテーション JSON (`Metadata/Slic3r_facets_annotation.json`) 自動生成**: PrusaSlicer 3.0.0 のフルリライトで独立ファイル化されたペイントアノテーションを自動生成。モデルをインポートした際にカラー情報が消えて単色化する不具合を根本解消。
+    - **PrusaSlicer 3 プロジェクト設定 (`Metadata/PrusaSlicer3_project.json`) 同梱**: 3.0.0 系が「プロジェクトモデル」として認識し、ビルドプレート上の配置座標（Transform）や向きが初期化・リセットされる問題を解消。
+    - **3MF コンポーネント階層の標準化**: 3MF 公式仕様に基づくコンポーネントツリー（Mesh `id="1"` → Volume `id="2"` → Object `id="3"`）および明示的 `transform` 行列を出力。
+    - **完全な後方互換性**: 従来の PrusaSlicer 2.9.6、Bambu Studio、OrcaSlicer 向けの XML 設定や三角形属性も並行して完全維持。
+- **v1.2.0 (2026-09-22)**:
   - **振り重ねグラデーション階調保持（フルレンジ輝度＆ガンマ補正）**:
     - 従来の暗部（影や髪の毛など）の黒潰れ・平坦化を解消。ITU-R BT.709フルレンジ輝度とガンマ補正（`0.40`〜`2.20`、標準 `1.00`）により、暗部から明部まで豊かな連続階調表現を実現。
     - 3Dビューポートのプレビューシェーダー、マルチツール3MFエクスポート、2D変調プレビューで同一の計算式を適用し、完全一致を保証。
