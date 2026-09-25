@@ -27,7 +27,7 @@ import {
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260921_120';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
-import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_122';
+import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_123';
 import { quantizeImage, getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {

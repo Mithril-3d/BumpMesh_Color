@@ -524,18 +524,6 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     '  </object>\n' +
     '</config>\n';
 
-  // PrusaSlicer 2.x config
-  const prusaConfigXml =
-    '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<config>\n' +
-    `  <object id="${rootObjectId}">\n` +
-    '    <metadata key="name" value="BumpMesh_Color"/>\n' +
-    `    <volume id="${volumeObjectId}">\n` +
-    '      <metadata key="name" value="BumpMesh_Color"/>\n' +
-    '    </volume>\n' +
-    '  </object>\n' +
-    '</config>\n';
-
   // PrusaSlicer 3.0+ facet annotation json
   const facetsAnnotationJson = JSON.stringify([
     {
@@ -544,36 +532,6 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
       id: volumeObjectId
     }
   ]);
-
-  // PrusaSlicer 3.0+ project config json
-  const prusaProjectJson = JSON.stringify({
-    objects: [
-      {
-        id: rootObjectId,
-        volumes: [
-          {
-            id: volumeObjectId,
-            type: 'ModelPart',
-            source: {
-              objectIdx: -1,
-              volumeIdx: -1
-            },
-            volume_settings: {
-              wipe_into_infill: false
-            }
-          }
-        ],
-        object_settings: {
-          extruder: 0,
-          wipe_into_objects: false
-        }
-      }
-    ],
-    project: {
-      id: 'BumpMesh_Color',
-      version: 1
-    }
-  }, null, 2);
 
   // Static package files
   let contentTypesXml =
@@ -602,8 +560,6 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   }
   relsXml +=
     '<Relationship Target="/Metadata/model_settings.config" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/model_settings"/>\n' +
-    '<Relationship Target="/Metadata/Slic3r_PE.config" Id="rel-6" Type="http://schemas.prusa3d.com/package/2020/model_settings"/>\n' +
-    '<Relationship Target="/Metadata/PrusaSlicer3_project.json" Id="rel-7" Type="http://schemas.prusa3d.cz/package/2024/relationships/metadata/projectfile"/>\n' +
     '</Relationships>\n';
 
   // Place metadata and thumbnails at the head of the zip matching standard entry order:
@@ -624,9 +580,7 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
 
   zipFiles['_rels/.rels']                              = strToU8(relsXml);
   zipFiles['Metadata/model_settings.config']           = strToU8(bambuConfigXml);
-  zipFiles['Metadata/Slic3r_PE.config']                = strToU8(prusaConfigXml);
   zipFiles['Metadata/Slic3r_facets_annotation.json']   = strToU8(facetsAnnotationJson);
-  zipFiles['Metadata/PrusaSlicer3_project.json']       = strToU8(prusaProjectJson);
   zipFiles['3D/3dmodel.model']                         = modelBytes;
 
   if (onProgress) onProgress(0.93, 'progress.packaging3mf');
