@@ -224,12 +224,34 @@ export async function export3MF(geometry, filename = 'textured.3mf', thumbnailDa
     emit(`        <triangle v1="${v1}" v2="${v2}" v3="${v3}"/>\n`);
   }
 
+  // Calculate mesh bounding box to determine optimal bed placement transform
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < vertCount; i++) {
+    const b = i * 3;
+    const x = uniqueXYZ[b], y = uniqueXYZ[b + 1], z = uniqueXYZ[b + 2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const cx = (minX + maxX) * 0.5;
+  const cy = (minY + maxY) * 0.5;
+  let tx = 0, ty = 0, tz = 0;
+  if (minX < 20 || minY < 20 || (minX < 0 && maxX > 0)) {
+    tx = 125.0 - cx;
+    ty = 125.0 - cy;
+  }
+  if (minZ < -0.001) {
+    tz = -minZ;
+  }
+
   emit(
     '</triangles>\n' +
     '</mesh>\n' +
     '</object>\n' +
     '</resources>\n' +
-    '<build>\n<item objectid="1"/>\n</build>\n' +
+    `<build>\n<item objectid="1" transform="1 0 0 0 1 0 0 0 1 ${fmt(tx)} ${fmt(ty)} ${fmt(tz)}"/>\n</build>\n` +
     '</model>\n'
   );
   flush();
@@ -440,6 +462,32 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
 
   emit('        </triangles>\n      </mesh>\n    </object>\n');
 
+  // Calculate mesh bounding box to determine optimal bed placement transform
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < vertCount; i++) {
+    const b = i * 3;
+    const x = uniqueXYZ[b], y = uniqueXYZ[b + 1], z = uniqueXYZ[b + 2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const cx = (minX + maxX) * 0.5;
+  const cy = (minY + maxY) * 0.5;
+
+  // If the model is centered around the origin (typical for procedural and CAD meshes),
+  // offset it to standard build plate center (X=125, Y=125) so "Open Project" in PrusaSlicer
+  // lands cleanly in the middle of the bed without falling off or needing auto-arrange.
+  let tx = 0, ty = 0, tz = 0;
+  if (minX < 20 || minY < 20 || (minX < 0 && maxX > 0)) {
+    tx = 125.0 - cx;
+    ty = 125.0 - cy;
+  }
+  if (minZ < -0.001) {
+    tz = -minZ;
+  }
+
   // Standard 3MF component hierarchy: Mesh (1) -> Volume (2) -> Object (3)
   // Perfectly compatible across PrusaSlicer 3.x, PrusaSlicer 2.x, Bambu Studio, and OrcaSlicer
   emit(
@@ -455,7 +503,7 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     '    </object>\n' +
     '  </resources>\n' +
     '  <build>\n' +
-    `    <item objectid="${rootObjectId}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>\n` +
+    `    <item objectid="${rootObjectId}" transform="1 0 0 0 1 0 0 0 1 ${fmt(tx)} ${fmt(ty)} ${fmt(tz)}"/>\n` +
     '  </build>\n' +
     '</model>\n'
   );
