@@ -17,7 +17,7 @@ PrusaSlicer 3.0.0（フルリライト版）において、プロジェクト管
    - `_rels/.rels` に `http://schemas.prusa3d.cz/package/2024/relationships/metadata/projectfile` を登録し、3.0.0 が「外部ジオメトリ」ではなく「プロジェクトモデル」として認識し配置座標を維持するように最適化。
 3. **`3D/3dmodel.model` の標準コンポーネントツリー化**:
    - `Mesh` (id=1) → `Volume` (id=2) → `Object` (id=3) → `Build Item` (objectid=3) の 3 階層構造へ刷新。
-   - `<build><item objectid="3" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>` で座標アフィン変換行列を明示。
+   - `<build><item objectid="3" transform="1 0 0 0 1 0 0 0 1 tx ty tz"/>` で座標アフィン変換行列を明示。原点中心モデル（プロシージャルやCAD/STL）の場合は標準ベッド中央（X=125, Y=125, Z=0接地）にオフセットし、「Open project」で開いた際にもベッド端から外れず中央に乗るよう最適化。
    - `<metadata name="slic3rpe:MmPaintingVersion">1</metadata>` を付与。
 4. **`[Content_Types].xml` への JSON 拡張子定義追加**:
    - `<Default Extension="json" ContentType="application/json"/>` を追加。
