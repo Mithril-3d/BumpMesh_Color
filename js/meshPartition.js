@@ -49,6 +49,7 @@ export function assignToolsToTriangles(
 ) {
   const posArr = geometry.attributes.position.array;
   const faceMaskAttr = geometry.getAttribute('faceMask');
+  const exclWeightAttr = geometry.getAttribute('excludeWeight');
   const triCount = (posArr.length / 9) | 0;
 
   const tmax = Math.max(imgWidth, imgHeight, 1);
@@ -104,12 +105,18 @@ export function assignToolsToTriangles(
       }
     }
 
-    // 3. faceMask attribute
+    // 3. faceMask or excludeWeight attribute
     if (!isMasked && faceMaskAttr) {
       const m0 = faceMaskAttr.getX(i * 3);
       const m1 = faceMaskAttr.getX(i * 3 + 1);
       const m2 = faceMaskAttr.getX(i * 3 + 2);
       if ((m0 + m1 + m2) / 3 < 0.5) isMasked = true;
+    }
+    if (!isMasked && exclWeightAttr) {
+      const e0 = exclWeightAttr.getX(i * 3);
+      const e1 = exclWeightAttr.getX(i * 3 + 1);
+      const e2 = exclWeightAttr.getX(i * 3 + 2);
+      if ((e0 + e1 + e2) / 3 > 0.5) isMasked = true;
     }
 
     let toolId;

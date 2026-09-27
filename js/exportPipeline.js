@@ -264,19 +264,15 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     );
     if (shouldAbort()) return null;
 
-    // Preserve-untextured (beta): capture the per-face exclusion mask before
-    // the subdivided mesh is freed. Displacement keeps triangle count and
-    // order, so the mask indexes the displaced mesh 1:1 and lets decimation
-    // lock those faces in place.
+    // Preserve-untextured / exclusion locking for decimation:
+    // Capture the per-face exclusion mask before the subdivided mesh is freed.
     let lockedFaces = null;
-    if (settings.preserveUntextured) {
-      const ew = subdivided.attributes.excludeWeight;
-      if (ew) {
-        const triN = subdivided.attributes.position.count / 3;
-        lockedFaces = new Uint8Array(triN);
-        for (let t = 0; t < triN; t++) {
-          if (ew.array[t * 3] > 0.99) lockedFaces[t] = 1;
-        }
+    const ew = subdivided.attributes.excludeWeight;
+    if (ew && (settings.preserveUntextured || settings.colorSubMode === 0 || settings.colorSubMode === 1)) {
+      const triN = subdivided.attributes.position.count / 3;
+      lockedFaces = new Uint8Array(triN);
+      for (let t = 0; t < triN; t++) {
+        if (ew.array[t * 3] > 0.99) lockedFaces[t] = 1;
       }
     }
 
@@ -354,6 +350,7 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     return {
       positions: finalGeometry.attributes.position.array,
       normals: finalGeometry.attributes.normal ? finalGeometry.attributes.normal.array : null,
+      excludeWeights: finalGeometry.attributes.excludeWeight ? finalGeometry.attributes.excludeWeight.array : null,
       safetyCapHit,
       lockedOverBudget,
       runDecimation,

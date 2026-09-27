@@ -14,23 +14,30 @@
 
 import { computeLouverDisplacement, getInterleavedToolAtLayer } from './layerBlending.js';
 
-export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLayers) {
+export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLayers, excludeWeights = null) {
   const t = Math.max(0.01, thickness);
   const zCuts = [];
   for (let k = 1; k < totalLayers; k++) {
     zCuts.push(minZ + k * t);
   }
+  const triCount = (positions.length / 9) | 0;
   if (zCuts.length === 0) {
-    return { positions, normals };
+    const triExcl = new Uint8Array(triCount);
+    if (excludeWeights) {
+      for (let i = 0; i < triCount; i++) {
+        if (excludeWeights[i * 3] > 0.99) triExcl[i] = 1;
+      }
+    }
+    return { positions, normals, triExcluded: triExcl };
   }
 
   const QUANT = 1e5; // 10 um quantization for vertex dedup
-  const triCount = (positions.length / 9) | 0;
 
   // Step 1: Dedup original vertices to integer IDs
   const vertMap = new Map();
   const uniqueVerts = []; // id -> [x, y, z]
   const uniqueNorms = []; // id -> [nx, ny, nz]
+  const vertExcluded = []; // id -> 0 or 1
   const triVerts = new Int32Array(triCount * 3);
 
   function getVertId(x, y, z, nx, ny, nz) {
@@ -44,6 +51,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
       vertMap.set(key, id);
       uniqueVerts.push([Math.fround(x), Math.fround(y), Math.fround(z)]);
       uniqueNorms.push([Math.fround(nx), Math.fround(ny), Math.fround(nz)]);
+      vertExcluded.push(0);
     }
     return id;
   }
@@ -60,6 +68,12 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     triVerts[i * 3]     = v0;
     triVerts[i * 3 + 1] = v1;
     triVerts[i * 3 + 2] = v2;
+
+    if (excludeWeights && excludeWeights[i * 3] > 0.99) {
+      vertExcluded[v0] = 1;
+      vertExcluded[v1] = 1;
+      vertExcluded[v2] = 1;
+    }
   }
 
   // Step 2: Shared edge-cut cache: "minId,maxId,cutIdx" -> newVertId
@@ -93,6 +107,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     cutId = uniqueVerts.length;
     uniqueVerts.push([Math.fround(px), Math.fround(py), Math.fround(pz)]);
     uniqueNorms.push([Math.fround(nx), Math.fround(ny), Math.fround(nz)]);
+    vertExcluded.push((vertExcluded[idA] && vertExcluded[idB]) ? 1 : 0);
     edgeCutCache.set(key, cutId);
     return cutId;
   }
@@ -100,17 +115,21 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
   const CHUNK_SIZE = 131072; // 128K triangles per chunk to avoid millions of small Array allocations
   const triChunks = [];
   const layerChunks = [];
+  const exclChunks = [];
   let curTriChunk = new Int32Array(CHUNK_SIZE * 3);
   let curLayerChunk = new Int32Array(CHUNK_SIZE);
+  let curExclChunk = new Uint8Array(CHUNK_SIZE);
   let chunkCount = 0;
   let totalTriangles = 0;
 
-  function emitTri(id0, id1, id2, layerIdx) {
+  function emitTri(id0, id1, id2, layerIdx, isExcl = 0) {
     if (chunkCount >= CHUNK_SIZE) {
       triChunks.push(curTriChunk);
       layerChunks.push(curLayerChunk);
+      exclChunks.push(curExclChunk);
       curTriChunk = new Int32Array(CHUNK_SIZE * 3);
       curLayerChunk = new Int32Array(CHUNK_SIZE);
+      curExclChunk = new Uint8Array(CHUNK_SIZE);
       chunkCount = 0;
     }
     const b = chunkCount * 3;
@@ -118,6 +137,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     curTriChunk[b + 1] = id1;
     curTriChunk[b + 2] = id2;
     curLayerChunk[chunkCount] = Math.max(0, Math.min(totalLayers - 1, layerIdx));
+    curExclChunk[chunkCount]  = isExcl ? 1 : 0;
     chunkCount++;
     totalTriangles++;
   }
@@ -128,6 +148,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
   // in sequential order. Guarantees O(K) complexity instead of exponential O(2^K) subdivision tree explosion,
   // eliminating millions of redundant slivers while preserving 100% watertight topology with zero open edges.
   for (let tIdx = 0; tIdx < triCount; tIdx++) {
+    const isExcl = excludeWeights ? (excludeWeights[tIdx * 3] > 0.99 ? 1 : 0) : 0;
     const v0 = triVerts[tIdx * 3];
     const v1 = triVerts[tIdx * 3 + 1];
     const v2 = triVerts[tIdx * 3 + 2];
@@ -142,7 +163,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     while (endCut < zCuts.length && zCuts[endCut] <= maxZ + 1e-6) endCut++;
 
     if (startCut >= endCut) {
-      emitTri(v0, v1, v2, startCut);
+      emitTri(v0, v1, v2, startCut, isExcl);
       continue;
     }
 
@@ -189,7 +210,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
 
       if (below.length >= 3) {
         for (let j = 1; j < below.length - 1; j++) {
-          emitTri(below[0], below[j], below[j + 1], cutIdx);
+          emitTri(below[0], below[j], below[j + 1], cutIdx, isExcl);
         }
       }
 
@@ -202,7 +223,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
 
     if (poly.length >= 3) {
       for (let j = 1; j < poly.length - 1; j++) {
-        emitTri(poly[0], poly[j], poly[j + 1], endCut);
+        emitTri(poly[0], poly[j], poly[j + 1], endCut, isExcl);
       }
     }
   }
@@ -210,20 +231,24 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
   if (chunkCount > 0) {
     triChunks.push(curTriChunk.subarray(0, chunkCount * 3));
     layerChunks.push(curLayerChunk.subarray(0, chunkCount));
+    exclChunks.push(curExclChunk.subarray(0, chunkCount));
   }
 
   // Convert chunk stores to flat Float32Array positions and normals, and Int32Array layers
   const outPos = new Float32Array(totalTriangles * 9);
   const outNrm = new Float32Array(totalTriangles * 9);
   const outLay = new Int32Array(totalTriangles);
+  const outExcl = new Uint8Array(totalTriangles);
 
   let triOffset = 0;
   for (let c = 0; c < triChunks.length; c++) {
     const tChunk = triChunks[c];
     const lChunk = layerChunks[c];
+    const eChunk = exclChunks[c];
     const count = lChunk.length;
 
     outLay.set(lChunk, triOffset);
+    outExcl.set(eChunk, triOffset);
 
     for (let i = 0; i < count; i++) {
       const gTri = triOffset + i;
@@ -248,6 +273,8 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     positions: outPos,
     normals: outNrm,
     layers: outLay,
+    triExcluded: outExcl,
+    vertExcluded: new Uint8Array(vertExcluded),
     cutEdgesPerCut,
     uniqueVerts,
     uniqueNorms,
@@ -342,7 +369,7 @@ export function applyLayerAlignedDisplacement(
   sampleFn, // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
   untexturedTool = 1
 ) {
-  const { positions: inPos, normals: inNrm, layers: inLay, cutEdgesPerCut, uniqueVerts, uniqueNorms, zCuts } = sliced;
+  const { positions: inPos, normals: inNrm, layers: inLay, triExcluded, vertExcluded, cutEdgesPerCut, uniqueVerts, uniqueNorms, zCuts } = sliced;
   const triCount = inLay.length;
   const t = Math.max(0.01, thickness);
 
@@ -398,10 +425,12 @@ export function applyLayerAlignedDisplacement(
     avgNx /= avgLen; avgNy /= avgLen; avgNz /= avgLen;
     const avgHlen = Math.hypot(avgNx, avgNy);
 
-    // Horizontal surfaces (top/bottom flat caps) receive untexturedTool
+    // Horizontal surfaces (top/bottom flat caps) or user-excluded faces receive untexturedTool
     // so no displacement or interleaved color is applied
     const isHorizontalCap = avgHlen < 0.15;
-    triTools[i] = isHorizontalCap ? untexturedTool : activeTool;
+    const isExcluded = triExcluded ? Boolean(triExcluded[i]) : false;
+    const isUntextured = isHorizontalCap || isExcluded;
+    triTools[i] = isUntextured ? untexturedTool : activeTool;
 
     const layerFade = getLayerFade(lay);
 
@@ -416,8 +445,8 @@ export function applyLayerAlignedDisplacement(
 
       const hlen = Math.hypot(nx, ny);
 
-      if (hlen < 0.15 || isHorizontalCap || layerFade <= 1e-6) {
-        // Horizontal surface (top/bottom flat caps and boundary rim): keep pristine base position
+      if (hlen < 0.15 || isUntextured || layerFade <= 1e-6) {
+        // Horizontal surface (top/bottom flat caps, boundary rim, or excluded area): keep pristine base position
         outPos[idx]     = x;
         outPos[idx + 1] = y;
         outPos[idx + 2] = z;
@@ -528,10 +557,13 @@ export function applyLayerAlignedDisplacement(
         const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
         const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
 
-        const dispBot0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * botFade : 0;
-        const dispBot1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * botFade : 0;
-        const dispTop0 = (hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * topFade : 0;
-        const dispTop1 = (hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * topFade : 0;
+        const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
+        const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
+
+        const dispBot0 = (!isExcl0 && hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * botFade : 0;
+        const dispBot1 = (!isExcl1 && hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * botFade : 0;
+        const dispTop0 = (!isExcl0 && hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * topFade : 0;
+        const dispTop1 = (!isExcl1 && hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * topFade : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;

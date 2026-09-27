@@ -654,6 +654,9 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
   out.setAttribute('normal',   new THREE.BufferAttribute(newNrm, 3));
+  if (ewAttr) {
+    out.setAttribute('excludeWeight', ewAttr);
+  }
   return out;
 }
 

@@ -5920,7 +5920,7 @@ async function handleExport(format = 'stl') {
 
         // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm)
         const cutOffset = 0.005;
-        const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers);
+        const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers, result.excludeWeights || null);
 
         setProgress(0.78, t('progress.applyingLayerDisplacement'));
         await yieldFrame();
@@ -6011,6 +6011,9 @@ async function handleExport(format = 'stl') {
         finalGeometry = new THREE.BufferGeometry();
         finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
         if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+        if (result.excludeWeights) {
+          finalGeometry.setAttribute('excludeWeight', new THREE.BufferAttribute(result.excludeWeights, 1));
+        }
 
         const availableExportTools = (currentColorPalette && currentColorPalette.length > 0)
           ? currentColorPalette.map(p => p.toolId)
