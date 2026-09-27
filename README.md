@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.2.1-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.2.2-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,7 +30,11 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.2.1 (Latest Release - 2026-09-26)**:
+- **v1.2.2 (Latest Release - 2026-09-27)**:
+  - **Fix Exclusion Paint Omission in Multi-Tool & Interleaved 3MF Export**:
+    - Fixed a bug where exclusion painted regions (circles, polygons, etc.) were omitted during mesh partitioning, watertight slicing, decimation, and multi-tool 3MF export pipelines.
+    - Properly assigns the untextured tool ID (default: Tool 7) and suppresses texture displacement for exclusion painted regions as intended.
+- **v1.2.1 (2026-09-26)**:
   - **Full Compatibility with PrusaSlicer 3.0.0+ & Seamless 2.9.6 / Bambu / Orca Backward Compatibility**:
     - **Facet Annotation JSON (`Metadata/Slic3r_facets_annotation.json`)**: Auto-generates triangle-to-extruder paint annotations required by PrusaSlicer 3.0.0's rewritten project loader, resolving the issue where models lost facet coloring and turned monochrome.
     - **PrusaSlicer 3 Project Definition (`Metadata/PrusaSlicer3_project.json`)**: Bundles standard project metadata and relationships so PrusaSlicer 3.0.0 recognizes the archive as a project model rather than raw geometry, preserving on-bed orientation and transform coordinates.
@@ -189,7 +193,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.2.1--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.2.2--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -219,7 +223,11 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
-- **v1.2.1 (最新安定版 - 2026-09-26)**:
+- **v1.2.2 (最新安定版 - 2026-09-27)**:
+  - **振り重ね・カラー量子化エクスポートにおける除外ペイント反映バグ修正**:
+    - 除外ペイントで塗った領域（◯や△など）が、メッシュ分割・水密レイヤースライス・メッシュ単純化・3MFエクスポートパイプラインの各工程で欠落し全面テクスチャ化されていた不具合を修正。
+    - 除外領域に対して非テクスチャ部ツール（デフォルト: ツール7）とフラット形状が正確に割り当てられるよう改修。
+- **v1.2.1 (2026-09-26)**:
   - **PrusaSlicer 3.0.0+ 完全対応 ＆ 2.9.6 / Bambu / Orca 完全後方互換**:
     - **ファセットアノテーション JSON (`Metadata/Slic3r_facets_annotation.json`) 自動生成**: PrusaSlicer 3.0.0 のフルリライトで独立ファイル化されたペイントアノテーションを自動生成。モデルをインポートした際にカラー情報が消えて単色化する不具合を根本解消。
     - **PrusaSlicer 3 プロジェクト設定 (`Metadata/PrusaSlicer3_project.json`) 同梱**: 3.0.0 系が「プロジェクトモデル」として認識し、ビルドプレート上の配置座標（Transform）や向きが初期化・リセットされる問題を解消。
