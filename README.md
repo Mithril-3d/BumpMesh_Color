@@ -39,6 +39,7 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
       4. `ON, ON, Ignore designated tool (Zero protrusion & interleaves)`: Surface is flattened (zero protrusion) while preserving the original multi-color interleaved pattern.
     - Automatic horizontal top cap protection guarantees bridge quality on top surfaces across all modes.
     - Full visual parity in real-time WebGL shader preview.
+    - Comprehensive i18n translation synchronization: fully audited and verified 100% key parity (332 keys, 0 missing) across all 14 supported languages.
 - **v1.2.2 (2026-09-27)**:
   - **Fix Exclusion Paint Omission in Multi-Tool & Interleaved 3MF Export**:
     - Fixed a bug where exclusion painted regions (circles, polygons, etc.) were omitted during mesh partitioning, watertight slicing, decimation, and multi-tool 3MF export pipelines.

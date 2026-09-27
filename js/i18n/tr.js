@@ -334,4 +334,12 @@ export default {
   "color.mapModalHoverHint": "Piksel ayrıntılarını görmek için fareyi görüntünün üzerine getirin",
   "color.mapModalLoading": "Palet bilgisi yükleniyor...",
   "color.mapModalNoTexture": "Lütfen önce bir doku görüntüsü yükleyin.",
+  "color.interleavedGamma": "Ton Gaması",
+  "color.interleavedGammaTitle": "Ton eğrisi haritalama (gama düzeltmesi). 1.0 doğrusal tam aralıktır, yüksek değerler siyahları derinleştirir, düşük değerler gölgeleri aydınlatır.",
+  "color.interleavedExclusionMode": "Hariç Tutma Alanı Modu",
+  "color.interleavedExclusionModeTitle": "Hariç tutulan (dokulanmamış) bölgelerin nasıl işleneceği (yükseklik yer değiştirme, çapraz boyama ve takım atama).",
+  "color.exclMode1": "1. Düz / Tek Takım (Çaprazlamayı İptal Et)",
+  "color.exclMode2": "2. Düz / Atanan Takım Çıkıntılı (Çaprazlamayı Koru)",
+  "color.exclMode3": "3. Rölyef / Tek Takım (Çaprazlamayı İptal Et)",
+  "color.exclMode4": "4. Rölyef Kapalı / Renkleri Koru (Çıkıntısız Düz)",
 };

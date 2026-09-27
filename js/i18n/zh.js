@@ -334,4 +334,12 @@ export default {
   "color.mapModalHoverHint": "将鼠标悬停在图像上以查看像素详情",
   "color.mapModalLoading": "正在加载调色板信息...",
   "color.mapModalNoTexture": "请先加载纹理图像。",
+  "color.interleavedGamma": "色调伽马",
+  "color.interleavedGammaTitle": "色调曲线映射（伽马校正）。1.0 为线性全范围，数值越高深色越深，数值越低阴影越亮。",
+  "color.interleavedExclusionMode": "排除区域模式",
+  "color.interleavedExclusionModeTitle": "设置涂抹排除区域的处理方式（高度置换、交错分层绘制与工具分配）。",
+  "color.exclMode1": "1. 凹凸OFF / 绘制OFF (指定工具填充·取消交错)",
+  "color.exclMode2": "2. 凹凸OFF / 绘制ON (指定工具突出·保留交错)",
+  "color.exclMode3": "3. 凹凸ON / 绘制OFF (指定工具立体浮雕·取消交错)",
+  "color.exclMode4": "4. 凹凸ON / 绘制ON (忽略指定工具·平坦交错)",
 };

@@ -334,4 +334,12 @@ export default {
   "color.mapModalHoverHint": "Hold musen over billedet for at se pixeldetaljer",
   "color.mapModalLoading": "Indlæser palet...",
   "color.mapModalNoTexture": "Indlæs et teksturbillede først.",
+  "color.interleavedGamma": "Tonegammakorrektion",
+  "color.interleavedGammaTitle": "Tonekurve-mapping (gammakorrektion). 1,0 er lineært fuldt område, højere fordyber sorte, lavere lysner skygger.",
+  "color.interleavedExclusionMode": "Udeladelsesområde-tilstand",
+  "color.interleavedExclusionModeTitle": "Hvordan udeladte (uteksturerede) områder håndteres (højdeudslag, lagdelt maling og værktøjstildeling).",
+  "color.exclMode1": "1. Flad / Enkelt værktøj (Annuller overlapning)",
+  "color.exclMode2": "2. Flad / Udpeget værktøj rager frem (Behold overlapning)",
+  "color.exclMode3": "3. Relief / Enkelt værktøj (Annuller overlapning)",
+  "color.exclMode4": "4. Relief fra / Behold farver (Flad uden fremspring)",
 };

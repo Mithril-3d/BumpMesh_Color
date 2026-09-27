@@ -335,4 +335,7 @@ export default {
   "color.mapModalHoverHint": "Hover over the image to view pixel details",
   "color.mapModalLoading": "Loading palette info...",
   "color.mapModalNoTexture": "Please load a texture image first.",
+  "labels.scaleU": "Scale U",
+  "labels.scaleV": "Scale V",
+  "imprint.privacyHosting": "This website is hosted on <strong>GitHub Pages</strong> (GitHub Inc. / Microsoft Corp., 88 Colin P Kelly Jr St, San Francisco, CA 94107, USA). When you visit this site, GitHub may process your IP address in standard server logs. See <a href=\"https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement\" target=\"_blank\" rel=\"noopener\">GitHub&rsquo;s Privacy Statement</a>.",
 };

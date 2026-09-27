@@ -337,4 +337,5 @@ export default {
   "color.mapModalHoverHint": "カーソルを画像に乗せるとピクセル情報が表示されます",
   "color.mapModalLoading": "パレット情報読み込み中...",
   "color.mapModalNoTexture": "先にテクスチャ画像を読み込んでください。",
+  "imprint.privacyHosting": "このウェブサイトは <strong>GitHub Pages</strong> (GitHub Inc. / Microsoft Corp., 88 Colin P Kelly Jr St, San Francisco, CA 94107, USA) 上でホストされています。本サイトへのアクセス時、GitHub により標準的なサーバーログとして IP アドレスが処理される場合があります。詳細は <a href=\"https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement\" target=\"_blank\" rel=\"noopener\">GitHub のプライバシーに関する声明</a> をご覧ください。",
 };

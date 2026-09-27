@@ -334,4 +334,12 @@ export default {
   "color.mapModalHoverHint": "이미지 위에 마ウ스를 올리면 픽셀 정보가 표시됩니다",
   "color.mapModalLoading": "팔레트 정보 로딩 중...",
   "color.mapModalNoTexture": "먼저 텍스처 이미지를 불러와 주세요.",
+  "color.interleavedGamma": "계조 감마",
+  "color.interleavedGammaTitle": "계조 커브 매핑 (감마 보정). 1.0은 선형 풀레인지, 높을수록 검은색이 깊어지고 낮을수록 그림자가 밝아집니다.",
+  "color.interleavedExclusionMode": "제외 영역 모드",
+  "color.interleavedExclusionModeTitle": "제외 페인트된 영역의 처리 방식 (높이 변위, 교차 적층 페인팅 및 툴 할당).",
+  "color.exclMode1": "1. 요철 OFF / 페인트 OFF (지정 툴 채우기 · 교차 해제)",
+  "color.exclMode2": "2. 요철 OFF / 페인트 ON (지정 툴 돌출 · 교차 적층 유지)",
+  "color.exclMode3": "3. 요철 ON / 페인트 OFF (지정 툴 입체 릴리프 · 교차 해제)",
+  "color.exclMode4": "4. 요철 ON / 페인트 ON (지정 툴 무시 · 플랫 교차 적층)",
 };

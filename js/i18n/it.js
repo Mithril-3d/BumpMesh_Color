@@ -334,4 +334,12 @@ export default {
   "color.mapModalHoverHint": "Passa il mouse sopra l'immagine per visualizzare i dettagli dei pixel",
   "color.mapModalLoading": "Caricamento palette...",
   "color.mapModalNoTexture": "Carica prima un'immagine di texture.",
+  "color.interleavedGamma": "Gamma tonale",
+  "color.interleavedGammaTitle": "Mappatura curva tonale (correzione gamma). 1.0 è lineare gamma completa, più alto scurisce i neri, più basso schiarisce le ombre.",
+  "color.interleavedExclusionMode": "Modalità area di esclusione",
+  "color.interleavedExclusionModeTitle": "Come vengono trattate le regioni escluse (dislocamento altezza, colorazione alternata e assegnazione strumenti).",
+  "color.exclMode1": "1. Piatto / Strumento singolo (Annulla alternanza)",
+  "color.exclMode2": "2. Piatto / Strumento assegnato sporgente (Mantieni alternanza)",
+  "color.exclMode3": "3. Rilievo / Strumento singolo (Annulla alternanza)",
+  "color.exclMode4": "4. Senza rilievo / Mantieni colori (Piatto senza sporgenza)",
 };

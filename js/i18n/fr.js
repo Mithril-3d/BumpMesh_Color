@@ -334,4 +334,12 @@ export default {
   "color.mapModalHoverHint": "Survolez l'image pour afficher les détails des pixels",
   "color.mapModalLoading": "Chargement de la palette...",
   "color.mapModalNoTexture": "Veuillez d'abord charger une image de texture.",
+  "color.interleavedGamma": "Gamma tonal",
+  "color.interleavedGammaTitle": "Mappage de courbe tonale (correction gamma). 1.0 est linéaire pleine gamme, plus élevé assombrit les noirs, plus bas éclaircit les ombres.",
+  "color.interleavedExclusionMode": "Mode de zone d'exclusion",
+  "color.interleavedExclusionModeTitle": "Façon dont les zones exclues sont traitées (déplacement de hauteur, peinture alternée et assignation d'outil).",
+  "color.exclMode1": "1. Plat / Outil unique (Annuler l'alternance)",
+  "color.exclMode2": "2. Plat / Outil assigné saillant (Conserver l'alternance)",
+  "color.exclMode3": "3. Relief / Outil unique (Annuler l'alternance)",
+  "color.exclMode4": "4. Sans relief / Conserver les couleurs (Plat sans saillie)",
 };

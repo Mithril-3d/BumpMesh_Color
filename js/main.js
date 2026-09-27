@@ -24,7 +24,7 @@ import {
   createBowlGeometry,
   createCubeGeometry,
 } from './proceduralModels.js';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260921_120';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260927_123';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_123';
@@ -38,16 +38,16 @@ import {
   computeLuminanceBlendWeight,
   generateInterleavedTable
 } from './layerBlending.js?v=20260921_120';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260918_134';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260927_123';
 import { sampleRGBBilinear } from './displacement.js?v=20260912_102';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
-import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260922_121';
+import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260927_123';
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260926_121';
+import { APP_VERSION } from './version.js?v=20260927_123';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
