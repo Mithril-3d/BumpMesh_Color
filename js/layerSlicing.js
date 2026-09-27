@@ -367,7 +367,8 @@ export function applyLayerAlignedDisplacement(
   profileMode,
   shadingMode,
   sampleFn, // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
-  untexturedTool = 1
+  untexturedTool = 1,
+  exclusionMode = 0 // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
 ) {
   const { positions: inPos, normals: inNrm, layers: inLay, triExcluded, vertExcluded, cutEdgesPerCut, uniqueVerts, uniqueNorms, zCuts } = sliced;
   const triCount = inLay.length;
@@ -412,25 +413,107 @@ export function applyLayerAlignedDisplacement(
     return 1.0;
   }
 
+  function computeDisplacement(
+    activeTool,
+    targetTool,
+    blendWeight,
+    lay,
+    z,
+    isExcl,
+    exclMode
+  ) {
+    if (isExcl) {
+      if (exclMode === 1) {
+        // Mode 2: OFF, ON - 指定ツールが出っ張り交互積層
+        return computeLayerDisplacementByLayer(
+          activeTool,
+          untexturedTool,
+          lay,
+          z,
+          minZ,
+          t,
+          toolIds,
+          convexVal,
+          concaveVal,
+          profileMode,
+          1.0,
+          0
+        );
+      } else if (exclMode === 2) {
+        // Mode 3: ON, OFF - 凹凸維持、ペイント解除（指定ツール単色立体レリーフ）
+        return computeLayerDisplacementByLayer(
+          activeTool,
+          targetTool,
+          lay,
+          z,
+          minZ,
+          t,
+          toolIds,
+          convexVal,
+          concaveVal,
+          profileMode,
+          blendWeight,
+          shadingMode
+        );
+      } else {
+        // Mode 1 (exclMode 0): OFF, OFF - 完全フラット
+        // Mode 4 (exclMode 3): ON, ON - 振り量0 (何も出っ張らないフラット交互積層)
+        return 0.0;
+      }
+    }
+
+    // 通常領域
+    return computeLayerDisplacementByLayer(
+      activeTool,
+      targetTool,
+      lay,
+      z,
+      minZ,
+      t,
+      toolIds,
+      convexVal,
+      concaveVal,
+      profileMode,
+      blendWeight,
+      shadingMode
+    );
+  }
+
   for (let i = 0; i < triCount; i++) {
     const lay = inLay[i];
     const activeTool = getInterleavedToolAtLayer(lay, toolIds);
     const b = i * 9;
 
-    // Compute average face normal to detect horizontal caps
-    let avgNx = (inNrm ? (inNrm[b] + inNrm[b+3] + inNrm[b+6]) : 0) / 3;
-    let avgNy = (inNrm ? (inNrm[b+1] + inNrm[b+4] + inNrm[b+7]) : 0) / 3;
-    let avgNz = (inNrm ? (inNrm[b+2] + inNrm[b+5] + inNrm[b+8]) : 1) / 3;
-    const avgLen = Math.hypot(avgNx, avgNy, avgNz) || 1;
-    avgNx /= avgLen; avgNy /= avgLen; avgNz /= avgLen;
-    const avgHlen = Math.hypot(avgNx, avgNy);
-
-    // Horizontal surfaces (top/bottom flat caps) or user-excluded faces receive untexturedTool
-    // so no displacement or interleaved color is applied
-    const isHorizontalCap = avgHlen < 0.15;
+    // Compute geometric face normal from vertex positions to detect horizontal caps 100% accurately,
+    // independent of vertex dedup normal sharing at corner edges
+    const x0 = inPos[b],   y0 = inPos[b+1], z0 = inPos[b+2];
+    const x1 = inPos[b+3], y1 = inPos[b+4], z1 = inPos[b+5];
+    const x2 = inPos[b+6], y2 = inPos[b+7], z2 = inPos[b+8];
+    const e1x = x1 - x0, e1y = y1 - y0, e1z = z1 - z0;
+    const e2x = x2 - x0, e2y = y2 - y0, e2z = z2 - z0;
+    let fnx = e1y * e2z - e1z * e2y;
+    let fny = e1z * e2x - e1x * e2z;
+    let fnz = e1x * e2y - e1y * e2x;
+    const flen = Math.hypot(fnx, fny, fnz) || 1;
+    fnx /= flen; fny /= flen; fnz /= flen;
+    const isHorizontalCap = Math.hypot(fnx, fny) < 0.15;
     const isExcluded = triExcluded ? Boolean(triExcluded[i]) : false;
-    const isUntextured = isHorizontalCap || isExcluded;
-    triTools[i] = isUntextured ? untexturedTool : activeTool;
+
+    let assignedTool;
+    if (isHorizontalCap) {
+      assignedTool = untexturedTool;
+    } else if (isExcluded) {
+      if (exclusionMode === 1 || exclusionMode === 3) {
+        // Mode 2 & Mode 4: 交互積層維持 (activeTool)
+        assignedTool = activeTool;
+      } else {
+        // Mode 1 & Mode 3: 指定ツール塗りつぶし (untexturedTool)
+        assignedTool = untexturedTool;
+      }
+    } else {
+      assignedTool = activeTool;
+    }
+    triTools[i] = assignedTool;
 
     const layerFade = getLayerFade(lay);
 
@@ -444,9 +527,10 @@ export function applyLayerAlignedDisplacement(
       const nz = inNrm ? inNrm[idx + 2] : 1;
 
       const hlen = Math.hypot(nx, ny);
+      const fhlen = Math.hypot(fnx, fny);
 
-      if (hlen < 0.15 || isUntextured || layerFade <= 1e-6) {
-        // Horizontal surface (top/bottom flat caps, boundary rim, or excluded area): keep pristine base position
+      if (isHorizontalCap || layerFade <= 1e-6) {
+        // Horizontal surface (top/bottom flat caps, boundary rim): keep pristine base position
         outPos[idx]     = x;
         outPos[idx + 1] = y;
         outPos[idx + 2] = z;
@@ -454,26 +538,20 @@ export function applyLayerAlignedDisplacement(
         outNrm[idx + 1] = ny;
         outNrm[idx + 2] = nz;
       } else {
-        // Vertical/perimeter sidewall: apply exact displacement from base
-        const unx = nx / hlen;
-        const uny = ny / hlen;
+        // Vertical/perimeter sidewall: apply exact displacement
+        const unx = hlen >= 0.15 ? (nx / hlen) : (fhlen > 0 ? fnx / fhlen : 0);
+        const uny = hlen >= 0.15 ? (ny / hlen) : (fhlen > 0 ? fny / fhlen : 0);
 
         const { targetTool, blendWeight } = sampleFn(x, y, z, nx, ny, nz);
 
-        // Compute displacement strictly for this layer and its active tool
-        let disp = computeLayerDisplacementByLayer(
+        let disp = computeDisplacement(
           activeTool,
           targetTool,
+          blendWeight,
           lay,
           z,
-          minZ,
-          t,
-          toolIds,
-          convexVal,
-          concaveVal,
-          profileMode,
-          blendWeight,
-          shadingMode
+          isExcluded,
+          exclusionMode
         );
         disp *= layerFade;
 
@@ -560,10 +638,10 @@ export function applyLayerAlignedDisplacement(
         const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
         const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
 
-        const dispBot0 = (!isExcl0 && hlen0 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s0.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * botFade : 0;
-        const dispBot1 = (!isExcl1 && hlen1 >= 0.15) ? computeLayerDisplacementByLayer(botTool, s1.targetTool, botLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * botFade : 0;
-        const dispTop0 = (!isExcl0 && hlen0 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s0.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s0.blendWeight, shadingMode) * topFade : 0;
-        const dispTop1 = (!isExcl1 && hlen1 >= 0.15) ? computeLayerDisplacementByLayer(topTool, s1.targetTool, topLay, zCut, minZ, t, toolIds, convexVal, concaveVal, profileMode, s1.blendWeight, shadingMode) * topFade : 0;
+        const dispBot0 = (hlen0 >= 0.15) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode) * botFade : 0;
+        const dispBot1 = (hlen1 >= 0.15) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode) * botFade : 0;
+        const dispTop0 = (hlen0 >= 0.15) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode) * topFade : 0;
+        const dispTop1 = (hlen1 >= 0.15) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode) * topFade : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;
@@ -588,7 +666,10 @@ export function applyLayerAlignedDisplacement(
         const p1_top_z = p1[2];
 
         // Assign tool: dominant protruding tool owns the shelf surface
-        const shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;
+        let shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;
+        if (isExcl0 && isExcl1 && (exclusionMode === 0 || exclusionMode === 2)) {
+          shelfTool = untexturedTool;
+        }
         const shelfNz = ((dispBot0 + dispBot1) >= (dispTop0 + dispTop1)) ? 1 : -1;
 
         // Output non-degenerate shelf geometry with correct manifold winding order:

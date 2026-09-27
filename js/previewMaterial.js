@@ -61,6 +61,8 @@ const sharedGLSL = /* glsl */`
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
+  uniform int       interleavedExclusionMode;
+
 
   const float PI     = 3.14159265358979;
   const float TWO_PI = 6.28318530717959;
@@ -423,7 +425,16 @@ const vertexShader = /* glsl */`
     if (useDisplacement == 1) {
       float h = computeHeightAtPoint(position, safeN, safeN);
       if (colorSubMode != 1 && symmetricDisplacement == 1) h = h - 0.5;
-      h *= totalMask;
+      if (colorSubMode == 1) {
+        if (interleavedExclusionMode == 2) {
+          // Mode 2: Relief mode (keep displacement on user-excluded faces)
+          h *= angleMask * boundaryFalloffAttr;
+        } else {
+          h *= totalMask;
+        }
+      } else {
+        h *= totalMask;
+      }
 
       // Displace along smooth normal so all copies of the same position
       // arrive at the same point (watertight, no cracks).
@@ -516,9 +527,16 @@ const fragmentShader = /* glsl */`
       maskBlend *= bf;
     }
 
-    h *= maskBlend;
-    dhx *= maskBlend;
-    dhy *= maskBlend;
+    if (colorSubMode == 1 && interleavedExclusionMode == 2) {
+      float effAngleMask = min(1.0, vFaceMask + (1.0 - vUserMask));
+      h *= effAngleMask;
+      dhx *= effAngleMask;
+      dhy *= effAngleMask;
+    } else {
+      h *= maskBlend;
+      dhx *= maskBlend;
+      dhy *= maskBlend;
+    }
 
     vec3 dp1 = dFdx(vViewPos);
     vec3 dp2 = dFdy(vViewPos);
@@ -545,7 +563,11 @@ const fragmentShader = /* glsl */`
     // back to the flat face normal → faceted/static look.  Blend toward
     // the smooth interpolated normal so masked areas get smooth shading.
     vec3 smoothN = normalize(vSmoothNormal) * (gl_FrontFacing ? 1.0 : -1.0);
-    bumpN = mix(smoothN, bumpN, maskBlend);
+    if (colorSubMode == 1 && interleavedExclusionMode == 2) {
+      bumpN = mix(smoothN, bumpN, max(maskBlend, vUserMask < 0.5 ? 1.0 : 0.0));
+    } else {
+      bumpN = mix(smoothN, bumpN, maskBlend);
+    }
 
     // ── Shading ───────────────────────────────────────────────────────────
     vec3 _dpx = dFdx(vModelPos);
@@ -582,6 +604,10 @@ const fragmentShader = /* glsl */`
 
     // Mask tint: pick colour by mask type, or use designated untextured tool color when color preview is on
     float maskEffect = 1.0 - maskBlend; // 0 = fully textured, 1 = fully masked
+    if (colorSubMode == 1 && interleavedExclusionMode == 3) {
+      // Mode 3: ON, ON, ignore designated tool (keep interleaved texture colors, flat displacement)
+      maskEffect = 0.0;
+    }
     float effectiveMaskType = mix(vMaskType, 0.0, step(0.5, 1.0 - vUserMask));
     vec3 stdMaskBase = mix(userMaskColor, angleMaskColor, effectiveMaskType);
     vec3 maskBase    = (useColorTexture == 1) ? untexturedColor : stdMaskBase;
@@ -695,6 +721,9 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedGamma) u.interleavedGamma = { value: 1.0 };
   u.interleavedGamma.value = settings.interleavedGamma ?? 1.0;
 
+  if (!u.interleavedExclusionMode) u.interleavedExclusionMode = { value: 0 };
+  u.interleavedExclusionMode.value = settings.interleavedExclusionMode ?? 0;
+
   if (settings.layerBlendMap) {
     if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
     else u.layerBlendMap.value = settings.layerBlendMap;
@@ -760,6 +789,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 1 },
     interleavedProfileMode:   { value: settings.interleavedProfileMode ?? 0 },
     interleavedGamma:         { value: settings.interleavedGamma ?? 1.0 },
+    interleavedExclusionMode: { value: settings.interleavedExclusionMode ?? 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

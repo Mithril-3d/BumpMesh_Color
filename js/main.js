@@ -486,6 +486,7 @@ const interleavedShadingModeSelect    = document.getElementById('interleaved-sha
 const interleavedGammaRow             = document.getElementById('interleaved-gamma-row');
 const interleavedGammaSlider          = document.getElementById('interleaved-gamma');
 const interleavedGammaVal             = document.getElementById('interleaved-gamma-val');
+const interleavedExclusionModeSelect  = document.getElementById('interleaved-exclusion-mode');
 const interleavedToolList             = document.getElementById('interleaved-tool-list');
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
 
@@ -500,7 +501,8 @@ let interleavedSettings          = {
   concaveAmp: 0.00,
   profileMode: 0, // 0 = Flat step (recommended), 1 = 45° Louver
   shadingMode: 1, // 0 = Step (discrete), 1 = Gradient (continuous)
-  gamma: 1.00     // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
+  gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
+  exclusionMode: 0 // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -1707,8 +1709,13 @@ function renderInterleavedUI() {
   settings.interleavedProfileMode = interleavedSettings.profileMode;
   settings.interleavedShadingMode = interleavedSettings.shadingMode;
   settings.interleavedGamma       = interleavedSettings.gamma ?? 1.0;
+  settings.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
   settings.interleavedToolIds     = toolIds;
   settings.colorSubMode           = currentColorSubMode;
+
+  if (interleavedExclusionModeSelect) {
+    interleavedExclusionModeSelect.value = String(interleavedSettings.exclusionMode ?? 0);
+  }
 
   if (interleavedGammaRow) {
     interleavedGammaRow.style.display = (interleavedSettings.shadingMode === 1) ? 'flex' : 'none';
@@ -1800,6 +1807,15 @@ function initInterleavedEvents() {
       const g = parseFloat(e.target.value) || 1.0;
       interleavedSettings.gamma = g;
       if (interleavedGammaVal) interleavedGammaVal.textContent = g.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedExclusionModeSelect) {
+    interleavedExclusionModeSelect.addEventListener('change', (e) => {
+      const parsed = parseInt(e.target.value, 10);
+      interleavedSettings.exclusionMode = isNaN(parsed) ? 0 : parsed;
       renderInterleavedUI();
       updatePreview();
     });
@@ -5125,6 +5141,7 @@ function getFullPreviewSettings() {
     interleavedProfileMode: interleavedSettings.profileMode ?? 0,
     interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
     interleavedGamma: interleavedSettings.gamma ?? 1.0,
+    interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: null,
@@ -5850,6 +5867,7 @@ async function handleExport(format = 'stl') {
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedGamma: interleavedSettings.gamma ?? 1.0,
+      interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
       // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
       // so we receive a pristine subdivided base mesh, then slice & displace strictly per layer.
@@ -5974,6 +5992,8 @@ async function handleExport(format = 'stl') {
         const concaveAmp = interleavedSettings.concaveAmp ?? 0.00;
         const untexturedTool = settings.untexturedToolId || getOptimalUntexturedTool(toolIds);
 
+        const exclusionMode = effectiveSettings.interleavedExclusionMode ?? interleavedSettings.exclusionMode ?? 0;
+
         const aligned = applyLayerAlignedDisplacement(
           sliced,
           groundedMinZ + cutOffset,
@@ -5984,7 +6004,8 @@ async function handleExport(format = 'stl') {
           effectiveSettings.interleavedProfileMode,
           effectiveSettings.interleavedShadingMode,
           sampleFn,
-          untexturedTool
+          untexturedTool,
+          exclusionMode
         );
 
         finalGeometry = new THREE.BufferGeometry();
@@ -6320,6 +6341,7 @@ async function bakeTextures() {
       interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
+      interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
     };
     const result = await runPipeline({
@@ -6635,6 +6657,7 @@ function getSettingsSnapshot() {
   snap.interleavedConcave     = interleavedSettings.concaveAmp;
   snap.interleavedProfileMode = interleavedSettings.profileMode;
   snap.interleavedShadingMode = interleavedSettings.shadingMode;
+  snap.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
 
   // Model Scale state
   snap.modelScale   = { x: _modelScale.x, y: _modelScale.y, z: _modelScale.z };
@@ -6846,6 +6869,10 @@ function applySettingsSnapshot(snap) {
     interleavedSettings.shadingMode = snap.interleavedShadingMode;
     if (interleavedShadingModeSelect) interleavedShadingModeSelect.value = String(snap.interleavedShadingMode);
   }
+  if (snap.interleavedExclusionMode != null) {
+    interleavedSettings.exclusionMode = snap.interleavedExclusionMode;
+    if (interleavedExclusionModeSelect) interleavedExclusionModeSelect.value = String(snap.interleavedExclusionMode);
+  }
   if (typeof renderInterleavedUI === 'function') renderInterleavedUI();
 
   // ── Model Scale state restoration ──
@@ -6998,6 +7025,7 @@ const DEFAULT_SETTINGS_SNAPSHOT = Object.freeze({
   interleavedConcave: 0.00,
   interleavedProfileMode: 0,
   interleavedShadingMode: 1,
+  interleavedExclusionMode: 0,
   modelScale: { x: 100, y: 100, z: 100 },
   scaleUniform: true,
   currentModelMode: 'preset',

@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.2.2-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.2.3-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,7 +30,16 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.2.2 (Latest Release - 2026-09-27)**:
+- **v1.2.3 (Latest Release - 2026-09-27)**:
+  - **4 Configurable Exclusion Modes for Interleaved Multi-Tool Slicing**:
+    - Users can now customize how user-painted exclusion regions are processed during interleaved multi-tool printing:
+      1. `OFF, OFF, Fill with designated tool (Cancel interleaving)`: Flat surface, cancel interleaving, solid single tool fill.
+      2. `OFF, ON, Fill with designated tool (Designated tool protrudes & interleaves)`: Slicing layer rhythm is preserved without extra tool changes; designated tool layer protrudes to produce the desired color.
+      3. `ON, OFF, Fill with designated tool (Cancel interleaving)`: Preserves texture 3D relief displacement while rendering as a monochrome solid color sculpture.
+      4. `ON, ON, Ignore designated tool (Zero protrusion & interleaves)`: Surface is flattened (zero protrusion) while preserving the original multi-color interleaved pattern.
+    - Automatic horizontal top cap protection guarantees bridge quality on top surfaces across all modes.
+    - Full visual parity in real-time WebGL shader preview.
+- **v1.2.2 (2026-09-27)**:
   - **Fix Exclusion Paint Omission in Multi-Tool & Interleaved 3MF Export**:
     - Fixed a bug where exclusion painted regions (circles, polygons, etc.) were omitted during mesh partitioning, watertight slicing, decimation, and multi-tool 3MF export pipelines.
     - Properly assigns the untextured tool ID (default: Tool 7) and suppresses texture displacement for exclusion painted regions as intended.

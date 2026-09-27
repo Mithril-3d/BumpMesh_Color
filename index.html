@@ -21,7 +21,7 @@
   <meta name="twitter:description" content="Add displacement textures and multi-color tool assignments to 3D models directly in your browser. Preview, mask, and export printable meshes locally." />
 
   <link rel="icon" type="image/png" href="logo.png" />
-  <link rel="stylesheet" href="style.css?v=20260922_121" />
+  <link rel="stylesheet" href="style.css?v=20260927_123" />
   <script>
     // Apply saved theme before first paint to avoid flash
     (function() {
@@ -99,7 +99,7 @@
       <div class="logo-text">
         <div class="logo-title">
           <span>BumpMesh_Color</span>
-          <span id="app-version" class="app-version">v1.2.2</span>
+          <span id="app-version" class="app-version">v1.2.3</span>
         </div>
         <div class="logo-subtitle">
           by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener noreferrer">@Mithril_MEX</a>
@@ -493,6 +493,16 @@
                 <input type="range" id="interleaved-gamma" min="0.4" max="2.2" step="0.05" value="1.0" style="flex:1;">
                 <span id="interleaved-gamma-val" style="min-width:32px;font-size:11px;font-family:monospace;text-align:right;">1.00</span>
               </div>
+            </div>
+
+            <div class="form-row" style="margin-bottom:8px;">
+              <label for="interleaved-exclusion-mode" data-i18n="color.interleavedExclusionMode" data-i18n-title="color.interleavedExclusionModeTitle" title="除外ペイントで指定した領域の処理方法">除外領域の処理</label>
+              <select id="interleaved-exclusion-mode" class="interleaved-select" style="font-size:11px;">
+                <option value="0" selected data-i18n-opt="color.exclMode1">1. 凹凸OFF / ペイントOFF (指定ツール塗りつぶし)</option>
+                <option value="1" data-i18n-opt="color.exclMode2">2. 凹凸OFF / ペイントON (指定ツール出っ張り交互積層)</option>
+                <option value="2" data-i18n-opt="color.exclMode3">3. 凹凸ON / ペイントOFF (指定ツール塗りつぶし立体)</option>
+                <option value="3" data-i18n-opt="color.exclMode4">4. 凹凸ON / ペイントON (指定ツール無視フラット交互積層)</option>
+              </select>
             </div>
 
             <!-- Independent prominent preview button -->
@@ -1025,6 +1035,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=20260927_122"></script>
+  <script type="module" src="js/main.js?v=20260927_123"></script>
 </body>
 </html>
