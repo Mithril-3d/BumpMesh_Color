@@ -67,7 +67,15 @@
   - [x] 3Dプレビュー用GLSLシェーダー（`previewMaterial.js`）も同一のマルチカラー幾何モデルに同期
   - [x] 背景色だけでなくグラデーション2色の出っ張りが完璧に入れ替わることを検証
 - [x] ウォークスルー作成 (`walkthrough.md`)
-- [x] Gitコミット、プッシュ、Vercel反映
+- [x] バージョン番号のインクリメント (`APP_VERSION = '1.2.4'`)
+- [x] 3MFエクスポート時の多色ブレンド変位計算の修正
+  - [x] `main.js` の `sampleFn` で `computeMultiColorBlend` を呼び出し、`multiColorInfo` を正しく返却
+  - [x] `layerSlicing.js` の `computeLayerDisplacementByLayer` に `multiColorInfo` を反映し、白とオレンジの出っ張り反転をエクスポート時にも完全適用
+- [x] 1層1色（Interleaved Slicing）ルールの完全保証
+  - [x] `sliceMeshWatertight` 内の境界カット面上の退化スライバー（厚み0の水平三角形）を除外
+  - [x] 水平棚面（Shelf Triangles）のツールを下層ツール（`botTool`）に統一し、上層色の下層スライス混入（189層目に白の粒が混ざる現象）を物理的・幾何学的に100%根絶
+  - [x] 全層で異色混入ゼロ（0 / 150 レイヤー違反）を数値検証
+- [x] Gitコミット、プッシュ（`feature/procedural-texture-generator` および `vercel` ブランチ）
 
 
 

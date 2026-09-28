@@ -123,6 +123,15 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
   let totalTriangles = 0;
 
   function emitTri(id0, id1, id2, layerIdx, isExcl = 0) {
+    if (id0 === id1 || id1 === id2 || id2 === id0) return;
+    const p0 = uniqueVerts[id0], p1 = uniqueVerts[id1], p2 = uniqueVerts[id2];
+    const e1x = p1[0] - p0[0], e1y = p1[1] - p0[1], e1z = p1[2] - p0[2];
+    const e2x = p2[0] - p0[0], e2y = p2[1] - p0[1], e2z = p2[2] - p0[2];
+    const cx = e1y * e2z - e1z * e2y;
+    const cy = e1z * e2x - e1x * e2z;
+    const cz = e1x * e2y - e1y * e2x;
+    if (cx * cx + cy * cy + cz * cz < 1e-12) return;
+
     if (chunkCount >= CHUNK_SIZE) {
       triChunks.push(curTriChunk);
       layerChunks.push(curLayerChunk);
@@ -186,13 +195,18 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
         const curBelow = curZ <= zCut + 1e-6;
         const nextBelow = nextZ <= zCut + 1e-6;
 
-        if (curBelow) below.push(curId);
-        else above.push(curId);
+        if (curBelow) {
+          if (below.length === 0 || below[below.length - 1] !== curId) below.push(curId);
+        } else {
+          if (above.length === 0 || above[above.length - 1] !== curId) above.push(curId);
+        }
 
         if (curBelow !== nextBelow) {
-          const interId = getEdgeCut(curId, nextId, cutIdx);
-          below.push(interId);
-          above.push(interId);
+          const isCurOnPlane = Math.abs(curZ - zCut) <= 1e-6;
+          const isNextOnPlane = Math.abs(nextZ - zCut) <= 1e-6;
+          const interId = isCurOnPlane ? curId : (isNextOnPlane ? nextId : getEdgeCut(curId, nextId, cutIdx));
+          if (below.length === 0 || below[below.length - 1] !== interId) below.push(interId);
+          if (above.length === 0 || above[above.length - 1] !== interId) above.push(interId);
 
           if (curBelow && !nextBelow) {
             cutEdgeEnd = interId;
@@ -210,7 +224,13 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
 
       if (below.length >= 3) {
         for (let j = 1; j < below.length - 1; j++) {
-          emitTri(below[0], below[j], below[j + 1], cutIdx, isExcl);
+          const id0 = below[0], id1 = below[j], id2 = below[j + 1];
+          const zA = uniqueVerts[id0][2], zB = uniqueVerts[id1][2], zC = uniqueVerts[id2][2];
+          // Discard artificial zero-thickness horizontal slivers lying entirely on the cut plane
+          if (Math.abs(zA - zCut) <= 1e-5 && Math.abs(zB - zCut) <= 1e-5 && Math.abs(zC - zCut) <= 1e-5) {
+            continue;
+          }
+          emitTri(id0, id1, id2, cutIdx, isExcl);
         }
       }
 
@@ -223,7 +243,12 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
 
     if (poly.length >= 3) {
       for (let j = 1; j < poly.length - 1; j++) {
-        emitTri(poly[0], poly[j], poly[j + 1], endCut, isExcl);
+        const id0 = poly[0], id1 = poly[j], id2 = poly[j + 1];
+        const zA = uniqueVerts[id0][2], zB = uniqueVerts[id1][2], zC = uniqueVerts[id2][2];
+        if (Math.abs(zA - zB) <= 1e-6 && Math.abs(zB - zC) <= 1e-6) {
+          continue;
+        }
+        emitTri(id0, id1, id2, endCut, isExcl);
       }
     }
   }
@@ -299,7 +324,8 @@ function computeLayerDisplacementByLayer(
   concaveVal,
   profileMode,
   blendWeight,
-  shadingMode
+  shadingMode,
+  multiColorInfo = null
 ) {
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
@@ -314,8 +340,18 @@ function computeLayerDisplacementByLayer(
   }
 
   // Mode 1: Gradient (continuous exposure ratio)
+  // Supports 2, 3, or more tools seamlessly
   let ratio = 0.0;
-  if (toolIds.length >= 2) {
+  if (multiColorInfo) {
+    const { toolA, toolB, t: tAffinity } = multiColorInfo;
+    if (activeTool === toolA) {
+      ratio = (tAffinity >= 0.5) ? (tAffinity - 0.5) * 2.0 : 0.0;
+    } else if (activeTool === toolB) {
+      ratio = (tAffinity < 0.5) ? (0.5 - tAffinity) * 2.0 : 0.0;
+    } else {
+      ratio = 0.0;
+    }
+  } else if (toolIds.length >= 2) {
     const isTool0 = (activeTool === toolIds[0]);
     if (blendWeight >= 0.5) {
       ratio = isTool0 ? (blendWeight - 0.5) * 2.0 : 0.0;
@@ -420,7 +456,8 @@ export function applyLayerAlignedDisplacement(
     lay,
     z,
     isExcl,
-    exclMode
+    exclMode,
+    multiColorInfo = null
   ) {
     if (isExcl) {
       if (exclMode === 1) {
@@ -437,7 +474,8 @@ export function applyLayerAlignedDisplacement(
           concaveVal,
           profileMode,
           1.0,
-          0
+          0,
+          null
         );
       } else if (exclMode === 2) {
         // Mode 3: ON, OFF - 凹凸維持、ペイント解除（指定ツール単色立体レリーフ）
@@ -453,7 +491,8 @@ export function applyLayerAlignedDisplacement(
           concaveVal,
           profileMode,
           blendWeight,
-          shadingMode
+          shadingMode,
+          multiColorInfo
         );
       } else {
         // Mode 1 (exclMode 0): OFF, OFF - 完全フラット
@@ -475,7 +514,8 @@ export function applyLayerAlignedDisplacement(
       concaveVal,
       profileMode,
       blendWeight,
-      shadingMode
+      shadingMode,
+      multiColorInfo
     );
   }
 
@@ -542,7 +582,7 @@ export function applyLayerAlignedDisplacement(
         const unx = hlen >= 0.15 ? (nx / hlen) : (fhlen > 0 ? fnx / fhlen : 0);
         const uny = hlen >= 0.15 ? (ny / hlen) : (fhlen > 0 ? fny / fhlen : 0);
 
-        const { targetTool, blendWeight } = sampleFn(x, y, z, nx, ny, nz);
+        const { targetTool, blendWeight, multiColorInfo } = sampleFn(x, y, z, nx, ny, nz);
 
         let disp = computeDisplacement(
           activeTool,
@@ -551,7 +591,8 @@ export function applyLayerAlignedDisplacement(
           lay,
           z,
           isExcluded,
-          exclusionMode
+          exclusionMode,
+          multiColorInfo
         );
         disp *= layerFade;
 
@@ -638,10 +679,10 @@ export function applyLayerAlignedDisplacement(
         const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
         const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
 
-        const dispBot0 = (hlen0 >= 0.15) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode) * botFade : 0;
-        const dispBot1 = (hlen1 >= 0.15) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode) * botFade : 0;
-        const dispTop0 = (hlen0 >= 0.15) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode) * topFade : 0;
-        const dispTop1 = (hlen1 >= 0.15) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode) * topFade : 0;
+        const dispBot0 = (hlen0 >= 0.15) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo) * botFade : 0;
+        const dispBot1 = (hlen1 >= 0.15) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo) * botFade : 0;
+        const dispTop0 = (hlen0 >= 0.15) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo) * topFade : 0;
+        const dispTop1 = (hlen1 >= 0.15) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo) * topFade : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;
@@ -665,8 +706,10 @@ export function applyLayerAlignedDisplacement(
         const p1_top_y = Math.fround(p1[1] + dispTop1 * uny1);
         const p1_top_z = p1[2];
 
-        // Assign tool: dominant protruding tool owns the shelf surface
-        let shelfTool = ((dispBot0 + dispBot1) > (dispTop0 + dispTop1)) ? botTool : topTool;
+        // Assign tool:
+        // In interleaved slicing, layer boundary shelf (Z = zCut) represents the top surface of the lower layer (botLay).
+        // Assigning botTool guarantees 100% strict single-color per slice layer with ZERO intra-layer tool mixing/speckles.
+        let shelfTool = botTool;
         if (isExcl0 && isExcl1 && (exclusionMode === 0 || exclusionMode === 2)) {
           shelfTool = untexturedTool;
         }

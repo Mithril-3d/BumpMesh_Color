@@ -46,6 +46,7 @@ import {
   computeInterleavedDisplacement,
   computeColorBlendWeight,
   computeLuminanceBlendWeight,
+  computeMultiColorBlend,
   generateInterleavedTable
 } from './layerBlending.js?v=20260921_120';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260927_123';
@@ -5984,18 +5985,21 @@ async function handleExport(format = 'stl') {
             v = uvResult.v;
           }
 
-          const targetTool = (exportPalette.length > 0)
+          let targetTool = (exportPalette.length > 0)
             ? getToolAtUV(exportEntry.imageData.data, exportEntry.width, exportEntry.height, u, v, exportPalette)
             : 1;
 
           let blendWeight = 1.0;
-          if (effectiveSettings.interleavedShadingMode === 1) {
+          let multiColorInfo = null;
+
+          if (exportPalette.length > 0 && effectiveSettings.interleavedShadingMode === 1) {
             const rgb = sampleRGBBilinear(exportEntry.imageData.data, exportEntry.width, exportEntry.height, u, v);
-            const g = effectiveSettings.interleavedGamma ?? 1.0;
-            blendWeight = computeLuminanceBlendWeight(rgb, g);
+            multiColorInfo = computeMultiColorBlend(rgb, exportPalette);
+            targetTool = multiColorInfo.toolA;
+            blendWeight = multiColorInfo.t;
           }
 
-          return { targetTool, blendWeight };
+          return { targetTool, blendWeight, multiColorInfo };
         };
 
         const convexAmp = interleavedSettings.convexAmp ?? 0.35;

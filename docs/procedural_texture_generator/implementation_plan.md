@@ -71,3 +71,8 @@
    - 使い方、各パラメータの効果、生成結果のまとめ。
 6. **ステップ6: Git コミット・プッシュ & Vercel デプロイ反映**
    - `feature/procedural-texture-generator` をプッシュ、および Vercel へのアップロード/ブランチ反映。
+7. **ステップ7: 3MFエクスポート多色変位反映 & 1層1色の完全保証 (v1.2.4)**
+   - `js/version.js` を `1.2.4` に更新。
+   - `js/main.js` の `sampleFn` で `computeMultiColorBlend` を導入し、白とオレンジの出っ張り反転を3MFエクスポート時にも完全適用。
+   - `js/layerSlicing.js` の退化スライバー除外および棚面（Shelf Triangles）のツールを `botTool` に統一し、1層1色のルール崩壊（189層目に白の粒が混入する現象）を完全根絶。
+   - 自動検証スクリプトによるゼロ違反（0 / 150層）の確認。
