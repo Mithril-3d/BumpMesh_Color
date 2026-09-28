@@ -30,6 +30,9 @@ import {
   DEFAULT_TEXTURE_GENERATOR_PARAMS,
   hexToRgb,
   rgbToHex,
+  schlickBias,
+  applyProfile,
+  lerpColor,
 } from './textureGenerator.js';
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260927_123';
 import { subdivide }          from './subdivision.js?v=20260908d';
@@ -7887,6 +7890,15 @@ _updateUndoButtons();
   const seamlessCheck = document.getElementById('texgen-seamless-wrap');
   const gridRadios    = document.querySelectorAll('input[name="texgen-grid-type"]');
 
+  // Gradient Bias & Profile Controls
+  const biasSlider    = document.getElementById('texgen-bias');
+  const biasVal       = document.getElementById('texgen-bias-val');
+  const biasLeftBtn   = document.getElementById('texgen-bias-left-btn');
+  const biasCenterBtn = document.getElementById('texgen-bias-center-btn');
+  const biasRightBtn  = document.getElementById('texgen-bias-right-btn');
+  const profileSelect = document.getElementById('texgen-profile-select');
+  const gradBarCanvas = document.getElementById('texgen-gradient-bar');
+
   const shapeBtns     = document.querySelectorAll('.texgen-shape-btn');
   const layoutBtns    = document.querySelectorAll('.texgen-layout-btn');
   const resChips      = document.querySelectorAll('.texgen-chip-btn[data-res-w]');
@@ -7926,6 +7938,7 @@ _updateUndoButtons();
     bgRadios.forEach(r => {
       r.checked = (parseInt(r.value, 10) === params.bgIndex);
     });
+    renderGradientBar();
   }
 
   // 2. Secret Unlock Logic
@@ -7972,6 +7985,7 @@ _updateUndoButtons();
     overlay.classList.remove('hidden');
     applyTranslations();
     readUIIntoParams();
+    renderGradientBar();
     requestRenderPreview();
   }
 
@@ -7984,6 +7998,40 @@ _updateUndoButtons();
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeModal();
   });
+
+  // Gradient Color Bar renderer
+  function renderGradientBar() {
+    if (!gradBarCanvas) return;
+    const ctx = gradBarCanvas.getContext('2d');
+    const w = gradBarCanvas.width;
+    const h = gradBarCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const bgIdx = (params.bgIndex >= 0 && params.bgIndex <= 2) ? params.bgIndex : 2;
+    const gradIndices = [0, 1, 2].filter(idx => idx !== bgIdx);
+    const colB_hex = params.colors[gradIndices[0]] || '#ffffff';
+    const colA_hex = params.colors[gradIndices[1]] || '#ff6600';
+    const rgbA = hexToRgb(colA_hex);
+    const rgbB = hexToRgb(colB_hex);
+
+    const b = (params.bias !== undefined) ? params.bias : 0.5;
+    const prof = params.profile || 'linear';
+
+    for (let x = 0; x < w; x++) {
+      const t = x / (w - 1);
+      const profiledT = applyProfile(t, prof);
+      const biasedT = schlickBias(profiledT, b);
+      ctx.fillStyle = lerpColor(rgbA, rgbB, biasedT);
+      ctx.fillRect(x, 0, 1, h);
+    }
+
+    // Draw midpoint indicator marker
+    const midX = Math.round(b * (w - 1));
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(midX - 1, 0, 2, h);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(midX, 0, 1, h);
+  }
 
   // 4. Input Sync & Event Handlers
   function readUIIntoParams() {
@@ -8001,12 +8049,15 @@ _updateUndoButtons();
     params.columns = parseInt(columnsSlider.value, 10) || 60;
     params.minSize = parseFloat(minSizeSlider.value) || 0.05;
     params.maxSize = parseFloat(maxSizeSlider.value) || 0.95;
-    params.curve = parseFloat(curveSlider.value) || 1.20;
+    params.curve = parseFloat(curveSlider.value) || 1.00;
     params.spread = parseFloat(spreadSlider.value) || 1.00;
     params.offset = parseFloat(offsetSlider.value) || 0.00;
     params.rotation = parseInt(rotSlider.value, 10) || 0;
     params.invert = !!invertCheck.checked;
     params.seamlessWrap = !!seamlessCheck.checked;
+
+    params.bias = parseFloat(biasSlider?.value ?? 0.5);
+    params.profile = profileSelect?.value || 'linear';
 
     let selectedGrid = 'staggered';
     gridRadios.forEach(r => { if (r.checked) selectedGrid = r.value; });
@@ -8025,6 +8076,7 @@ _updateUndoButtons();
     inp.addEventListener('input', () => {
       hexInps[idx].value = inp.value;
       params.colors[idx] = inp.value;
+      renderGradientBar();
       requestRenderPreview();
     });
   });
@@ -8037,6 +8089,7 @@ _updateUndoButtons();
         inp.value = v;
         colorInps[idx].value = v;
         params.colors[idx] = v;
+        renderGradientBar();
         requestRenderPreview();
       }
     });
@@ -8048,9 +8101,85 @@ _updateUndoButtons();
       colorCards.forEach((c, i) => {
         c.classList.toggle('is-bg', i === params.bgIndex);
       });
+      renderGradientBar();
       requestRenderPreview();
     });
   });
+
+  // Bias & Profile Controls
+  function updateBiasLabel(val) {
+    if (!biasVal) return;
+    const pct = Math.round(val * 100);
+    if (pct === 50) {
+      biasVal.textContent = '50% (均等)';
+    } else if (pct < 50) {
+      biasVal.textContent = `${pct}% (◀ 色Aに寄せる)`;
+    } else {
+      biasVal.textContent = `${pct}% (色Bに寄せる ▶)`;
+    }
+  }
+
+  if (biasSlider) {
+    biasSlider.addEventListener('input', () => {
+      const b = parseFloat(biasSlider.value);
+      params.bias = b;
+      updateBiasLabel(b);
+      renderGradientBar();
+      requestRenderPreview();
+
+      // Update chip active states
+      if (biasLeftBtn) biasLeftBtn.classList.toggle('active', Math.abs(b - 0.25) < 0.05);
+      if (biasCenterBtn) biasCenterBtn.classList.toggle('active', Math.abs(b - 0.50) < 0.05);
+      if (biasRightBtn) biasRightBtn.classList.toggle('active', Math.abs(b - 0.75) < 0.05);
+    });
+  }
+
+  if (biasLeftBtn) {
+    biasLeftBtn.addEventListener('click', () => {
+      params.bias = 0.25;
+      if (biasSlider) biasSlider.value = '0.25';
+      updateBiasLabel(0.25);
+      biasLeftBtn.classList.add('active');
+      biasCenterBtn?.classList.remove('active');
+      biasRightBtn?.classList.remove('active');
+      renderGradientBar();
+      requestRenderPreview();
+    });
+  }
+
+  if (biasCenterBtn) {
+    biasCenterBtn.addEventListener('click', () => {
+      params.bias = 0.50;
+      if (biasSlider) biasSlider.value = '0.50';
+      updateBiasLabel(0.50);
+      biasCenterBtn.classList.add('active');
+      biasLeftBtn?.classList.remove('active');
+      biasRightBtn?.classList.remove('active');
+      renderGradientBar();
+      requestRenderPreview();
+    });
+  }
+
+  if (biasRightBtn) {
+    biasRightBtn.addEventListener('click', () => {
+      params.bias = 0.75;
+      if (biasSlider) biasSlider.value = '0.75';
+      updateBiasLabel(0.75);
+      biasRightBtn.classList.add('active');
+      biasLeftBtn?.classList.remove('active');
+      biasCenterBtn?.classList.remove('active');
+      renderGradientBar();
+      requestRenderPreview();
+    });
+  }
+
+  if (profileSelect) {
+    profileSelect.addEventListener('change', () => {
+      params.profile = profileSelect.value;
+      renderGradientBar();
+      requestRenderPreview();
+    });
+  }
 
   // Sliders
   function setupSlider(slider, labelEl, formatFn, propName) {

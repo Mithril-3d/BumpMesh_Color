@@ -163,6 +163,36 @@ export function drawRing(ctx, cx, cy, outerRadius, innerRatio = 0.5) {
   ctx.closePath();
 }
 
+/**
+ * Schlick's bias function.
+ * Maps [0, 1] -> [0, 1].
+ * bias = 0.5 is linear.
+ * bias < 0.5 pushes curve toward 0 (shifts midpoint left/down).
+ * bias > 0.5 pushes curve toward 1 (shifts midpoint right/up).
+ */
+export function schlickBias(t, bias = 0.5) {
+  const clampT = Math.max(0, Math.min(1, t));
+  const b = Math.max(0.01, Math.min(0.99, bias));
+  return clampT / ((1 / b - 2) * (1 - clampT) + 1);
+}
+
+/** Apply curvature profile */
+export function applyProfile(t, profile = 'linear') {
+  const clampT = Math.max(0, Math.min(1, t));
+  switch (profile) {
+    case 'linear':
+      return clampT;
+    case 'smoothstep':
+      return clampT * clampT * (3 - 2 * clampT);
+    case 'ease_in':
+      return clampT * clampT;
+    case 'ease_out':
+      return 1 - (1 - clampT) * (1 - clampT);
+    default:
+      return clampT;
+  }
+}
+
 // ── Default Generator Settings ───────────────────────────────────────────────
 
 export const DEFAULT_TEXTURE_GENERATOR_PARAMS = {
@@ -176,7 +206,11 @@ export const DEFAULT_TEXTURE_GENERATOR_PARAMS = {
   columns: 60,          // Number of horizontal cells across width
   minSize: 0.05,        // 0.0 - 1.0 (relative to cell radius)
   maxSize: 0.95,        // 0.0 - 1.0
-  curve: 1.2,           // Falloff curve gamma (1.0 = linear, >1 = slower falloff at top)
+  bias: 0.5,            // 0.05 - 0.95 (0.5 = balanced center, <0.5 = shift to Color A, >0.5 = shift to Color B)
+  sizeBias: 0.5,        // Independent size falloff bias
+  linkSizeAndColor: true,// Keep color and size bias linked together
+  profile: 'linear',    // 'linear' | 'smoothstep' | 'ease_in' | 'ease_out'
+  curve: 1.0,           // Falloff exponent (1.0 = normal)
   spread: 1.0,          // Gradient spread / range (0.2 - 2.0)
   offset: 0.0,          // Gradient position offset (-1.0 to 1.0)
   invert: false,        // Invert direction
@@ -338,26 +372,36 @@ export function renderProceduralPattern(canvas, params = {}) {
       }
 
       // Apply Offset & Spread
-      // t_scaled = (t - 0.5 - offset) / spread + 0.5
-      let gradProgress = (t - 0.5 - offset) / spread + 0.5;
-      gradProgress = Math.max(0, Math.min(1, gradProgress));
+      let normT = (t - 0.5 - offset) / spread + 0.5;
+      normT = Math.max(0, Math.min(1, normT));
 
-      // Apply Non-linear Curve
-      const curvedProgress = Math.pow(gradProgress, curve);
+      // Apply Curvature Profile (linear, smoothstep, ease_in, ease_out)
+      const profiledT = applyProfile(normT, p.profile || 'linear');
+
+      // Apply Bias (片側に寄せる)
+      const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
+      const sizeBiasVal = p.linkSizeAndColor ? colorBiasVal : ((p.sizeBias !== undefined) ? p.sizeBias : 0.5);
+
+      const colorProgress = schlickBias(profiledT, colorBiasVal);
+      const sizeProgress = schlickBias(profiledT, sizeBiasVal);
+
+      // Apply Exponent Curve
+      const finalColorT = (curve !== 1.0) ? Math.pow(colorProgress, curve) : colorProgress;
+      const finalSizeT  = (curve !== 1.0) ? Math.pow(sizeProgress, curve) : sizeProgress;
 
       // Calculate Dot Scale Factor:
-      // When curvedProgress = 0.0 -> maxSize
-      // When curvedProgress = 1.0 -> minSize
-      const currentScale = maxS - curvedProgress * (maxS - minS);
+      // When finalSizeT = 0.0 -> maxSize
+      // When finalSizeT = 1.0 -> minSize
+      const currentScale = maxS - finalSizeT * (maxS - minS);
       const dotRadius = baseRadius * currentScale;
 
       // Skip drawing if size is negligible (< 0.25 px)
       if (dotRadius <= 0.25) continue;
 
       // Calculate Interpolated Color:
-      // curvedProgress = 0.0 -> Color A (e.g. orange)
-      // curvedProgress = 1.0 -> Color B (e.g. white)
-      const dotColor = lerpColor(rgbA, rgbB, curvedProgress);
+      // finalColorT = 0.0 -> Color A (e.g. orange)
+      // finalColorT = 1.0 -> Color B (e.g. white)
+      const dotColor = lerpColor(rgbA, rgbB, finalColorT);
 
       // Draw the shape
       ctx.fillStyle = dotColor;

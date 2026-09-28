@@ -1163,6 +1163,43 @@
             <div style="font-size:10px;color:var(--text-muted,#94a3b8);margin-top:2px;">
               ※ <span data-i18n="texgen.colorHint">The 1 color marked as Background forms the base; the remaining 2 colors smoothly blend as the gradient elements.</span>
             </div>
+
+            <!-- Gradient Bias & Balance Tuning -->
+            <div style="margin-top:10px;background:rgba(0,0,0,0.25);border:1px solid var(--border,#33384c);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:10px;font-weight:700;color:var(--accent,#818cf8);" data-i18n="texgen.biasTitle">グラデーション偏り / 片側に寄せる (Bias &amp; Balance)</span>
+                <span id="texgen-bias-val" style="font-size:10px;font-family:monospace;color:#38bdf8;">50% (均等)</span>
+              </div>
+
+              <!-- Color gradient visual bar -->
+              <div style="height:14px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);overflow:hidden;position:relative;">
+                <canvas id="texgen-gradient-bar" width="280" height="14" style="width:100%;height:100%;display:block;"></canvas>
+              </div>
+
+              <!-- Bias slider -->
+              <div class="texgen-slider-row" style="margin-top:2px;">
+                <label for="texgen-bias" style="width:100px;font-size:10px;" data-i18n="texgen.biasLabel">偏り (中間点):</label>
+                <input type="range" id="texgen-bias" min="0.05" max="0.95" step="0.01" value="0.50">
+              </div>
+
+              <!-- Quick Shift Buttons -->
+              <div style="display:flex;gap:4px;justify-content:space-between;">
+                <button type="button" class="texgen-chip-btn" id="texgen-bias-left-btn" style="flex:1;text-align:center;">◀ 色A側に寄せる (25%)</button>
+                <button type="button" class="texgen-chip-btn active" id="texgen-bias-center-btn" style="flex:1;text-align:center;">中央 (50%)</button>
+                <button type="button" class="texgen-chip-btn" id="texgen-bias-right-btn" style="flex:1;text-align:center;">色B側に寄せる (75%) ▶</button>
+              </div>
+
+              <!-- Curvature Profile / Easing -->
+              <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                <label for="texgen-profile-select" style="font-size:10px;color:var(--text-muted,#94a3b8);width:100px;flex-shrink:0;" data-i18n="texgen.profileLabel">変化カーブ特性:</label>
+                <select id="texgen-profile-select" class="dropdown-select" style="font-size:10px;padding:3px 6px;flex:1;">
+                  <option value="linear" selected>線形 (Linear)</option>
+                  <option value="smoothstep">なめらかS字 (Smoothstep)</option>
+                  <option value="ease_in">急激な立ち上がり (Ease-In)</option>
+                  <option value="ease_out">緩やかな収束 (Ease-Out)</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <!-- Section 3: Pattern Shape -->
