@@ -496,15 +496,16 @@ export function renderProceduralPattern(canvas, params = {}) {
 
       const isTop = topIsBg ? (cy < midY) : (cy >= midY);
 
-      // Distance from transition boundary (0 at midY, 1 at boundaries)
+      // Distance from transition boundary (0 at midY, 1 at canvas boundaries)
       const distFromBoundary = Math.abs(cy - midY) / Math.max(midY, H - midY);
 
-      // Scale reaches 1.01 at boundary for 100% gapless tessellation
-      const scale = Math.min(1.015, 0.08 + 0.935 * Math.cos(distFromBoundary * Math.PI * 0.5));
+      // Smooth, natural scale progression (continuous power curve avoiding flat center)
+      const scale = Math.min(1.015, 0.08 + 0.935 * (1.0 - Math.pow(distFromBoundary, 1.25)));
 
-      // Morph corner radius towards 0 at the boundary (smoothstep)
-      // This eliminates the corner gaps where underlying background would otherwise show through!
-      const tMorph = distFromBoundary * distFromBoundary * (3 - 2 * distFromBoundary);
+      // Smooth, natural roundness morphing progression:
+      // Power 0.75 ensures the rounding starts gradually right away from the first adjacent row,
+      // avoiding any abrupt snap between flat squares and rounded shapes!
+      const tMorph = Math.pow(distFromBoundary, 0.75);
 
       const sqSize = size * scale;
       const halfSq = sqSize * 0.5;
@@ -527,16 +528,10 @@ export function renderProceduralPattern(canvas, params = {}) {
               break;
 
             case 'circle': {
-              if (tMorph < 0.25) {
-                // Smoothly morph to square towards boundary to maintain 100% tessellation
-                const rx = halfSq * (0.8 * tMorph);
-                drawRoundedRect(ctx, xCenter - halfSq, cy - halfSq, sqSize, sqSize, rx);
-                ctx.fill();
-              } else {
-                ctx.beginPath();
-                ctx.arc(xCenter, cy, halfSq, 0, Math.PI * 2);
-                ctx.fill();
-              }
+              // Mathematical Squircle: Continuous morph from square (rx=0) to perfect circle (rx=halfSq)
+              const rx = halfSq * tMorph;
+              drawRoundedRect(ctx, xCenter - halfSq, cy - halfSq, sqSize, sqSize, rx);
+              ctx.fill();
               break;
             }
 
@@ -562,7 +557,8 @@ export function renderProceduralPattern(canvas, params = {}) {
 
             case 'rounded_square':
             default: {
-              const rx = sqSize * 0.30 * tMorph;
+              // Smooth morph from square at center to elegant rounded-rect pebble at edges
+              const rx = halfSq * (0.80 * tMorph);
               drawRoundedRect(ctx, xCenter - halfSq, cy - halfSq, sqSize, sqSize, rx);
               ctx.fill();
               break;
