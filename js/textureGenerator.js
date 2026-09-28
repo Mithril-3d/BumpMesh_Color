@@ -448,90 +448,133 @@ export function renderProceduralPattern(canvas, params = {}) {
     const size = W / invCols;
     const invRows = Math.ceil(H / size);
 
+    // Transition boundary Y (0.0 to 1.0)
+    const midV = Math.max(0.05, Math.min(0.95, 0.5 + offset));
+    const midY = midV * H;
+
+    const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
+    const topIsBg = !invert;
+
+    // Continuous background fill without individual cell rectangles (completely eliminates grid borders!)
+    if (topIsBg) {
+      // Bottom half is filled with continuous linear gradient
+      const grad = ctx.createLinearGradient(0, midY, 0, H);
+      const colorProgressMid = schlickBias(applyProfile(0.5, p.profile || 'linear'), colorBiasVal);
+      const finalMidT = (curve !== 1.0) ? Math.pow(colorProgressMid, curve) : colorProgressMid;
+      const colorProgressBot = schlickBias(applyProfile(1.0, p.profile || 'linear'), colorBiasVal);
+      const finalBotT = (curve !== 1.0) ? Math.pow(colorProgressBot, curve) : colorProgressBot;
+      grad.addColorStop(0, lerpColor(rgbA, rgbB, finalMidT));
+      grad.addColorStop(1, lerpColor(rgbA, rgbB, finalBotT));
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, midY, W, H - midY);
+    } else {
+      // Top half is filled with continuous linear gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, midY);
+      const colorProgressTop = schlickBias(applyProfile(1.0, p.profile || 'linear'), colorBiasVal);
+      const finalTopT = (curve !== 1.0) ? Math.pow(colorProgressTop, curve) : colorProgressTop;
+      const colorProgressMid = schlickBias(applyProfile(0.5, p.profile || 'linear'), colorBiasVal);
+      const finalMidT = (curve !== 1.0) ? Math.pow(colorProgressMid, curve) : colorProgressMid;
+      grad.addColorStop(0, lerpColor(rgbA, rgbB, finalTopT));
+      grad.addColorStop(1, lerpColor(rgbA, rgbB, finalMidT));
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, midY);
+    }
+
     for (let row = 0; row < invRows; row++) {
-      const y0 = row * size;
       const cy = (row + 0.5) * size;
       const v = Math.min(1, Math.max(0, cy / H));
 
-      // Inversion transition progress: top (v=0) -> 0.0, bottom (v=1) -> 1.0
       let t = v;
       if (invert) t = 1.0 - t;
 
       let normT = (t - 0.5 - offset) / spread + 0.5;
       normT = Math.max(0, Math.min(1, normT));
 
-      const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
       const profiledT = applyProfile(normT, p.profile || 'linear');
       const colorProgress = schlickBias(profiledT, colorBiasVal);
       const finalColorT = (curve !== 1.0) ? Math.pow(colorProgress, curve) : colorProgress;
 
-      // Figure-ground transition scale:
-      // normT < 0.5: Top half (Base = Background, Parity 0 draws Pattern dots growing 0 -> 1)
-      // normT >= 0.5: Bottom half (Base = Pattern, Parity 1 draws Background dots shrinking 1 -> 0)
-      const isTop = normT < 0.5;
-      const rawScale = isTop ? normT * 2 : (1.0 - normT) * 2;
-      const scale = Math.max(0, Math.min(1.0, rawScale));
+      const isTop = topIsBg ? (cy < midY) : (cy >= midY);
 
-      // Interpolate gradient color for the pattern element
+      // Distance from transition boundary (0 at midY, 1 at boundaries)
+      const distFromBoundary = Math.abs(cy - midY) / Math.max(midY, H - midY);
+
+      // Scale reaches 1.01 at boundary for 100% gapless tessellation
+      const scale = Math.min(1.015, 0.08 + 0.935 * Math.cos(distFromBoundary * Math.PI * 0.5));
+
+      // Morph corner radius towards 0 at the boundary (smoothstep)
+      // This eliminates the corner gaps where underlying background would otherwise show through!
+      const tMorph = distFromBoundary * distFromBoundary * (3 - 2 * distFromBoundary);
+
+      const sqSize = size * scale;
+      const halfSq = sqSize * 0.5;
+
       const tileColor = lerpColor(rgbA, rgbB, finalColorT);
+      const shapeCol = isTop ? tileColor : bgColor_hex;
 
       for (let col = 0; col < invCols; col++) {
-        const x0 = col * size;
-        const cx = (col + 0.5) * size;
         const parity = (col + row) % 2;
-
-        const baseCol = isTop ? bgColor_hex : tileColor;
-        const shapeCol = isTop ? tileColor : bgColor_hex;
         const shouldDrawShape = isTop ? (parity === 0) : (parity === 1);
+        if (!shouldDrawShape) continue;
 
-        // Fill base cell (slightly expand by 0.25px to avoid sub-pixel gaps)
-        ctx.fillStyle = baseCol;
-        ctx.fillRect(x0 - 0.25, y0 - 0.25, size + 0.5, size + 0.5);
+        const cx = (col + 0.5) * size;
+        ctx.fillStyle = shapeCol;
 
-        if (shouldDrawShape && scale > 0.005) {
-          const sqSize = size * scale;
-          const halfSq = sqSize * 0.5;
-          ctx.fillStyle = shapeCol;
-
+        const renderAtX = (xCenter) => {
           switch (p.shape) {
             case 'square':
-              ctx.fillRect(cx - halfSq, cy - halfSq, sqSize, sqSize);
+              ctx.fillRect(xCenter - halfSq, cy - halfSq, sqSize, sqSize);
               break;
 
-            case 'circle':
-              ctx.beginPath();
-              ctx.arc(cx, cy, halfSq, 0, Math.PI * 2);
-              ctx.fill();
+            case 'circle': {
+              if (tMorph < 0.25) {
+                // Smoothly morph to square towards boundary to maintain 100% tessellation
+                const rx = halfSq * (0.8 * tMorph);
+                drawRoundedRect(ctx, xCenter - halfSq, cy - halfSq, sqSize, sqSize, rx);
+                ctx.fill();
+              } else {
+                ctx.beginPath();
+                ctx.arc(xCenter, cy, halfSq, 0, Math.PI * 2);
+                ctx.fill();
+              }
               break;
+            }
 
             case 'diamond':
-              drawDiamond(ctx, cx, cy, halfSq, rotRad);
+              drawDiamond(ctx, xCenter, cy, halfSq, rotRad);
               ctx.fill();
               break;
 
             case 'triangle':
-              drawPolygon(ctx, cx, cy, halfSq, 3, rotRad);
+              drawPolygon(ctx, xCenter, cy, halfSq, 3, rotRad);
               ctx.fill();
               break;
 
             case 'hexagon':
-              drawPolygon(ctx, cx, cy, halfSq, 6, rotRad);
+              drawPolygon(ctx, xCenter, cy, halfSq, 6, rotRad);
               ctx.fill();
               break;
 
             case 'star':
-              drawStar(ctx, cx, cy, halfSq, 5, 0.48, rotRad);
+              drawStar(ctx, xCenter, cy, halfSq, 5, 0.48, rotRad);
               ctx.fill();
               break;
 
             case 'rounded_square':
             default: {
-              const rx = sqSize * 0.28;
-              drawRoundedRect(ctx, cx - halfSq, cy - halfSq, sqSize, sqSize, rx);
+              const rx = sqSize * 0.30 * tMorph;
+              drawRoundedRect(ctx, xCenter - halfSq, cy - halfSq, sqSize, sqSize, rx);
               ctx.fill();
               break;
             }
           }
+        };
+
+        renderAtX(cx);
+        // Seamless horizontal wrap duplicate
+        if (p.seamlessWrap) {
+          if (cx - halfSq < 0) renderAtX(cx + W);
+          else if (cx + halfSq > W) renderAtX(cx - W);
         }
       }
     }
