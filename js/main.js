@@ -7959,6 +7959,9 @@ _updateUndoButtons();
     if (urlParams.get('shape')) {
       params.shape = urlParams.get('shape');
     }
+    if (urlParams.get('layout')) {
+      params.layout = urlParams.get('layout');
+    }
     if (urlParams.get('columns')) {
       params.columns = parseInt(urlParams.get('columns'), 10) || 60;
       if (columnsSlider) columnsSlider.value = params.columns;
@@ -7998,6 +8001,9 @@ _updateUndoButtons();
     readUIIntoParams();
     shapeBtns.forEach(b => {
       b.classList.toggle('active', b.dataset.shape === params.shape);
+    });
+    layoutBtns.forEach(b => {
+      b.classList.toggle('active', b.dataset.layout === params.layout);
     });
     renderGradientBar();
     requestRenderPreview();
@@ -8314,14 +8320,14 @@ _updateUndoButtons();
       if (paletteSelect) paletteSelect.value = palIdx;
       syncColorUIFromParams();
 
-      // Pick random shape (including truchet)
-      const shapes = ['circle', 'triangle', 'square', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'ring', 'cross', 'truchet'];
+      // Pick random shape (including truchet and rounded_square)
+      const shapes = ['circle', 'triangle', 'square', 'rounded_square', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'ring', 'cross', 'truchet'];
       const shape = shapes[Math.floor(Math.random() * shapes.length)];
       params.shape = shape;
       shapeBtns.forEach(b => b.classList.toggle('active', b.dataset.shape === shape));
 
-      // Pick random layout
-      const layouts = ['vertical', 'horizontal_blend', 'wave', 'radial', 'diagonal', 'double_edge', 'noise'];
+      // Pick random layout (including inversion)
+      const layouts = ['vertical', 'horizontal_blend', 'wave', 'radial', 'diagonal', 'double_edge', 'noise', 'inversion'];
       const layout = layouts[Math.floor(Math.random() * layouts.length)];
       params.layout = layout;
       layoutBtns.forEach(b => b.classList.toggle('active', b.dataset.layout === layout));
@@ -8345,7 +8351,7 @@ _updateUndoButtons();
     });
   }
 
-  // 6. Preview Rendering (with smooth RAF debouncing)
+  // 6. Preview Rendering (with smooth RAF debouncing and headless fallback)
   let renderRaf = null;
 
   function requestRenderPreview() {
@@ -8354,6 +8360,14 @@ _updateUndoButtons();
       renderPreview();
       renderRaf = null;
     });
+    // Ensure render completes even if RAF is throttled/paused (e.g. background tab or headless)
+    setTimeout(() => {
+      if (renderRaf) {
+        cancelAnimationFrame(renderRaf);
+        renderRaf = null;
+        renderPreview();
+      }
+    }, 40);
   }
 
   function renderPreview() {

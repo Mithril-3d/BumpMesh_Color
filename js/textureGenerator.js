@@ -102,9 +102,30 @@ export const PRESET_PALETTES = [
     colors: ['#000000', '#f97316', '#ffffff'],
     bgIndex: 2, // White background
   },
+  {
+    name: 'Electric Lime (Wrapping)',
+    colors: ['#ffffff', '#84cc16', '#0f172a'],
+    bgIndex: 2, // Dark slate background
+  },
 ];
 
 // ── Shape Drawing Helpers ───────────────────────────────────────────────────
+
+/** Draw rounded rectangle on 2D context */
+export function drawRoundedRect(ctx, x, y, w, h, radius) {
+  const r = Math.min(radius, Math.abs(w) * 0.5, Math.abs(h) * 0.5);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
 
 /** Draw regular polygon on 2D context */
 export function drawPolygon(ctx, cx, cy, radius, sides, rotation = 0) {
@@ -200,8 +221,8 @@ export const DEFAULT_TEXTURE_GENERATOR_PARAMS = {
   height: 1000,
   colors: ['#ffffff', '#ff6600', '#000000'],
   bgIndex: 2,           // Index 2 (#000000) is background, 0 (#ffffff) and 1 (#ff6600) are gradient
-  shape: 'circle',      // 'circle' | 'triangle' | 'square' | 'diamond' | 'pentagon' | 'hexagon' | 'octagon' | 'star' | 'ring' | 'cross' | 'truchet'
-  layout: 'vertical',   // 'vertical' | 'horizontal_blend' | 'wave' | 'radial' | 'diagonal' | 'double_edge' | 'noise'
+  shape: 'circle',      // 'circle' | 'triangle' | 'square' | 'rounded_square' | 'diamond' | 'pentagon' | 'hexagon' | 'octagon' | 'star' | 'ring' | 'cross' | 'truchet'
+  layout: 'vertical',   // 'vertical' | 'horizontal_blend' | 'wave' | 'radial' | 'diagonal' | 'double_edge' | 'noise' | 'inversion'
   gridType: 'staggered',// 'staggered' (hexagonal/brick) | 'grid' (orthogonal)
   columns: 60,          // Number of horizontal cells across width
   minSize: 0.05,        // 0.0 - 1.0 (relative to cell radius)
@@ -417,7 +438,107 @@ export function renderProceduralPattern(canvas, params = {}) {
     return;
   }
 
-  // 4. Iterate Over Regular Dot Grid Elements
+  // 5. Special Layout: Figure-Ground Inversion (主導権反転 / 図地反転)
+  if (p.layout === 'inversion') {
+    let invCols = Math.max(4, Math.round(Number(p.columns) || 48));
+    // Enforce even number of columns for seamless 360 wrap
+    if (p.seamlessWrap && invCols % 2 !== 0) {
+      invCols += 1;
+    }
+    const size = W / invCols;
+    const invRows = Math.ceil(H / size);
+
+    for (let row = 0; row < invRows; row++) {
+      const y0 = row * size;
+      const cy = (row + 0.5) * size;
+      const v = Math.min(1, Math.max(0, cy / H));
+
+      // Inversion transition progress: top (v=0) -> 0.0, bottom (v=1) -> 1.0
+      let t = v;
+      if (invert) t = 1.0 - t;
+
+      let normT = (t - 0.5 - offset) / spread + 0.5;
+      normT = Math.max(0, Math.min(1, normT));
+
+      const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
+      const profiledT = applyProfile(normT, p.profile || 'linear');
+      const colorProgress = schlickBias(profiledT, colorBiasVal);
+      const finalColorT = (curve !== 1.0) ? Math.pow(colorProgress, curve) : colorProgress;
+
+      // Figure-ground transition scale:
+      // normT < 0.5: Top half (Base = Background, Parity 0 draws Pattern dots growing 0 -> 1)
+      // normT >= 0.5: Bottom half (Base = Pattern, Parity 1 draws Background dots shrinking 1 -> 0)
+      const isTop = normT < 0.5;
+      const rawScale = isTop ? normT * 2 : (1.0 - normT) * 2;
+      const scale = Math.max(0, Math.min(1.0, rawScale));
+
+      // Interpolate gradient color for the pattern element
+      const tileColor = lerpColor(rgbA, rgbB, finalColorT);
+
+      for (let col = 0; col < invCols; col++) {
+        const x0 = col * size;
+        const cx = (col + 0.5) * size;
+        const parity = (col + row) % 2;
+
+        const baseCol = isTop ? bgColor_hex : tileColor;
+        const shapeCol = isTop ? tileColor : bgColor_hex;
+        const shouldDrawShape = isTop ? (parity === 0) : (parity === 1);
+
+        // Fill base cell (slightly expand by 0.25px to avoid sub-pixel gaps)
+        ctx.fillStyle = baseCol;
+        ctx.fillRect(x0 - 0.25, y0 - 0.25, size + 0.5, size + 0.5);
+
+        if (shouldDrawShape && scale > 0.005) {
+          const sqSize = size * scale;
+          const halfSq = sqSize * 0.5;
+          ctx.fillStyle = shapeCol;
+
+          switch (p.shape) {
+            case 'square':
+              ctx.fillRect(cx - halfSq, cy - halfSq, sqSize, sqSize);
+              break;
+
+            case 'circle':
+              ctx.beginPath();
+              ctx.arc(cx, cy, halfSq, 0, Math.PI * 2);
+              ctx.fill();
+              break;
+
+            case 'diamond':
+              drawDiamond(ctx, cx, cy, halfSq, rotRad);
+              ctx.fill();
+              break;
+
+            case 'triangle':
+              drawPolygon(ctx, cx, cy, halfSq, 3, rotRad);
+              ctx.fill();
+              break;
+
+            case 'hexagon':
+              drawPolygon(ctx, cx, cy, halfSq, 6, rotRad);
+              ctx.fill();
+              break;
+
+            case 'star':
+              drawStar(ctx, cx, cy, halfSq, 5, 0.48, rotRad);
+              ctx.fill();
+              break;
+
+            case 'rounded_square':
+            default: {
+              const rx = sqSize * 0.28;
+              drawRoundedRect(ctx, cx - halfSq, cy - halfSq, sqSize, sqSize, rx);
+              ctx.fill();
+              break;
+            }
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  // 6. Iterate Over Regular Dot Grid Elements
   for (let r = 0; r < rows; r++) {
     const isOdd = r % 2 === 1;
     const xOffset = (isStaggered && isOdd) ? cellW * 0.5 : 0;
@@ -570,6 +691,10 @@ export function renderProceduralPattern(canvas, params = {}) {
           drawCross(ctx, cx, cy, dotRadius, 0.36, rotRad);
           break;
 
+        case 'rounded_square':
+          drawRoundedRect(ctx, cx - dotRadius, cy - dotRadius, dotRadius * 2, dotRadius * 2, dotRadius * 0.56);
+          break;
+
         default:
           ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
       }
@@ -624,6 +749,9 @@ function drawDuplicateShape(ctx, cx, cy, dotRadius, shape, rotRad, color) {
       break;
     case 'cross':
       drawCross(ctx, cx, cy, dotRadius, 0.36, rotRad);
+      break;
+    case 'rounded_square':
+      drawRoundedRect(ctx, cx - dotRadius, cy - dotRadius, dotRadius * 2, dotRadius * 2, dotRadius * 0.56);
       break;
     default:
       ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
