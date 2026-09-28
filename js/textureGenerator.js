@@ -200,7 +200,7 @@ export const DEFAULT_TEXTURE_GENERATOR_PARAMS = {
   height: 1000,
   colors: ['#ffffff', '#ff6600', '#000000'],
   bgIndex: 2,           // Index 2 (#000000) is background, 0 (#ffffff) and 1 (#ff6600) are gradient
-  shape: 'circle',      // 'circle' | 'triangle' | 'square' | 'diamond' | 'pentagon' | 'hexagon' | 'octagon' | 'star' | 'ring' | 'cross'
+  shape: 'circle',      // 'circle' | 'triangle' | 'square' | 'diamond' | 'pentagon' | 'hexagon' | 'octagon' | 'star' | 'ring' | 'cross' | 'truchet'
   layout: 'vertical',   // 'vertical' | 'horizontal_blend' | 'wave' | 'radial' | 'diagonal' | 'double_edge' | 'noise'
   gridType: 'staggered',// 'staggered' (hexagonal/brick) | 'grid' (orthogonal)
   columns: 60,          // Number of horizontal cells across width
@@ -218,6 +218,7 @@ export const DEFAULT_TEXTURE_GENERATOR_PARAMS = {
   seamlessWrap: true,   // Ensure left and right edges match seamlessly
   waveFrequency: 2,     // Waves across the width for wave layout
   waveAmplitude: 0.25,  // Wave amplitude relative to height
+  seed: 42,             // Seed for procedural variations (Truchet maze, organic noise)
 };
 
 // ── Procedural Pattern Renderer ──────────────────────────────────────────────
@@ -287,7 +288,136 @@ export function renderProceduralPattern(canvas, params = {}) {
     return dot - Math.floor(dot);
   }
 
-  // 4. Iterate Over Grid Elements
+  // 4. Special Shape: Truchet Tile (Filled Bicolor Smith Truchet)
+  if (p.shape === 'truchet') {
+    let truchetCols = Math.max(4, Math.round(Number(p.columns) || 40));
+    // Enforce even number of columns for seamless 360 checkerboard parity wrap
+    if (p.seamlessWrap && truchetCols % 2 !== 0) {
+      truchetCols += 1;
+    }
+    const size = W / truchetCols;
+    const truchetRows = Math.ceil(H / size);
+    const r = size * 0.5;
+    const seedVal = Number(p.seed) || 42;
+
+    function tileHash(c, row) {
+      const wrappedC = ((c % truchetCols) + truchetCols) % truchetCols;
+      const dot = Math.sin((wrappedC + seedVal * 17.13) * 12.9898 + (row + seedVal * 31.41) * 78.233) * 43758.5453123;
+      return dot - Math.floor(dot);
+    }
+
+    for (let row = 0; row < truchetRows; row++) {
+      const y0 = row * size;
+      const cy = (row + 0.5) * size;
+      const v = Math.min(1, Math.max(0, cy / H));
+
+      for (let col = 0; col < truchetCols; col++) {
+        const x0 = col * size;
+        const cx = (col + 0.5) * size;
+        const u = (cx % W) / W;
+
+        let t = 0;
+        switch (p.layout) {
+          case 'vertical':
+            t = 1.0 - v;
+            break;
+          case 'horizontal_blend':
+            t = u;
+            break;
+          case 'wave': {
+            const wavePhase = Math.sin(u * Math.PI * 2 * waveFreq);
+            const vMod = v + wavePhase * waveAmp;
+            t = 1.0 - Math.max(0, Math.min(1, vMod));
+            break;
+          }
+          case 'radial': {
+            const dx = (u - 0.5) * (W / H);
+            const dy = v - 0.5;
+            const dist = Math.sqrt(dx * dx + dy * dy) * 2;
+            t = Math.max(0, Math.min(1, dist));
+            break;
+          }
+          case 'diagonal':
+            t = (u + (1.0 - v)) * 0.5;
+            break;
+          case 'double_edge': {
+            const distFromEdge = Math.abs(v - 0.5) * 2;
+            t = 1.0 - distFromEdge;
+            break;
+          }
+          case 'noise': {
+            const baseV = 1.0 - v;
+            const n = hash2d(col * 0.31, row * 0.31);
+            t = Math.max(0, Math.min(1, baseV * 0.75 + n * 0.25));
+            break;
+          }
+          default:
+            t = 1.0 - v;
+        }
+
+        if (invert) t = 1.0 - t;
+
+        let normT = (t - 0.5 - offset) / spread + 0.5;
+        normT = Math.max(0, Math.min(1, normT));
+
+        const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
+        const profiledT = applyProfile(normT, p.profile || 'linear');
+        const colorProgress = schlickBias(profiledT, colorBiasVal);
+        const finalColorT = (curve !== 1.0) ? Math.pow(colorProgress, curve) : colorProgress;
+
+        const tileColor = lerpColor(rgbA, rgbB, finalColorT);
+
+        // Deterministic orientation: 0 (TL & BR) or 1 (TR & BL)
+        const orient = tileHash(col, row) > 0.5 ? 1 : 0;
+        const parity = (col + row) % 2;
+
+        // Checkerboard parity coloring:
+        // parity 0: ribbon is tileColor, corners are bgColor_hex
+        // parity 1: ribbon is bgColor_hex, corners are tileColor
+        const ribbonCol = (parity === 0) ? tileColor : bgColor_hex;
+        const cornerCol = (parity === 0) ? bgColor_hex : tileColor;
+
+        // Base cell rectangle (slightly expand by 0.25px to prevent antialiasing seams)
+        ctx.fillStyle = ribbonCol;
+        ctx.fillRect(x0 - 0.25, y0 - 0.25, size + 0.5, size + 0.5);
+
+        // Draw the 2 quarter-circle arcs
+        ctx.fillStyle = cornerCol;
+        if (orient === 0) {
+          // Top-Left (x0, y0)
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.arc(x0, y0, r, 0, Math.PI * 0.5);
+          ctx.closePath();
+          ctx.fill();
+
+          // Bottom-Right (x0 + size, y0 + size)
+          ctx.beginPath();
+          ctx.moveTo(x0 + size, y0 + size);
+          ctx.arc(x0 + size, y0 + size, r, Math.PI, Math.PI * 1.5);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          // Top-Right (x0 + size, y0)
+          ctx.beginPath();
+          ctx.moveTo(x0 + size, y0);
+          ctx.arc(x0 + size, y0, r, Math.PI * 0.5, Math.PI);
+          ctx.closePath();
+          ctx.fill();
+
+          // Bottom-Left (x0, y0 + size)
+          ctx.beginPath();
+          ctx.moveTo(x0, y0 + size);
+          ctx.arc(x0, y0 + size, r, Math.PI * 1.5, Math.PI * 2);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+    return;
+  }
+
+  // 4. Iterate Over Regular Dot Grid Elements
   for (let r = 0; r < rows; r++) {
     const isOdd = r % 2 === 1;
     const xOffset = (isStaggered && isOdd) ? cellW * 0.5 : 0;

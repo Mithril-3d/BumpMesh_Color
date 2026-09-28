@@ -1248,6 +1248,12 @@
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3z"/></svg>
                 <span>Cross</span>
               </button>
+              <button type="button" class="texgen-shape-btn" data-shape="truchet" title="Bicolor Smith Truchet (Filled Arcs &amp; Maze Ribbon)" data-i18n-title="texgen.shapeTruchetTitle">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M0 0h12A12 12 0 0 1 0 12ZM24 24h-12A12 12 0 0 1 24 12Z"/>
+                </svg>
+                <span data-i18n="texgen.shapeTruchet">Truchet</span>
+              </button>
             </div>
           </div>
 
@@ -1359,6 +1365,13 @@
               <label for="texgen-rotation" data-i18n="texgen.rotation">回転角度 (°):</label>
               <input type="range" id="texgen-rotation" min="0" max="360" step="1" value="0">
               <span id="texgen-rotation-val" class="texgen-slider-val">0°</span>
+            </div>
+
+            <!-- Seed / Shuffle (Truchet Maze & Noise) -->
+            <div class="texgen-slider-row" id="texgen-seed-row">
+              <label for="texgen-seed" data-i18n="texgen.seed">乱数シード (迷路):</label>
+              <input type="range" id="texgen-seed" min="1" max="999" step="1" value="42">
+              <button type="button" id="texgen-shuffle-seed-btn" class="texgen-chip-btn" style="padding:2px 8px;font-size:10px;white-space:nowrap;" title="Shuffle Maze Seed" data-i18n="texgen.shuffleSeed">🎲 再生成</button>
             </div>
 
             <!-- Invert toggle -->

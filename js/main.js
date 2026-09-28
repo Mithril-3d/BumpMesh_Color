@@ -7886,6 +7886,8 @@ _updateUndoButtons();
   const offsetVal     = document.getElementById('texgen-offset-val');
   const rotSlider     = document.getElementById('texgen-rotation');
   const rotVal        = document.getElementById('texgen-rotation-val');
+  const seedSlider    = document.getElementById('texgen-seed');
+  const shuffleSeedBtn = document.getElementById('texgen-shuffle-seed-btn');
   const invertCheck   = document.getElementById('texgen-invert');
   const seamlessCheck = document.getElementById('texgen-seamless-wrap');
   const gridRadios    = document.querySelectorAll('input[name="texgen-grid-type"]');
@@ -7954,8 +7956,17 @@ _updateUndoButtons();
   // Check URL parameters on startup
   try {
     const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('shape')) {
+      params.shape = urlParams.get('shape');
+    }
+    if (urlParams.get('columns')) {
+      params.columns = parseInt(urlParams.get('columns'), 10) || 60;
+      if (columnsSlider) columnsSlider.value = params.columns;
+      if (columnsVal) columnsVal.textContent = `${params.columns}`;
+    }
     if (urlParams.get('texgen') === '1' || urlParams.get('mode') === 'auto' || urlParams.get('dev') === '1') {
       unlockSecretMode();
+      openModal();
     }
   } catch (_) {}
 
@@ -7985,6 +7996,9 @@ _updateUndoButtons();
     overlay.classList.remove('hidden');
     applyTranslations();
     readUIIntoParams();
+    shapeBtns.forEach(b => {
+      b.classList.toggle('active', b.dataset.shape === params.shape);
+    });
     renderGradientBar();
     requestRenderPreview();
   }
@@ -8053,6 +8067,7 @@ _updateUndoButtons();
     params.spread = parseFloat(spreadSlider.value) || 1.00;
     params.offset = parseFloat(offsetSlider.value) || 0.00;
     params.rotation = parseInt(rotSlider.value, 10) || 0;
+    params.seed = parseInt(seedSlider?.value, 10) || 42;
     params.invert = !!invertCheck.checked;
     params.seamlessWrap = !!seamlessCheck.checked;
 
@@ -8218,6 +8233,22 @@ _updateUndoButtons();
     });
   }
 
+  if (seedSlider) {
+    seedSlider.addEventListener('input', () => {
+      params.seed = parseInt(seedSlider.value, 10) || 42;
+      requestRenderPreview();
+    });
+  }
+
+  if (shuffleSeedBtn) {
+    shuffleSeedBtn.addEventListener('click', () => {
+      const newSeed = Math.floor(Math.random() * 999) + 1;
+      params.seed = newSeed;
+      if (seedSlider) seedSlider.value = newSeed;
+      requestRenderPreview();
+    });
+  }
+
   gridRadios.forEach(r => {
     r.addEventListener('change', () => {
       params.gridType = r.value;
@@ -8283,8 +8314,8 @@ _updateUndoButtons();
       if (paletteSelect) paletteSelect.value = palIdx;
       syncColorUIFromParams();
 
-      // Pick random shape
-      const shapes = ['circle', 'triangle', 'square', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'ring', 'cross'];
+      // Pick random shape (including truchet)
+      const shapes = ['circle', 'triangle', 'square', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'ring', 'cross', 'truchet'];
       const shape = shapes[Math.floor(Math.random() * shapes.length)];
       params.shape = shape;
       shapeBtns.forEach(b => b.classList.toggle('active', b.dataset.shape === shape));
@@ -8299,6 +8330,11 @@ _updateUndoButtons();
       const cols = 20 + Math.floor(Math.random() * 60);
       params.columns = cols;
       if (columnsSlider) { columnsSlider.value = cols; columnsVal.textContent = `${cols}`; }
+
+      // Random seed
+      const newSeed = Math.floor(Math.random() * 999) + 1;
+      params.seed = newSeed;
+      if (seedSlider) seedSlider.value = newSeed;
 
       // Random curve
       const c = +(0.5 + Math.random() * 1.5).toFixed(2);
