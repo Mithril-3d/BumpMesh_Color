@@ -375,28 +375,20 @@ export function renderProceduralPattern(canvas, params = {}) {
       let normT = (t - 0.5 - offset) / spread + 0.5;
       normT = Math.max(0, Math.min(1, normT));
 
-      // Apply Curvature Profile (linear, smoothstep, ease_in, ease_out)
-      const profiledT = applyProfile(normT, p.profile || 'linear');
-
-      // Apply Bias (片側に寄せる)
-      const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
-      const sizeBiasVal = p.linkSizeAndColor ? colorBiasVal : ((p.sizeBias !== undefined) ? p.sizeBias : 0.5);
-
-      const colorProgress = schlickBias(profiledT, colorBiasVal);
-      const sizeProgress = schlickBias(profiledT, sizeBiasVal);
-
-      // Apply Exponent Curve
-      const finalColorT = (curve !== 1.0) ? Math.pow(colorProgress, curve) : colorProgress;
-      const finalSizeT  = (curve !== 1.0) ? Math.pow(sizeProgress, curve) : sizeProgress;
-
-      // Calculate Dot Scale Factor:
-      // When finalSizeT = 0.0 -> maxSize
-      // When finalSizeT = 1.0 -> minSize
-      const currentScale = maxS - finalSizeT * (maxS - minS);
+      // Dot Size Factor:
+      // Keep dot sizing purely uniform and independent from color gradient bias!
+      const currentScale = maxS - normT * (maxS - minS);
       const dotRadius = baseRadius * currentScale;
 
       // Skip drawing if size is negligible (< 0.25 px)
       if (dotRadius <= 0.25) continue;
+
+      // Color Gradient Factor:
+      // Only the COLOR transition is affected by Curvature Profile and Bias (片側に寄せる)
+      const colorBiasVal = (p.bias !== undefined) ? p.bias : 0.5;
+      const profiledT = applyProfile(normT, p.profile || 'linear');
+      const colorProgress = schlickBias(profiledT, colorBiasVal);
+      const finalColorT = (curve !== 1.0) ? Math.pow(colorProgress, curve) : colorProgress;
 
       // Calculate Interpolated Color:
       // finalColorT = 0.0 -> Color A (e.g. orange)
