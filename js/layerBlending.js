@@ -96,6 +96,57 @@ export function computeColorBlendWeight(rgb, colorA = [255, 255, 255], colorB = 
   return Math.max(0, Math.min(1, 1.0 - t));
 }
 
+/**
+ * Compute multi-color blend affinity for palettes with 2, 3, or more colors.
+ * Identifies the top 2 closest palette colors (toolA = closest, toolB = second closest)
+ * and calculates continuous affinity `t` in [0.0, 1.0] where 1.0 = pure toolA, 0.0 = pure toolB.
+ *
+ * @param {Array<number>} rgb - [r, g, b] (0..255)
+ * @param {Array<object>} palette - [{ toolId, color: [r, g, b] }, ...]
+ * @returns {{ toolA: number, toolB: number, t: number }}
+ */
+export function computeMultiColorBlend(rgb, palette) {
+  if (!palette || palette.length === 0) {
+    return { toolA: 1, toolB: 1, t: 1.0 };
+  }
+  if (palette.length === 1) {
+    return { toolA: palette[0].toolId, toolB: palette[0].toolId, t: 1.0 };
+  }
+
+  let bestK = 0;
+  let bestDistSq = Infinity;
+  let secondK = 1;
+  let secondDistSq = Infinity;
+
+  for (let k = 0; k < palette.length; k++) {
+    const col = palette[k].color || [0, 0, 0];
+    const dr = rgb[0] - col[0];
+    const dg = rgb[1] - col[1];
+    const db = rgb[2] - col[2];
+    const dSq = dr * dr + dg * dg + db * db;
+
+    if (dSq < bestDistSq) {
+      secondDistSq = bestDistSq;
+      secondK = bestK;
+      bestDistSq = dSq;
+      bestK = k;
+    } else if (dSq < secondDistSq) {
+      secondDistSq = dSq;
+      secondK = k;
+    }
+  }
+
+  const dA = Math.sqrt(bestDistSq);
+  const dB = Math.sqrt(secondDistSq);
+  const sumD = dA + dB;
+  const t = (sumD > 1e-6) ? (dB / sumD) : 1.0;
+
+  return {
+    toolA: palette[bestK].toolId,
+    toolB: palette[secondK].toolId,
+    t: t
+  };
+}
 
 /**
  * Compute louver (shingle/eaves) displacement with 45-degree overhang shield
@@ -110,6 +161,7 @@ export function computeColorBlendWeight(rgb, colorA = [255, 255, 255], colorB = 
  * @param {number} profileMode - 0 = Flat, 1 = Louver 45°
  * @param {number} blendWeight - 0.0..1.0 ratio (1.0 = 100% Tool 1, 0.0 = 100% Tool 2)
  * @param {number} shadingMode - 0 = Step (discrete), 1 = Gradient (continuous)
+ * @param {object} [multiColorInfo] - optional { toolA, toolB, t } from computeMultiColorBlend
  * @returns {number} displacement (mm)
  */
 export function computeLouverDisplacement(
@@ -122,7 +174,8 @@ export function computeLouverDisplacement(
   concaveAmp = 0.0,
   profileMode = 0,
   blendWeight = 1.0,
-  shadingMode = 1
+  shadingMode = 1,
+  multiColorInfo = null
 ) {
   const t = Math.max(0.01, thickness);
   const zRel = Math.max(0, z - minZ);
@@ -142,13 +195,18 @@ export function computeLouverDisplacement(
   }
 
   // Mode 1: Gradient (continuous exposure ratio)
-  // In 2-color interleaved mode, at any gradient level, only the dominant color protrudes
-  // (凸), while the non-dominant color stays recessed (凹: -concaveAmp).
-  // BlendWeight 1.0 = 100% Tool 0 (Tool 0 max convex, Tool 1 recessed)
-  // BlendWeight 0.5 = 50/50 balance (both at -concaveAmp, equal striped exposure)
-  // BlendWeight 0.0 = 100% Tool 1 (Tool 1 max convex, Tool 0 recessed)
+  // Supports 2, 3, or more tools seamlessly:
   let ratio = 0.0;
-  if (toolIds.length >= 2) {
+  if (multiColorInfo) {
+    const { toolA, toolB, t: tAffinity } = multiColorInfo;
+    if (activeTool === toolA) {
+      ratio = (tAffinity >= 0.5) ? (tAffinity - 0.5) * 2.0 : 0.0;
+    } else if (activeTool === toolB) {
+      ratio = (tAffinity < 0.5) ? (0.5 - tAffinity) * 2.0 : 0.0;
+    } else {
+      ratio = 0.0;
+    }
+  } else if (toolIds.length >= 2) {
     const isTool0 = (activeTool === toolIds[0]);
     if (blendWeight >= 0.5) {
       ratio = isTool0 ? (blendWeight - 0.5) * 2.0 : 0.0;

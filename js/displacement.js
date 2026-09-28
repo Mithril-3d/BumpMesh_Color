@@ -7,7 +7,7 @@ import { THREE } from './threeCompat.js';
 import { computeUV, getDominantCubicAxis, getCubicBlendWeights, scaleMmToRelative } from './mapping.js';
 import { QuantizedPointMap } from './meshIndex.js';
 import { getToolAtUV } from './colorQuantization.js';
-import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement, computeColorBlendWeight } from './layerBlending.js';
+import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement, computeColorBlendWeight, computeMultiColorBlend } from './layerBlending.js';
 
 /**
  * Apply displacement to every vertex of a non-indexed BufferGeometry.
@@ -523,12 +523,12 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const profileMode = settings.interleavedProfileMode ?? 0; // 0 = Flat step (recommended), 1 = 45° Louver
       const shadingMode = settings.interleavedShadingMode ?? 1; // 0 = Step, 1 = Gradient
 
+      let multiColorInfo = null;
       let blendWeight = 1.0;
       if (shadingMode === 1 && palette.length >= 2) {
         const rgb = sampleRGBBilinear(imageData.data, imgWidth, imgHeight, u, v);
-        const colorA = palette[0].color || [255, 255, 255];
-        const colorB = palette[1].color || [0, 0, 0];
-        blendWeight = computeColorBlendWeight(rgb, colorA, colorB);
+        multiColorInfo = computeMultiColorBlend(rgb, palette);
+        blendWeight = multiColorInfo.t;
       }
 
       dispCacheVal[vid] = computeLouverDisplacement(
@@ -541,7 +541,8 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
         concaveVal,
         profileMode,
         blendWeight,
-        shadingMode
+        shadingMode,
+        multiColorInfo
       );
     } else {
       let grey;

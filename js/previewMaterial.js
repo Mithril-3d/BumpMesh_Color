@@ -143,15 +143,45 @@ const sharedGLSL = /* glsl */`
       int activeK = int(mod(float(layerIdx), float(numTools)));
 
       if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
-        // Full-range Rec.709 luminance (0.0=black/Tool 2, 1.0=white/Tool 1) with optional gamma
-        float lum = clamp(dot(cTarget, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
-        float w = pow(lum, max(0.1, interleavedGamma));
-        float ratio = 0.0;
-        if (w >= 0.5) {
-          ratio = (activeK == 0) ? (w - 0.5) * 2.0 : 0.0;
-        } else {
-          ratio = (activeK != 0) ? (0.5 - w) * 2.0 : 0.0;
+        // Find top 2 closest palette colors in RGB space
+        int bestK = 0;
+        float bestDistSq = 1e8;
+        int secondK = 1;
+        float secondDistSq = 1e8;
+
+        for (int k = 0; k < 8; k++) {
+          if (k >= interleavedToolCount) break;
+          vec3 diff = cTarget - interleavedPalette[k];
+          float dSq = dot(diff, diff);
+          if (dSq < bestDistSq) {
+            secondDistSq = bestDistSq;
+            secondK = bestK;
+            bestDistSq = dSq;
+            bestK = k;
+          } else if (dSq < secondDistSq) {
+            secondDistSq = dSq;
+            secondK = k;
+          }
         }
+
+        float dA = sqrt(bestDistSq);
+        float dB = sqrt(secondDistSq);
+        float sumD = dA + dB;
+        float tAffinity = (sumD > 1e-5) ? (dB / sumD) : 1.0;
+
+        if (abs(interleavedGamma - 1.0) > 0.01) {
+          tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
+        }
+
+        float ratio = 0.0;
+        if (activeK == bestK) {
+          ratio = (tAffinity >= 0.5) ? (tAffinity - 0.5) * 2.0 : 0.0;
+        } else if (activeK == secondK) {
+          ratio = (tAffinity < 0.5) ? (0.5 - tAffinity) * 2.0 : 0.0;
+        } else {
+          ratio = 0.0;
+        }
+
         if (ratio <= 0.0) {
           return -interleavedConcave;
         }
