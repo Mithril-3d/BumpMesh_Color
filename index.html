@@ -381,7 +381,17 @@
 
       <!-- Displacement Map -->
       <section class="panel-section">
-        <h2 data-i18n="sections.displacementMap">Displacement Map</h2>
+        <div class="model-presets-header" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+          <h2 id="displacement-map-title" data-i18n="sections.displacementMap" style="margin:0;cursor:pointer;" title="Double click for secret Pattern Generator">Displacement Map</h2>
+          <button type="button" id="secret-texgen-trigger" class="secret-mode-trigger" title="3-Color Pattern Generator (Secret Mode)" aria-label="3-Color Pattern Generator">✦</button>
+        </div>
+
+        <!-- Secret Texture Generator Launch Button (revealed by secret trigger or URL) -->
+        <button type="button" id="open-texgen-btn" class="texgen-open-trigger-btn hidden">
+          <span>🎨</span>
+          <span data-i18n="ui.openTexGen">3-Color Pattern Generator</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.15);padding:1px 4px;border-radius:3px;">PRO</span>
+        </button>
 
         <!-- Preset grid -->
         <div id="preset-grid" class="preset-grid">
@@ -1029,6 +1039,314 @@
           </button>
           <button id="interleaved-map-close-btn" type="button" class="btn btn-primary" style="font-size:11px;padding:6px 14px;">
             <span data-i18n="color.mapModalClose">閉じる</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Procedural Texture Generator Modal (Secret Mode) ──────────────── -->
+  <div id="texgen-overlay" class="texgen-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="texgen-title">
+    <div class="texgen-modal">
+      <div class="texgen-header">
+        <div class="texgen-title-wrap">
+          <span style="font-size:16px;">✦</span>
+          <h3 id="texgen-title" style="margin:0;font-size:14px;font-weight:700;color:var(--text,#fff);" data-i18n="texgen.title">3-Color Pattern &amp; Texture Generator</h3>
+          <span class="texgen-badge">SECRET</span>
+        </div>
+        <button type="button" id="texgen-close" class="texgen-close-btn" aria-label="Close" title="Close">✕</button>
+      </div>
+
+      <div class="texgen-body">
+        <!-- Left: Preview Canvas -->
+        <div class="texgen-preview-pane">
+          <div class="texgen-canvas-wrapper">
+            <div class="texgen-canvas-container">
+              <canvas id="texgen-preview-canvas"></canvas>
+            </div>
+            <div class="texgen-preview-toolbar">
+              <div id="texgen-dim-badge" class="texgen-preview-badge">2513 × 1000 px</div>
+              <div id="texgen-wrap-badge" class="texgen-preview-badge" style="color:#10b981;">✓ 360° Seamless Wrap</div>
+              <button type="button" id="texgen-btn-random" class="texgen-chip-btn" style="display:flex;align-items:center;gap:4px;" title="Generate random stylish combination">
+                <span>🎲</span> <span data-i18n="texgen.random">Randomize</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Control Panel -->
+        <div class="texgen-controls-pane">
+          <!-- Section 1: Dimensions / Resolution -->
+          <div class="texgen-section">
+            <div class="texgen-section-title">
+              <span data-i18n="texgen.dimensions">1. Canvas Size (px)</span>
+            </div>
+            <div class="texgen-res-row">
+              <div style="flex:1;">
+                <label style="font-size:10px;color:var(--text-muted,#94a3b8);display:block;margin-bottom:2px;" data-i18n="texgen.width">Width (px)</label>
+                <input type="number" id="texgen-width" class="texgen-res-input" value="2513" min="64" max="8192" step="1">
+              </div>
+              <span style="color:var(--text-muted,#94a3b8);padding-top:14px;">×</span>
+              <div style="flex:1;">
+                <label style="font-size:10px;color:var(--text-muted,#94a3b8);display:block;margin-bottom:2px;" data-i18n="texgen.height">Height (px)</label>
+                <input type="number" id="texgen-height" class="texgen-res-input" value="1000" min="64" max="8192" step="1">
+              </div>
+            </div>
+            <div class="texgen-chips" style="margin-top:4px;">
+              <button type="button" class="texgen-chip-btn active" data-res-w="2513" data-res-h="1000" title="Ideal for cylinder Ø80 × 100 mm (C = 80π ≈ 251.3 mm)">Ø80×100 Cylinder (2513×1000)</button>
+              <button type="button" class="texgen-chip-btn" data-res-w="1024" data-res-h="1024">1024×1024</button>
+              <button type="button" class="texgen-chip-btn" data-res-w="2048" data-res-h="2048">2048×2048</button>
+              <button type="button" class="texgen-chip-btn" data-res-w="1920" data-res-h="1080">1920×1080</button>
+            </div>
+          </div>
+
+          <!-- Section 2: Colors (3 Colors) -->
+          <div class="texgen-section">
+            <div class="texgen-section-title">
+              <span data-i18n="texgen.colorsTitle">2. Colors (1 Background + 2 Gradients)</span>
+            </div>
+            <!-- Preset Palette Selector -->
+            <div class="form-row" style="margin-bottom:6px;">
+              <label for="texgen-palette-select" style="font-size:10px;color:var(--text-muted,#94a3b8);" data-i18n="texgen.palettePreset">Color Palette Preset:</label>
+              <select id="texgen-palette-select" class="dropdown-select" style="font-size:11px;padding:3px 6px;flex:1;">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <!-- 3 Color Cards -->
+            <div class="texgen-colors-grid">
+              <!-- Color 1 -->
+              <div class="texgen-color-card" id="texgen-card-0">
+                <div class="texgen-color-header">
+                  <span id="texgen-card-label-0">Color 1</span>
+                </div>
+                <div class="texgen-color-picker-wrap">
+                  <input type="color" id="texgen-color-0" class="texgen-color-input" value="#ffffff">
+                  <input type="text" id="texgen-hex-0" class="texgen-hex-input" value="#ffffff" maxlength="7">
+                </div>
+                <label class="texgen-role-select">
+                  <input type="radio" name="texgen-bg-choice" value="0">
+                  <span data-i18n="texgen.setAsBg">Background</span>
+                </label>
+              </div>
+
+              <!-- Color 2 -->
+              <div class="texgen-color-card" id="texgen-card-1">
+                <div class="texgen-color-header">
+                  <span id="texgen-card-label-1">Color 2</span>
+                </div>
+                <div class="texgen-color-picker-wrap">
+                  <input type="color" id="texgen-color-1" class="texgen-color-input" value="#ff6600">
+                  <input type="text" id="texgen-hex-1" class="texgen-hex-input" value="#ff6600" maxlength="7">
+                </div>
+                <label class="texgen-role-select">
+                  <input type="radio" name="texgen-bg-choice" value="1">
+                  <span data-i18n="texgen.setAsBg">Background</span>
+                </label>
+              </div>
+
+              <!-- Color 3 (Default Background) -->
+              <div class="texgen-color-card is-bg" id="texgen-card-2">
+                <div class="texgen-color-header">
+                  <span id="texgen-card-label-2">Color 3</span>
+                </div>
+                <div class="texgen-color-picker-wrap">
+                  <input type="color" id="texgen-color-2" class="texgen-color-input" value="#000000">
+                  <input type="text" id="texgen-hex-2" class="texgen-hex-input" value="#000000" maxlength="7">
+                </div>
+                <label class="texgen-role-select">
+                  <input type="radio" name="texgen-bg-choice" value="2" checked>
+                  <span data-i18n="texgen.setAsBg">Background</span>
+                </label>
+              </div>
+            </div>
+            <div style="font-size:10px;color:var(--text-muted,#94a3b8);margin-top:2px;">
+              ※ <span data-i18n="texgen.colorHint">The 1 color marked as Background forms the base; the remaining 2 colors smoothly blend as the gradient elements.</span>
+            </div>
+          </div>
+
+          <!-- Section 3: Pattern Shape -->
+          <div class="texgen-section">
+            <div class="texgen-section-title">
+              <span data-i18n="texgen.shapeTitle">3. Pattern Shape</span>
+            </div>
+            <div class="texgen-shape-grid">
+              <button type="button" class="texgen-shape-btn active" data-shape="circle" title="Circle (Halftone Dot)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+                <span>Circle</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="triangle" title="Regular Triangle">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 3 22 20 2 20"/></svg>
+                <span>Triangle</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="square" title="Square">
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="1"/></svg>
+                <span>Square</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="diamond" title="Diamond / Rhombus">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 22 12 12 22 2 12"/></svg>
+                <span>Diamond</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="pentagon" title="Pentagon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 22 9.5 18 21 6 21 2 9.5"/></svg>
+                <span>Pentagon</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="hexagon" title="Hexagon (Honeycomb)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 21 7 21 17 12 22 3 17 3 7"/></svg>
+                <span>Hexagon</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="octagon" title="Octagon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8 2 16 2 22 8 22 16 16 22 8 22 2 16 2 8"/></svg>
+                <span>Octagon</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="star" title="5-Point Star">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg>
+                <span>Star</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="ring" title="Ring / Donut">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 4a5 5 0 100 10 5 5 0 000-10z"/></svg>
+                <span>Ring</span>
+              </button>
+              <button type="button" class="texgen-shape-btn" data-shape="cross" title="Cross / Plus">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3z"/></svg>
+                <span>Cross</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 4: Layout & Arrangement -->
+          <div class="texgen-section">
+            <div class="texgen-section-title">
+              <span data-i18n="texgen.layoutTitle">4. Layout &amp; Flow Pattern</span>
+            </div>
+            <div class="texgen-layout-grid">
+              <button type="button" class="texgen-layout-btn active" data-layout="vertical">
+                <div>↕ 垂直グラデーション</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">下から上に大→小・橙→白</div>
+              </button>
+              <button type="button" class="texgen-layout-btn" data-layout="horizontal_blend">
+                <div>↔ 左右フュージョン</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">左右で色が溶け合い交差</div>
+              </button>
+              <button type="button" class="texgen-layout-btn" data-layout="wave">
+                <div>〰 サイン波ウェーブ</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">波打つうねりグラデーション</div>
+              </button>
+              <button type="button" class="texgen-layout-btn" data-layout="radial">
+                <div>◎ 放射状バースト</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">中心から外へ拡大・変化</div>
+              </button>
+              <button type="button" class="texgen-layout-btn" data-layout="diagonal">
+                <div>↗ 斜め対角フロー</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">45度バイアスグラデーション</div>
+              </button>
+              <button type="button" class="texgen-layout-btn" data-layout="double_edge">
+                <div>⇅ ダブルエッジ</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">上下両端が大、中央が小</div>
+              </button>
+              <button type="button" class="texgen-layout-btn" data-layout="noise" style="grid-column: span 2;">
+                <div>⚄ 有機パーリンスキャッター</div>
+                <div style="font-size:9px;color:var(--text-muted,#94a3b8);">擬似ランダムノイズによる自然な散布</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 5: Fine-tuning Parameters -->
+          <div class="texgen-section">
+            <div class="texgen-section-title">
+              <span data-i18n="texgen.paramsTitle">5. Grid &amp; Density Controls</span>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-bottom:6px;">
+              <!-- Grid Type -->
+              <label style="font-size:11px;color:var(--text-muted,#cbd5e1);display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="texgen-grid-type" value="staggered" checked>
+                <span>千鳥格子 (Staggered)</span>
+              </label>
+              <label style="font-size:11px;color:var(--text-muted,#cbd5e1);display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="texgen-grid-type" value="grid">
+                <span>直交格子 (Grid)</span>
+              </label>
+            </div>
+
+            <!-- Seamless wrap -->
+            <label style="font-size:11px;color:var(--text-muted,#cbd5e1);display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;">
+              <input type="checkbox" id="texgen-seamless-wrap" checked>
+              <span data-i18n="texgen.seamlessWrap">360° Seamless Cylinder Wrap (左右端の継ぎ目なし)</span>
+            </label>
+
+            <!-- Columns (Density) -->
+            <div class="texgen-slider-row">
+              <label for="texgen-columns" data-i18n="texgen.columns">列数 / 密度:</label>
+              <input type="range" id="texgen-columns" min="12" max="140" step="2" value="60">
+              <span id="texgen-columns-val" class="texgen-slider-val">60</span>
+            </div>
+
+            <!-- Min Size -->
+            <div class="texgen-slider-row">
+              <label for="texgen-min-size" data-i18n="texgen.minSize">最小サイズ:</label>
+              <input type="range" id="texgen-min-size" min="0" max="0.5" step="0.01" value="0.05">
+              <span id="texgen-min-size-val" class="texgen-slider-val">5%</span>
+            </div>
+
+            <!-- Max Size -->
+            <div class="texgen-slider-row">
+              <label for="texgen-max-size" data-i18n="texgen.maxSize">最大サイズ:</label>
+              <input type="range" id="texgen-max-size" min="0.2" max="1.4" step="0.01" value="0.95">
+              <span id="texgen-max-size-val" class="texgen-slider-val">95%</span>
+            </div>
+
+            <!-- Curve (Falloff) -->
+            <div class="texgen-slider-row">
+              <label for="texgen-curve" data-i18n="texgen.curve">変化カーブ:</label>
+              <input type="range" id="texgen-curve" min="0.3" max="3.0" step="0.05" value="1.20">
+              <span id="texgen-curve-val" class="texgen-slider-val">1.20</span>
+            </div>
+
+            <!-- Spread -->
+            <div class="texgen-slider-row">
+              <label for="texgen-spread" data-i18n="texgen.spread">変化幅 (Spread):</label>
+              <input type="range" id="texgen-spread" min="0.3" max="2.5" step="0.05" value="1.00">
+              <span id="texgen-spread-val" class="texgen-slider-val">1.00</span>
+            </div>
+
+            <!-- Offset -->
+            <div class="texgen-slider-row">
+              <label for="texgen-offset" data-i18n="texgen.offset">位置シフト:</label>
+              <input type="range" id="texgen-offset" min="-0.8" max="0.8" step="0.02" value="0.00">
+              <span id="texgen-offset-val" class="texgen-slider-val">0.00</span>
+            </div>
+
+            <!-- Rotation -->
+            <div class="texgen-slider-row">
+              <label for="texgen-rotation" data-i18n="texgen.rotation">回転角度 (°):</label>
+              <input type="range" id="texgen-rotation" min="0" max="360" step="1" value="0">
+              <span id="texgen-rotation-val" class="texgen-slider-val">0°</span>
+            </div>
+
+            <!-- Invert toggle -->
+            <label style="font-size:11px;color:var(--text-muted,#cbd5e1);display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;">
+              <input type="checkbox" id="texgen-invert">
+              <span data-i18n="texgen.invert">グラデーション方向を反転 (Invert Direction)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="texgen-footer">
+        <div style="font-size:11px;color:var(--text-muted,#94a3b8);" data-i18n="texgen.footerNotice">
+          ✦ 生成したパターンは高解像度PNGとしてダウンロード、または3Dモデルに直接適用できます。
+        </div>
+        <div class="texgen-footer-actions">
+          <button type="button" id="texgen-download-btn" class="btn btn-secondary" style="font-size:11px;padding:7px 12px;display:flex;align-items:center;gap:4px;">
+            <span>💾</span> <span data-i18n="texgen.downloadPng">PNGダウンロード</span>
+          </button>
+          <button type="button" id="texgen-apply-btn" class="texgen-btn-apply">
+            <span>✨</span> <span data-i18n="texgen.applyModel">モデルに適用</span>
+          </button>
+          <button type="button" id="texgen-close-bottom-btn" class="btn btn-secondary" style="font-size:11px;padding:7px 12px;" data-i18n="texgen.close">
+            閉じる
           </button>
         </div>
       </div>

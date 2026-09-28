@@ -24,6 +24,13 @@ import {
   createBowlGeometry,
   createCubeGeometry,
 } from './proceduralModels.js';
+import {
+  renderProceduralPattern,
+  PRESET_PALETTES,
+  DEFAULT_TEXTURE_GENERATOR_PARAMS,
+  hexToRgb,
+  rgbToHex,
+} from './textureGenerator.js';
 import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260927_123';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
@@ -7821,4 +7828,459 @@ _updateUndoButtons();
     });
   }
 })();
+
+// ── Procedural 3-Color Pattern & Texture Generator (Secret Mode) ───────────
+(function initProceduralTextureGenerator() {
+  const secretTrigger = document.getElementById('secret-texgen-trigger');
+  const openBtn       = document.getElementById('open-texgen-btn');
+  const titleHeader   = document.getElementById('displacement-map-title');
+  const overlay       = document.getElementById('texgen-overlay');
+  const closeBtn      = document.getElementById('texgen-close');
+  const closeBottomBtn= document.getElementById('texgen-close-bottom-btn');
+  const previewCanvas = document.getElementById('texgen-preview-canvas');
+  const applyBtn      = document.getElementById('texgen-apply-btn');
+  const downloadBtn   = document.getElementById('texgen-download-btn');
+  const randomBtn     = document.getElementById('texgen-btn-random');
+
+  const widthInp      = document.getElementById('texgen-width');
+  const heightInp     = document.getElementById('texgen-height');
+  const paletteSelect = document.getElementById('texgen-palette-select');
+  const dimBadge      = document.getElementById('texgen-dim-badge');
+  const wrapBadge     = document.getElementById('texgen-wrap-badge');
+
+  if (!overlay || !previewCanvas) return;
+
+  // Colors
+  const colorCards = [
+    document.getElementById('texgen-card-0'),
+    document.getElementById('texgen-card-1'),
+    document.getElementById('texgen-card-2'),
+  ];
+  const colorInps = [
+    document.getElementById('texgen-color-0'),
+    document.getElementById('texgen-color-1'),
+    document.getElementById('texgen-color-2'),
+  ];
+  const hexInps = [
+    document.getElementById('texgen-hex-0'),
+    document.getElementById('texgen-hex-1'),
+    document.getElementById('texgen-hex-2'),
+  ];
+  const bgRadios = document.querySelectorAll('input[name="texgen-bg-choice"]');
+
+  // Sliders & Controls
+  const columnsSlider = document.getElementById('texgen-columns');
+  const columnsVal    = document.getElementById('texgen-columns-val');
+  const minSizeSlider = document.getElementById('texgen-min-size');
+  const minSizeVal    = document.getElementById('texgen-min-size-val');
+  const maxSizeSlider = document.getElementById('texgen-max-size');
+  const maxSizeVal    = document.getElementById('texgen-max-size-val');
+  const curveSlider   = document.getElementById('texgen-curve');
+  const curveVal      = document.getElementById('texgen-curve-val');
+  const spreadSlider  = document.getElementById('texgen-spread');
+  const spreadVal     = document.getElementById('texgen-spread-val');
+  const offsetSlider  = document.getElementById('texgen-offset');
+  const offsetVal     = document.getElementById('texgen-offset-val');
+  const rotSlider     = document.getElementById('texgen-rotation');
+  const rotVal        = document.getElementById('texgen-rotation-val');
+  const invertCheck   = document.getElementById('texgen-invert');
+  const seamlessCheck = document.getElementById('texgen-seamless-wrap');
+  const gridRadios    = document.querySelectorAll('input[name="texgen-grid-type"]');
+
+  const shapeBtns     = document.querySelectorAll('.texgen-shape-btn');
+  const layoutBtns    = document.querySelectorAll('.texgen-layout-btn');
+  const resChips      = document.querySelectorAll('.texgen-chip-btn[data-res-w]');
+
+  // Current Parameters
+  let params = { ...DEFAULT_TEXTURE_GENERATOR_PARAMS };
+
+  // 1. Populate Palette Preset Dropdown
+  if (paletteSelect) {
+    paletteSelect.innerHTML = '';
+    PRESET_PALETTES.forEach((p, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = p.name;
+      paletteSelect.appendChild(opt);
+    });
+
+    paletteSelect.addEventListener('change', (e) => {
+      const pal = PRESET_PALETTES[parseInt(e.target.value, 10)];
+      if (!pal) return;
+      params.colors = [...pal.colors];
+      params.bgIndex = pal.bgIndex;
+      syncColorUIFromParams();
+      requestRenderPreview();
+    });
+  }
+
+  function syncColorUIFromParams() {
+    for (let i = 0; i < 3; i++) {
+      const col = params.colors[i] || '#000000';
+      if (colorInps[i]) colorInps[i].value = col;
+      if (hexInps[i]) hexInps[i].value = col;
+      if (colorCards[i]) {
+        colorCards[i].classList.toggle('is-bg', i === params.bgIndex);
+      }
+    }
+    bgRadios.forEach(r => {
+      r.checked = (parseInt(r.value, 10) === params.bgIndex);
+    });
+  }
+
+  // 2. Secret Unlock Logic
+  let isUnlocked = false;
+
+  function unlockSecretMode() {
+    if (isUnlocked) return;
+    isUnlocked = true;
+    if (openBtn) openBtn.classList.remove('hidden');
+    if (secretTrigger) secretTrigger.classList.add('active');
+  }
+
+  // Check URL parameters on startup
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('texgen') === '1' || urlParams.get('mode') === 'auto' || urlParams.get('dev') === '1') {
+      unlockSecretMode();
+    }
+  } catch (_) {}
+
+  // Double click Displacement Map title
+  if (titleHeader) {
+    titleHeader.addEventListener('dblclick', () => {
+      unlockSecretMode();
+      openModal();
+    });
+  }
+
+  // Click secret trigger button
+  if (secretTrigger) {
+    secretTrigger.addEventListener('click', () => {
+      unlockSecretMode();
+      openModal();
+    });
+  }
+
+  // Click panel launch button
+  if (openBtn) {
+    openBtn.addEventListener('click', openModal);
+  }
+
+  // 3. Modal Open / Close
+  function openModal() {
+    overlay.classList.remove('hidden');
+    applyTranslations();
+    readUIIntoParams();
+    requestRenderPreview();
+  }
+
+  function closeModal() {
+    overlay.classList.add('hidden');
+  }
+
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (closeBottomBtn) closeBottomBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  // 4. Input Sync & Event Handlers
+  function readUIIntoParams() {
+    params.width = Math.max(32, parseInt(widthInp.value, 10) || 2513);
+    params.height = Math.max(32, parseInt(heightInp.value, 10) || 1000);
+    params.colors = [
+      colorInps[0].value,
+      colorInps[1].value,
+      colorInps[2].value,
+    ];
+    let selectedBg = 2;
+    bgRadios.forEach(r => { if (r.checked) selectedBg = parseInt(r.value, 10); });
+    params.bgIndex = selectedBg;
+
+    params.columns = parseInt(columnsSlider.value, 10) || 60;
+    params.minSize = parseFloat(minSizeSlider.value) || 0.05;
+    params.maxSize = parseFloat(maxSizeSlider.value) || 0.95;
+    params.curve = parseFloat(curveSlider.value) || 1.20;
+    params.spread = parseFloat(spreadSlider.value) || 1.00;
+    params.offset = parseFloat(offsetSlider.value) || 0.00;
+    params.rotation = parseInt(rotSlider.value, 10) || 0;
+    params.invert = !!invertCheck.checked;
+    params.seamlessWrap = !!seamlessCheck.checked;
+
+    let selectedGrid = 'staggered';
+    gridRadios.forEach(r => { if (r.checked) selectedGrid = r.value; });
+    params.gridType = selectedGrid;
+
+    // Badges
+    if (dimBadge) dimBadge.textContent = `${params.width} × ${params.height} px`;
+    if (wrapBadge) {
+      wrapBadge.textContent = params.seamlessWrap ? '✓ 360° Seamless Wrap' : '✕ Seam Unaligned';
+      wrapBadge.style.color = params.seamlessWrap ? '#10b981' : '#94a3b8';
+    }
+  }
+
+  // Color inputs & Hex inputs
+  colorInps.forEach((inp, idx) => {
+    inp.addEventListener('input', () => {
+      hexInps[idx].value = inp.value;
+      params.colors[idx] = inp.value;
+      requestRenderPreview();
+    });
+  });
+
+  hexInps.forEach((inp, idx) => {
+    inp.addEventListener('change', () => {
+      let v = inp.value.trim();
+      if (!v.startsWith('#')) v = '#' + v;
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        inp.value = v;
+        colorInps[idx].value = v;
+        params.colors[idx] = v;
+        requestRenderPreview();
+      }
+    });
+  });
+
+  bgRadios.forEach(r => {
+    r.addEventListener('change', () => {
+      params.bgIndex = parseInt(r.value, 10);
+      colorCards.forEach((c, i) => {
+        c.classList.toggle('is-bg', i === params.bgIndex);
+      });
+      requestRenderPreview();
+    });
+  });
+
+  // Sliders
+  function setupSlider(slider, labelEl, formatFn, propName) {
+    if (!slider) return;
+    slider.addEventListener('input', () => {
+      const val = slider.value;
+      if (labelEl) labelEl.textContent = formatFn(val);
+      params[propName] = parseFloat(val);
+      requestRenderPreview();
+    });
+  }
+
+  setupSlider(columnsSlider, columnsVal, v => `${v}`, 'columns');
+  setupSlider(minSizeSlider, minSizeVal, v => `${Math.round(v * 100)}%`, 'minSize');
+  setupSlider(maxSizeSlider, maxSizeVal, v => `${Math.round(v * 100)}%`, 'maxSize');
+  setupSlider(curveSlider, curveVal, v => parseFloat(v).toFixed(2), 'curve');
+  setupSlider(spreadSlider, spreadVal, v => parseFloat(v).toFixed(2), 'spread');
+  setupSlider(offsetSlider, offsetVal, v => parseFloat(v).toFixed(2), 'offset');
+  setupSlider(rotSlider, rotVal, v => `${v}°`, 'rotation');
+
+  if (invertCheck) {
+    invertCheck.addEventListener('change', () => {
+      params.invert = invertCheck.checked;
+      requestRenderPreview();
+    });
+  }
+
+  if (seamlessCheck) {
+    seamlessCheck.addEventListener('change', () => {
+      params.seamlessWrap = seamlessCheck.checked;
+      if (wrapBadge) {
+        wrapBadge.textContent = params.seamlessWrap ? '✓ 360° Seamless Wrap' : '✕ Seam Unaligned';
+        wrapBadge.style.color = params.seamlessWrap ? '#10b981' : '#94a3b8';
+      }
+      requestRenderPreview();
+    });
+  }
+
+  gridRadios.forEach(r => {
+    r.addEventListener('change', () => {
+      params.gridType = r.value;
+      requestRenderPreview();
+    });
+  });
+
+  // Shapes
+  shapeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      shapeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      params.shape = btn.dataset.shape || 'circle';
+      requestRenderPreview();
+    });
+  });
+
+  // Layouts
+  layoutBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      layoutBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      params.layout = btn.dataset.layout || 'vertical';
+      requestRenderPreview();
+    });
+  });
+
+  // Resolution inputs & presets
+  function updateResolution(w, h) {
+    widthInp.value = w;
+    heightInp.value = h;
+    params.width = w;
+    params.height = h;
+    if (dimBadge) dimBadge.textContent = `${w} × ${h} px`;
+    requestRenderPreview();
+  }
+
+  widthInp.addEventListener('change', () => {
+    updateResolution(Math.max(32, parseInt(widthInp.value, 10) || 2513), params.height);
+  });
+  heightInp.addEventListener('change', () => {
+    updateResolution(params.width, Math.max(32, parseInt(heightInp.value, 10) || 1000));
+  });
+
+  resChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      resChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const w = parseInt(chip.dataset.resW, 10);
+      const h = parseInt(chip.dataset.resH, 10);
+      if (w && h) updateResolution(w, h);
+    });
+  });
+
+  // 5. Randomize (🎲)
+  if (randomBtn) {
+    randomBtn.addEventListener('click', () => {
+      // Pick random palette
+      const palIdx = Math.floor(Math.random() * PRESET_PALETTES.length);
+      const pal = PRESET_PALETTES[palIdx];
+      params.colors = [...pal.colors];
+      params.bgIndex = pal.bgIndex;
+      if (paletteSelect) paletteSelect.value = palIdx;
+      syncColorUIFromParams();
+
+      // Pick random shape
+      const shapes = ['circle', 'triangle', 'square', 'diamond', 'pentagon', 'hexagon', 'octagon', 'star', 'ring', 'cross'];
+      const shape = shapes[Math.floor(Math.random() * shapes.length)];
+      params.shape = shape;
+      shapeBtns.forEach(b => b.classList.toggle('active', b.dataset.shape === shape));
+
+      // Pick random layout
+      const layouts = ['vertical', 'horizontal_blend', 'wave', 'radial', 'diagonal', 'double_edge', 'noise'];
+      const layout = layouts[Math.floor(Math.random() * layouts.length)];
+      params.layout = layout;
+      layoutBtns.forEach(b => b.classList.toggle('active', b.dataset.layout === layout));
+
+      // Random columns
+      const cols = 20 + Math.floor(Math.random() * 60);
+      params.columns = cols;
+      if (columnsSlider) { columnsSlider.value = cols; columnsVal.textContent = `${cols}`; }
+
+      // Random curve
+      const c = +(0.5 + Math.random() * 1.5).toFixed(2);
+      params.curve = c;
+      if (curveSlider) { curveSlider.value = c; curveVal.textContent = c.toFixed(2); }
+
+      requestRenderPreview();
+    });
+  }
+
+  // 6. Preview Rendering (with smooth RAF debouncing)
+  let renderRaf = null;
+
+  function requestRenderPreview() {
+    if (renderRaf) cancelAnimationFrame(renderRaf);
+    renderRaf = requestAnimationFrame(() => {
+      renderPreview();
+      renderRaf = null;
+    });
+  }
+
+  function renderPreview() {
+    if (!previewCanvas) return;
+
+    // Scale canvas to a reasonable preview resolution maintaining aspect ratio (e.g. max width 900)
+    const aspect = params.width / params.height;
+    const maxPreviewW = 860;
+    const prevW = Math.min(params.width, maxPreviewW);
+    const prevH = Math.round(prevW / aspect);
+
+    // Pass preview dimensions to render function
+    const previewParams = {
+      ...params,
+      width: prevW,
+      height: prevH,
+    };
+
+    renderProceduralPattern(previewCanvas, previewParams);
+  }
+
+  // 7. Apply to Model
+  if (applyBtn) {
+    applyBtn.addEventListener('click', async () => {
+      try {
+        readUIIntoParams();
+        // Render full resolution
+        const fullCanvas = document.createElement('canvas');
+        fullCanvas.width = params.width;
+        fullCanvas.height = params.height;
+        renderProceduralPattern(fullCanvas, params);
+
+        const ctx = fullCanvas.getContext('2d');
+        const imgData = ctx.getImageData(0, 0, fullCanvas.width, fullCanvas.height);
+        const texture = new THREE.CanvasTexture(fullCanvas);
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        const texName = `Procedural_${params.shape}_${params.layout}_${params.width}x${params.height}.png`;
+        texture.name = texName;
+
+        activeMapEntry = {
+          name: texName,
+          fullCanvas: fullCanvas,
+          texture: texture,
+          imageData: imgData,
+          width: fullCanvas.width,
+          height: fullCanvas.height,
+          isCustom: true,
+        };
+
+        _lastCustomMap = activeMapEntry;
+        if (activeMapName) activeMapName.textContent = texName;
+        document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('active'));
+        _showCustomMapThumb(activeMapEntry);
+        if (customMapSwatch) customMapSwatch.classList.add('active');
+
+        resetTextureSmoothing();
+        runColorQuantization();
+        _onTextureChanged();
+        updatePreview();
+
+        closeModal();
+      } catch (err) {
+        console.error('Failed to apply procedural pattern:', err);
+      }
+    });
+  }
+
+  // 8. Download PNG
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      readUIIntoParams();
+      const fullCanvas = document.createElement('canvas');
+      fullCanvas.width = params.width;
+      fullCanvas.height = params.height;
+      renderProceduralPattern(fullCanvas, params);
+
+      fullCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `procedural_pattern_${params.shape}_${params.width}x${params.height}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    });
+  }
+
+  // Initial sync
+  syncColorUIFromParams();
+})();
+
 
