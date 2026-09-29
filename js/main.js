@@ -33,8 +33,8 @@ import {
   schlickBias,
   applyProfile,
   lerpColor,
-} from './textureGenerator.js';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260927_123';
+} from './textureGenerator.js?v=20260929_124';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260929_124';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_123';
@@ -48,17 +48,17 @@ import {
   computeLuminanceBlendWeight,
   computeMultiColorBlend,
   generateInterleavedTable
-} from './layerBlending.js?v=20260921_120';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260927_123';
-import { sampleRGBBilinear } from './displacement.js?v=20260912_102';
+} from './layerBlending.js?v=20260929_124';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260929_124';
+import { sampleRGBBilinear } from './displacement.js?v=20260929_124';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
-import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260927_123';
+import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_124';
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260927_123';
+import { APP_VERSION } from './version.js?v=20260929_124';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────

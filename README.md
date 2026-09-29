@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.2.3-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.2.4-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,7 +30,18 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.2.3 (Latest Release - 2026-09-27)**:
+- **v1.2.4 (Latest Release - 2026-09-29)**:
+  - **Procedural 3-Color Pattern & Texture Generator PRO**:
+    - Built-in generator unlocked via UI icon (`✦`), double-click, or `?texgen=1` URL parameter.
+    - 10+ geometric pattern shapes: dots/circles, triangles, squares, diamonds, polygons, stars, waves, rounded squares, and filled bicolor Smith Truchet tiles.
+    - 3-color palette system with background color selection, gradient bias / balance sliders, and customizable easing curves (Linear, Smoothstep, Ease-In, Ease-Out).
+    - Figure-ground inversion layout with seamless continuous square-to-round morphing (eliminates grid artifacts and seam lines).
+    - 360° seamless cylindrical wrap parity and seed-based shuffle generation.
+    - Direct "Apply to Model" integration and high-resolution PNG export (e.g. 2513×1000px).
+  - **3+ Color Multi-Tool Interleaved Gradient Displacement & Strict 1-Layer 1-Color Enforcement**:
+    - Extended displacement calculations to support 3 or more colors with automatic nearest-pair affinity, ensuring distinct layers protrude independently per color.
+    - Strict enforcement of the 1-layer 1-color rule across all watertight slicing and 3MF export pipelines.
+- **v1.2.3 (2026-09-27)**:
   - **4 Configurable Exclusion Modes for Interleaved Multi-Tool Slicing**:
     - Users can now customize how user-painted exclusion regions are processed during interleaved multi-tool printing:
       1. `OFF, OFF, Fill with designated tool (Cancel interleaving)`: Flat surface, cancel interleaving, solid single tool fill.

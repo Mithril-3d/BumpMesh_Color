@@ -29,8 +29,8 @@ let _currentLang = 'en';
 const _cache = {};
 
 const _v = (typeof import.meta !== 'undefined' && import.meta.url)
-  ? (new URL(import.meta.url).search || '?v=20260927_123')
-  : '?v=20260927_123';
+  ? (new URL(import.meta.url).search || '?v=20260929_124')
+  : '?v=20260929_124';
 
 /**
  * Load a language file into the cache.
