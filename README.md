@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.2.4-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.3.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,7 +30,16 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.2.4 (Latest Release - 2026-09-29)**:
+- **v1.3.0 (Latest Release - 2026-09-29)**:
+  - **Texture Gallery & Preset Overhaul (upstream v1.3.0〜v1.3.6 integration)**:
+    - Integrated CNC Kitchen's texture overhaul: 88 new high-quality presets (Hero Patterns, Filter Forge, ambientCG, Poly Haven) with optimized WebP thumbnails.
+    - Preserved all 24 BumpMesh_Color multicolor/Japanese textures, totaling **112 presets** in the catalog.
+    - **Texture Gallery Side Panel**: Non-modal full catalog panel for live texture browsing with arrow keys, click-to-apply, and 3D Turntable preview.
+    - **Category Filters & Search**: 7 curated categories plus "Favourites", "Your textures", and "Multicolor & Patterns", with instant incremental search.
+    - **Favourites & Compact Grid**: Pin favourite textures (★) to the compact 12-slot main displacement map grid (persisted in LocalStorage).
+    - **My Textures Library**: Local IndexedDB storage for uploaded custom textures, supporting redownload, delete, and starring.
+    - **Texture Inversion & UI Polish**: Invert texture checkbox for inverted displacement reliefs, plus a collapsible left sidebar toggle.
+- **v1.2.4 (2026-09-29)**:
   - **Procedural 3-Color Pattern & Texture Generator PRO**:
     - Built-in generator unlocked via UI icon (`✦`), double-click, or `?texgen=1` URL parameter.
     - 10+ geometric pattern shapes: dots/circles, triangles, squares, diamonds, polygons, stars, waves, rounded squares, and filled bicolor Smith Truchet tiles.

@@ -11,15 +11,15 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          clearDiagOverlays, setDiagEdges, addDiagFaces,
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
-         updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_124';
+         updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_130';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260929_124';
-import { getCustomTextureFile } from './customTextures.js?v=20260929_124';
-import { initTextureGallery } from './textureGallery.js?v=20260929_124';
-import { initSidebarToggle } from './sidebarToggle.js?v=20260929_124';
+import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260929_130';
+import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
+import { initTextureGallery } from './textureGallery.js?v=20260929_130';
+import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
 import {
   computeAutoFitDimensions,
   createCylinderGeometry,
@@ -36,8 +36,8 @@ import {
   schlickBias,
   applyProfile,
   lerpColor,
-} from './textureGenerator.js?v=20260929_124';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260929_124';
+} from './textureGenerator.js?v=20260929_130';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260929_130';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_123';
@@ -51,17 +51,17 @@ import {
   computeLuminanceBlendWeight,
   computeMultiColorBlend,
   generateInterleavedTable
-} from './layerBlending.js?v=20260929_124';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260929_124';
-import { sampleRGBBilinear } from './displacement.js?v=20260929_124';
+} from './layerBlending.js?v=20260929_130';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260929_130';
+import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
-import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_124';
+import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_130';
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260929_124';
+import { APP_VERSION } from './version.js?v=20260929_130';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────

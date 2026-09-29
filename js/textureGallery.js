@@ -10,10 +10,10 @@
 // a local library (js/customTextures.js) and listed under "Your textures", where they can be starred,
 // downloaded again and deleted; the browser may evict that library at any time.
 
-import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20260929_124';
+import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20260929_130';
 import { listCustomTextures, saveCustomTexture, deleteCustomTexture, clearCustomTextures,
-         downloadCustomTexture } from './customTextures.js?v=20260929_124';
-import { t } from './i18n.js?v=20260929_124';
+         downloadCustomTexture } from './customTextures.js?v=20260929_130';
+import { t } from './i18n.js?v=20260929_130';
 
 const FAV_KEY = 'bumpmesh-favourites';
 const TURNTABLE_KEY = 'bumpmesh-gallery-turntable';
