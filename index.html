@@ -250,6 +250,13 @@
     </section>
 
     <!-- â”€â”€â”€ Settings Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- Collapse tab on the sidebar's edge (js/sidebarToggle.js); hides the settings panel or gallery so the viewport gets the room -->
+    <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="settings-panel gallery-panel"
+      data-i18n-aria-label="ui.toggleSidebar" aria-label="Show or hide the sidebar"
+      data-i18n-title="ui.toggleSidebar" title="Show or hide the sidebar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+
     <aside id="settings-panel">
       <div class="settings-scroll-content">
 
@@ -393,26 +400,42 @@
           <span style="font-size:9px;background:rgba(255,255,255,0.15);padding:1px 4px;border-radius:3px;">PRO</span>
         </button>
 
-        <!-- Preset grid -->
+        <!-- Preset grid (Favourites) -->
         <div id="preset-grid" class="preset-grid">
-          <!-- filled by js/presetTextures.js -->
+          <!-- filled by js/textureGallery.js -->
         </div>
 
-        <!-- Custom upload -->
-        <label class="upload-btn" for="texture-file-input">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <span data-i18n="ui.uploadCustomMap">Upload custom map</span>
-        </label>
-        <input type="file" id="texture-file-input" accept="image/*" hidden />
+        <div class="map-actions">
+          <!-- Full catalogue -->
+          <button id="texture-gallery-btn" class="upload-btn gallery-open-btn" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span data-i18n="ui.textureGallery">Texture Gallery</span>
+            <span id="texture-gallery-count" class="gallery-open-count"></span>
+          </button>
+
+          <!-- Custom upload -->
+          <label class="upload-btn" for="texture-file-input">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span data-i18n="ui.uploadCustomMap">Upload custom map</span>
+          </label>
+        </div>
+        <input type="file" id="texture-file-input" accept="image/*,.texture" hidden />
         <div id="custom-map-row" class="custom-map-row hidden">
           <div id="custom-map-swatch" class="preset-swatch custom-map-swatch" role="button" tabindex="0" data-i18n-title="ui.customMap" title="Custom map"></div>
           <button id="custom-map-remove" class="custom-map-remove" data-i18n-title="ui.removeCustomMap" data-i18n-aria-label="ui.removeCustomMap" title="Remove custom map" aria-label="Remove custom map">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div id="active-map-name" class="active-map-name" data-i18n="ui.noMapSelected">No map selected</div>
+        <div class="form-row invert-texture-row">
+          <label class="checkbox-label" for="invert-texture"
+            data-i18n-title="tooltips.invertTexture"
+            title="Swaps black and white in the displacement map, so dark areas become raised instead of light ones.">
+            <input type="checkbox" id="invert-texture" />
+            <span data-i18n="labels.invertTexture">Invert texture ⓘ</span>
+          </label>
+        </div>
         <div class="form-row slider-row">
-          <label for="texture-smoothing" data-i18n="labels.textureSmoothing" data-i18n-title="tooltips.textureSmoothing" title="Applies a Gaussian blur to the displacement map. Higher values produce softer, more gradual surface detail. 0 = off.">Texture Smoothing â“˜</label>
+          <label for="texture-smoothing" data-i18n="labels.textureSmoothing" data-i18n-title="tooltips.textureSmoothing" title="Applies a Gaussian blur to the displacement map. Higher values produce softer, more gradual surface detail. 0 = off.">Texture Smoothing ⓘ</label>
           <input type="range" id="texture-smoothing" min="0" max="20" step="any" value="0" />
           <input type="number" class="val" id="texture-smoothing-val" value="0" min="0" max="20" step="any" data-wheel-decimals="1" />
         </div>
@@ -919,6 +942,33 @@
         </div>
       </div>
 
+    </aside>
+
+    <!-- Texture gallery (filled by js/textureGallery.js). Takes the settings panel's place while open
+         so the model stays visible and every pick shows up on it live. -->
+    <aside id="gallery-panel" class="gallery-panel hidden" role="dialog" aria-labelledby="gallery-title" tabindex="-1">
+      <div class="gallery-header">
+        <h2 id="gallery-title" data-i18n="gallery.title">Texture Gallery</h2>
+        <button id="gallery-turntable" class="gallery-turntable-btn" type="button" aria-pressed="false"
+          data-i18n-title="gallery.turntableTitle" title="Slowly spin the model while you browse">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          <span data-i18n="gallery.turntable">Turntable</span>
+        </button>
+        <button id="gallery-done" class="gallery-done-btn" type="button" data-i18n="gallery.done">Done</button>
+      </div>
+      <div class="gallery-toolbar">
+        <input type="search" id="gallery-search" class="gallery-search" autocomplete="off" spellcheck="false" />
+        <div id="gallery-chips" class="gallery-chips" role="group" data-i18n-aria-label="gallery.filterLabel" aria-label="Filter by category"></div>
+      </div>
+      <div class="gallery-status">
+        <span class="gallery-hint" data-i18n="gallery.hint">Click a texture to try it on your model; arrow keys flip through them. Star your favorites to pin them to the panel.</span>
+        <span class="gallery-fav-tools">
+          <span id="gallery-fav-count"></span>
+          <button id="gallery-fav-reset" class="gallery-link-btn" type="button" data-i18n="gallery.resetFavourites">Reset favourites</button>
+        </span>
+      </div>
+      <div id="gallery-body" class="gallery-body"></div>
+      <p class="gallery-credits" data-i18n-html="gallery.credits">Patterns marked <strong>HP</strong> are based on <a href="https://heropatterns.com/" target="_blank" rel="noopener">Hero Patterns</a> by Steve Schoger, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> and converted to heightmaps. Textures marked <strong>CC0</strong> come from <a href="https://ambientcg.com/" target="_blank" rel="noopener">ambientCG</a> and <a href="https://polyhaven.com/" target="_blank" rel="noopener">Poly Haven</a> (public domain). Textures marked <strong>FF</strong> were made with <a href="https://www.filterforge.com/" target="_blank" rel="noopener">Filter Forge</a>. All other textures ship with BumpMesh.</p>
     </aside>
   </main>
 

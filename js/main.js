@@ -11,12 +11,15 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          clearDiagOverlays, setDiagEdges, addDiagFaces,
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
-         updateSceneBounds, fitCameraToMesh } from './viewer.js?v=20260920_113';
+         updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_124';
 import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadAllThumbnails, loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260913_order';
+import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260929_124';
+import { getCustomTextureFile } from './customTextures.js?v=20260929_124';
+import { initTextureGallery } from './textureGallery.js?v=20260929_124';
+import { initSidebarToggle } from './sidebarToggle.js?v=20260929_124';
 import {
   computeAutoFitDimensions,
   createCylinderGeometry,
@@ -134,6 +137,7 @@ const settings = {
   amplitude:     0.5,
   textureHeight: 0.5,
   invertDisplacement: false,
+  invertTexture: false,
   offsetU:       0.0,
   offsetV:       0.0,
   rotation:      0,
@@ -574,6 +578,7 @@ const seamBandWidthSlider    = document.getElementById('seam-band-width');
 const seamBandWidthVal       = document.getElementById('seam-band-width-val');
 const textureSmoothingSlider = document.getElementById('texture-smoothing');
 const textureSmoothingVal    = document.getElementById('texture-smoothing-val');
+const invertTextureCheckbox  = document.getElementById('invert-texture');
 const capAngleSlider         = document.getElementById('cap-angle');
 const capAngleVal            = document.getElementById('cap-angle-val');
 const capAngleRow            = document.getElementById('cap-angle-row');
@@ -1269,6 +1274,7 @@ function populateLanguageSelector() {
     // Re-render dynamic color controls with the new language
     if (typeof renderPaletteUI === 'function') renderPaletteUI();
     if (typeof renderInterleavedUI === 'function') renderInterleavedUI();
+    gallery?.refreshText();
   });
 
   languageSelector.appendChild(select);
@@ -1314,75 +1320,41 @@ showWelcomeIfNeeded();
 scaleUVal.value = fmtScaleVal(posToScale(parseFloat(scaleUSlider.value)));
 scaleVVal.value = fmtScaleVal(posToScale(parseFloat(scaleVSlider.value)));
 
+// Favourites grid + texture gallery. Every preset is selectable right away (the full texture
+// loads on demand), so PRESETS is filled synchronously instead of waiting for thumbnails.
+const DEFAULT_PRESET_NAME = 'Blue Porcelain';
+let _activePresetIdx = -1;   // preset picked most recently (set before its texture finishes loading)
+PRESETS = IMAGE_PRESETS.map(p => ({ name: p.name, defaultScale: p.defaultScale }));
+
+const gallery = initTextureGallery({
+  onSelect: (idx) => selectPreset(idx).then(_scheduleUndoCapture),
+  onSelectCustom: (id) => selectCustomTexture(id).then(_scheduleUndoCapture),
+  setTurntable,
+});
+gallery.refreshText();
+initSidebarToggle();
+
 // Load geometry immediately — don't wait for textures
 loadDefaultCube();
 
-// Build swatches with placeholder canvases, then load thumbnails
-const DEFAULT_PRESET_NAME = 'Blue Porcelain';
-const _presetSwatches = IMAGE_PRESETS.map((p, idx) => {
-  const swatch = document.createElement('div');
-  swatch.className = 'preset-swatch preset-loading';
-  swatch.setAttribute('role', 'button');
-  swatch.setAttribute('tabindex', '0');
-  swatch.title = p.name;
-
-  const placeholder = document.createElement('canvas');
-  placeholder.width = 80; placeholder.height = 80;
-  swatch.appendChild(placeholder);
-
-  const label = document.createElement('span');
-  label.className = 'preset-label';
-  label.textContent = p.name;
-  swatch.appendChild(label);
-
-  swatch.addEventListener('click', () => selectPreset(idx, swatch));
-  swatch.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      selectPreset(idx, swatch);
-    }
-  });
-  presetGrid.appendChild(swatch);
-  return swatch;
-});
-
-// Load lightweight thumbnails (~49 KB total), then auto-select a preset.
-// If localStorage has a persisted preset name, pick that one with defaults
-// suppressed (so the user's saved textureSmoothing / scaleU are preserved);
-// otherwise fall back to the built-in default and apply its defaults.
-loadAllThumbnails().then(thumbs => {
-  thumbs.forEach((thumb, idx) => {
-    if (!thumb) return;
-    PRESETS[idx] = thumb;         // thumbnail-only entry for now
-    const swatch = _presetSwatches[idx];
-    if (!swatch) return;
-    swatch.classList.remove('preset-loading');
-    const placeholder = swatch.querySelector('canvas');
-    swatch.replaceChild(thumb.thumbCanvas, placeholder);
-  });
-
-  let persistedName = null;
+// Restore the map from the last session
+queueMicrotask(async () => {
+  let persisted = null;
   try {
     const storageMode = localStorage.getItem('bumpmesh-storage-mode');
     const store = (storageMode === 'local') ? localStorage : sessionStorage;
-    const raw = store.getItem('bumpmesh-settings');
-    if (raw) persistedName = (JSON.parse(raw) || {}).activeMapName || null;
+    persisted = JSON.parse(store.getItem('bumpmesh-settings'));
   } catch { /* ignore */ }
+  const persistedName = persisted?.activeMapName || null;
 
-  let targetIdx = -1;
-  // If the user had ANY map active last session (preset or a since-discarded
-  // custom upload), suppress preset defaults so the restored settings survive
-  // — we'd otherwise clobber textureSmoothing / scaleU when falling back.
-  let applyDefaults = !persistedName;
-  if (persistedName) {
-    targetIdx = IMAGE_PRESETS.findIndex(p => p.name === persistedName);
-    if (!(targetIdx >= 0 && PRESETS[targetIdx])) targetIdx = -1;
-  }
+  if (persisted?.activeCustomId && await selectCustomTexture(persisted.activeCustomId, false)) return;
+  if (activeMapEntry || _activePresetIdx >= 0) return;
+
+  const applyDefaults = !persistedName;
+  let targetIdx = persistedName ? IMAGE_PRESETS.findIndex(p => p.name === persistedName) : -1;
   if (targetIdx < 0) targetIdx = IMAGE_PRESETS.findIndex(p => p.name === DEFAULT_PRESET_NAME);
-  if (targetIdx >= 0 && PRESETS[targetIdx]) {
-    selectPreset(targetIdx, _presetSwatches[targetIdx], applyDefaults);
-  }
-}).catch(err => console.error('Failed to load thumbnails:', err));
+  if (targetIdx >= 0) selectPreset(targetIdx, applyDefaults);
+});
 
 // ── Preset grid ───────────────────────────────────────────────────────────────
 
@@ -1400,18 +1372,22 @@ function resetTextureSmoothing() {
 
 let _selectGeneration = 0;   // debounce rapid preset clicks
 
-async function selectPreset(idx, swatchEl, applyDefaults = true) {
+/** Un-highlight every preset (a custom map became the active map). */
+function _clearPresetActive() {
+  _activePresetIdx = -1;
+  gallery.markActive(-1);
+}
+
+async function selectPreset(idx, applyDefaults = true) {
   const gen = ++_selectGeneration;
-  document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('active'));
-  swatchEl.classList.add('active');
+  _activePresetIdx = idx;
+  customMapSwatch?.classList.remove('active');
+  gallery.markActive(idx);
 
   const entry = PRESETS[idx];
   if (!entry) return;
-  activeMapName.textContent = entry.name;
   if (applyDefaults) {
     resetTextureSmoothing();
-    // defaultScale is a legacy fraction of the model's largest bbox edge —
-    // convert to the absolute mm tile size that looks the same on this model.
     if (entry.defaultScale != null) _applyScaleU(_defaultTileMm(entry.defaultScale));
   }
 
@@ -1421,24 +1397,80 @@ async function selectPreset(idx, swatchEl, applyDefaults = true) {
     runColorQuantization();
     _onTextureChanged();
     updatePreview();
+    _autoSaveSettings();
     return;
   }
 
   // Load full-resolution texture on demand
-  swatchEl.classList.add('preset-loading-full');
+  gallery.setLoading(idx, true);
   try {
     const full = await loadFullPreset(idx);
-    if (gen !== _selectGeneration) return;   // user clicked another preset meanwhile
     PRESETS[idx] = { ...entry, ...full };
+    if (gen !== _selectGeneration) return;
     activeMapEntry = PRESETS[idx];
     runColorQuantization();
-    swatchEl.classList.remove('preset-loading-full');
     _onTextureChanged();
     updatePreview();
+    _autoSaveSettings();
   } catch (err) {
     console.error('Failed to load full texture:', err);
-    swatchEl.classList.remove('preset-loading-full');
+  } finally {
+    gallery.setLoading(idx, false);
   }
+}
+
+/**
+ * Make one of the user's stored textures (js/customTextures.js) the active map.
+ */
+async function selectCustomTexture(id, applyDefaults = true) {
+  const gen = ++_selectGeneration;
+  let entry = _lastCustomMap?.customId === id ? _lastCustomMap : null;
+  if (!entry) {
+    let file = null;
+    gallery.setCustomLoading(id, true);
+    try {
+      file = await getCustomTextureFile(id);
+      if (file) {
+        entry = await loadCustomTexture(file);
+        entry.isCustom = true;
+        entry.customId = id;
+      }
+    } catch (err) {
+      console.error('Failed to load stored texture:', err);
+    } finally {
+      gallery.setCustomLoading(id, false);
+    }
+    if (!entry) {
+      if (applyDefaults && gen === _selectGeneration) {
+        alert(file ? t('alerts.textureLoadFailed', { name: file.name }) : t('alerts.customTextureMissing'));
+      }
+      gallery.refreshCustoms();
+      return false;
+    }
+  }
+  if (gen !== _selectGeneration) {
+    if (entry !== _lastCustomMap) entry.texture.dispose();
+    return false;
+  }
+  _useCustomMap(entry, applyDefaults);
+  return true;
+}
+
+/** Make a decoded custom map the active map (fresh upload, library pick or project import). */
+function _useCustomMap(entry, resetSmoothing) {
+  _selectGeneration++;
+  if (_lastCustomMap && _lastCustomMap !== entry) _lastCustomMap.texture.dispose();
+  activeMapEntry = entry;
+  _lastCustomMap = entry;
+  _clearPresetActive();
+  gallery.markActiveCustom(entry.customId);
+  _showCustomMapThumb(entry);
+  customMapSwatch.classList.add('active');
+  if (resetSmoothing) resetTextureSmoothing();
+  runColorQuantization();
+  _onTextureChanged();
+  updatePreview();
+  _autoSaveSettings();
 }
 
 // ── Custom-map thumbnail (below the upload button) ───────────────────────────
@@ -1497,14 +1529,14 @@ if (customMapRemoveBtn) {
     const wasActive = activeMapEntry === _lastCustomMap;
     _lastCustomMap = null;
     _hideCustomMapThumb();
+    gallery.markActiveCustom(null);
     if (wasActive) {
       // Fall back to the default preset so the viewer keeps a usable texture.
       const idx = IMAGE_PRESETS.findIndex(p => p.name === DEFAULT_PRESET_NAME);
-      if (idx >= 0 && _presetSwatches[idx] && PRESETS[idx]) {
-        selectPreset(idx, _presetSwatches[idx], /*applyDefaults=*/false);
+      if (idx >= 0) {
+        selectPreset(idx, /*applyDefaults=*/false);
       } else {
         activeMapEntry = null;
-        activeMapName.textContent = t('ui.noMapSelected');
         updatePreview();
       }
     }
@@ -2042,19 +2074,18 @@ function wireEvents() {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      activeMapEntry = await loadCustomTexture(file);
-      activeMapEntry.isCustom = true;
-      _lastCustomMap = activeMapEntry;
-      activeMapName.textContent = file.name;
-      document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('active'));
-      _showCustomMapThumb(activeMapEntry);
-      customMapSwatch.classList.add('active');
-      resetTextureSmoothing();
-      runColorQuantization();
-      _onTextureChanged();
-      updatePreview();
+      const entry = await loadCustomTexture(file);
+      entry.isCustom = true;
+      _useCustomMap(entry, true);
+      gallery.rememberUpload(file, entry.fullCanvas).then((id) => {
+        if (id && activeMapEntry === entry) {
+          entry.customId = id;
+          gallery.markActiveCustom(id);
+        }
+      });
     } catch (err) {
       console.error('Failed to load texture:', err);
+      alert(t('alerts.textureLoadFailed', { name: file.name }));
     }
     // Reset the file input so re-uploading the same filename still triggers 'change'.
     textureInput.value = '';
@@ -2184,6 +2215,13 @@ function wireEvents() {
   linkSlider(seamBlendSlider,        seamBlendVal,        v => { settings.mappingBlend     = v; return v.toFixed(2); });
   linkSlider(seamBandWidthSlider,    seamBandWidthVal,    v => { settings.seamBandWidth    = v; return v.toFixed(2); });
   linkSlider(textureSmoothingSlider, textureSmoothingVal, v => { settings.textureSmoothing = v; return v.toFixed(1); });
+  if (invertTextureCheckbox) {
+    invertTextureCheckbox.checked = settings.invertTexture;
+    invertTextureCheckbox.addEventListener('change', () => {
+      settings.invertTexture = invertTextureCheckbox.checked;
+      updatePreview();
+    });
+  }
   linkSlider(capAngleSlider,          capAngleVal,          v => { settings.capAngle         = v; return Math.round(v); });
   symmetricDispToggle.addEventListener('change', () => {
     settings.symmetricDisplacement = symmetricDispToggle.checked;
@@ -5004,55 +5042,67 @@ function buildParentFaceMap(subdivGeo) {
 function getEffectiveMapEntry() {
   if (!activeMapEntry) return null;
 
-  let baseEntry = activeMapEntry;
-  if (settings.textureSmoothing !== 0) {
-    const { fullCanvas, width, height, name } = activeMapEntry;
-    const cacheKey = `${name}_${width}_${height}_${settings.textureSmoothing}`;
-    if (_effectiveMapCacheKey === cacheKey && _effectiveMapCache) {
-      baseEntry = _effectiveMapCache;
-    } else {
-      // Tile the source 3×3 before blurring so edge pixels have correct
-      // neighbours and the blurred centre tile is seamlessly tileable.
-      // Safety cap: clamp longest side to 2048 to prevent huge 3x3 canvases (>6144px) from crashing browsers.
-      const MAX_BLUR_DIM = 2048;
-      const blurScale = Math.min(MAX_BLUR_DIM / width, MAX_BLUR_DIM / height, 1);
-      const blurW = Math.round(width * blurScale);
-      const blurH = Math.round(height * blurScale);
-
-      const tiled = document.createElement('canvas');
-      tiled.width  = blurW  * 3;
-      tiled.height = blurH * 3;
-      const tc = tiled.getContext('2d');
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          tc.drawImage(fullCanvas, col * blurW, row * blurH, blurW, blurH);
-        }
-      }
-      // Blur the 3×3 canvas, then crop out only the centre tile.
-      const blurred = document.createElement('canvas');
-      blurred.width  = blurW  * 3;
-      blurred.height = blurH * 3;
-      blurred.getContext('2d').drawImage(tiled, 0, 0);
-      blurCanvas(blurred, settings.textureSmoothing * blurScale);
-      const offscreen = document.createElement('canvas');
-      offscreen.width  = blurW;
-      offscreen.height = blurH;
-      offscreen.getContext('2d').drawImage(blurred, blurW, blurH, blurW, blurH, 0, 0, blurW, blurH);
-      const imageData = offscreen.getContext('2d').getImageData(0, 0, blurW, blurH);
-      const texture   = new THREE.CanvasTexture(offscreen);
-      texture.wrapS   = texture.wrapT = THREE.RepeatWrapping;
-      if (_lastEffectiveTexture) _lastEffectiveTexture.dispose();
-      _lastEffectiveTexture = texture;
-      _effectiveMapCache    = { ...activeMapEntry, imageData, texture, width: blurW, height: blurH };
-      _effectiveMapCacheKey = cacheKey;
-      baseEntry = _effectiveMapCache;
-    }
-  } else {
+  if (settings.textureSmoothing === 0 && !settings.invertTexture) {
     _effectiveMapCache    = null;
     _effectiveMapCacheKey = null;
+    return activeMapEntry;
   }
 
-  return baseEntry;
+  const { fullCanvas, width, height, name } = activeMapEntry;
+  const cacheKey = `${name}_${width}_${height}_${settings.textureSmoothing}_${settings.invertTexture}`;
+  if (_effectiveMapCacheKey === cacheKey && _effectiveMapCache) {
+    return _effectiveMapCache;
+  }
+
+  const MAX_BLUR_DIM = 2048;
+  const blurScale = Math.min(MAX_BLUR_DIM / width, MAX_BLUR_DIM / height, 1);
+  const blurW = Math.round(width * blurScale);
+  const blurH = Math.round(height * blurScale);
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width  = blurW;
+  offscreen.height = blurH;
+  const ctx = offscreen.getContext('2d');
+
+  if (settings.textureSmoothing !== 0) {
+    const tiled = document.createElement('canvas');
+    tiled.width  = blurW * 3;
+    tiled.height = blurH * 3;
+    const tc = tiled.getContext('2d');
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        tc.drawImage(fullCanvas, col * blurW, row * blurH, blurW, blurH);
+      }
+    }
+    const blurred = document.createElement('canvas');
+    blurred.width  = blurW * 3;
+    blurred.height = blurH * 3;
+    blurred.getContext('2d').drawImage(tiled, 0, 0);
+    blurCanvas(blurred, settings.textureSmoothing * blurScale);
+    ctx.drawImage(blurred, blurW, blurH, blurW, blurH, 0, 0, blurW, blurH);
+  } else {
+    ctx.drawImage(fullCanvas, 0, 0, blurW, blurH);
+  }
+
+  const imageData = ctx.getImageData(0, 0, blurW, blurH);
+  if (settings.invertTexture) {
+    const pixels = imageData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i]     = 255 - pixels[i];
+      pixels[i + 1] = 255 - pixels[i + 1];
+      pixels[i + 2] = 255 - pixels[i + 2];
+      pixels[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  const texture = new THREE.CanvasTexture(offscreen);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  if (_lastEffectiveTexture) _lastEffectiveTexture.dispose();
+  _lastEffectiveTexture = texture;
+  _effectiveMapCache    = { ...activeMapEntry, imageData, texture, width: blurW, height: blurH };
+  _effectiveMapCacheKey = cacheKey;
+  return _effectiveMapCache;
 }
 
 function getPreviewColorTexture() {
@@ -6960,9 +7010,7 @@ function _selectPresetByName(name, applyDefaults = false) {
   if (!name) return false;
   const idx = IMAGE_PRESETS.findIndex(p => p.name === name);
   if (idx < 0) return false;
-  const swatch = _presetSwatches[idx];
-  if (!swatch) return false;
-  selectPreset(idx, swatch, applyDefaults);
+  selectPreset(idx, applyDefaults);
   return true;
 }
 
@@ -7086,10 +7134,10 @@ function resetSettingsToDefaults() {
     if (currentGeometry) refreshExclusionOverlay();
 
     const defaultIdx = IMAGE_PRESETS.findIndex(p => p.name === DEFAULT_PRESET_NAME);
-    if (defaultIdx >= 0 && _presetSwatches[defaultIdx] && PRESETS[defaultIdx]) {
+    if (defaultIdx >= 0) {
       // applyDefaults=true so the preset's defaultScale overrides whatever
       // scale the user had — matches the "fresh session" intent.
-      selectPreset(defaultIdx, _presetSwatches[defaultIdx], true);
+      selectPreset(defaultIdx, true);
     }
     try { sessionStorage.removeItem(PROJECT_STORAGE_KEY); } catch { /* ignore */ }
     try { localStorage.removeItem(PROJECT_STORAGE_KEY); } catch { /* ignore */ }

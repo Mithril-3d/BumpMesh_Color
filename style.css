@@ -3269,6 +3269,405 @@ input[type="number"].val:focus { outline: none; border-color: var(--accent); }
   background: #f8fafc;
 }
 
+
+
+/* ── Upstream Texture Gallery & Sidebar Toggle (v1.3.6) ──────────────── */
+
+#settings-panel,
+.gallery-panel {
+  width: var(--sidebar-w);
+}
+
+/* ── Sidebar Toggle Button ── */
+.sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  right: var(--sidebar-w);
+  z-index: 5;
+  width: 22px;
+  height: 52px;
+  margin-top: -26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.sidebar-toggle:hover { color: var(--accent); }
+.sidebar-toggle svg { transition: transform 0.2s; }
+
+main.sidebar-collapsed .sidebar-toggle { right: 0; }
+main.sidebar-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+main.sidebar-collapsed #settings-panel,
+main.sidebar-collapsed .gallery-panel { display: none; }
+
+
+/* ── Texture Gallery ── */
+.gallery-open-btn { font: inherit; font-size: 12px; }
+
+.gallery-open-count {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+/* ── Texture gallery side panel ──────────────────────────────────────── */
+/* Non-modal: it takes the settings panel's slot (and width, see #settings-panel), so the viewport
+   stays put and orbitable while picks apply live. */
+main.gallery-open #settings-panel { display: none; }
+
+.gallery-panel {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.gallery-panel.hidden { display: none; }
+.gallery-panel:focus { outline: none; }   /* focused on open where the search box would pop a keyboard */
+
+.gallery-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gallery-header h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-turntable-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.gallery-turntable-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+.gallery-turntable-btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.gallery-turntable-btn[aria-pressed="true"] svg { animation: gallery-spin 2.4s linear infinite; }
+
+@keyframes gallery-spin { to { transform: rotate(360deg); } }
+
+.gallery-done-btn {
+  padding: 5px 14px;
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.gallery-done-btn:hover { filter: brightness(1.12); }
+
+.gallery-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.gallery-search {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.gallery-search:focus { outline: none; border-color: var(--accent); }
+
+.gallery-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.gallery-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.gallery-chip:hover { color: var(--text); border-color: var(--text-muted); }
+
+.gallery-chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.gallery-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gallery-fav-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gallery-link-btn {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.gallery-link-btn:hover { text-decoration: underline; }
+
+.gallery-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.gallery-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 14px 0 6px;
+}
+
+.gallery-section-title:first-child { margin-top: 2px; }
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px 8px;
+}
+
+.gallery-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gallery-name {
+  font-size: 11px;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-star {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 14px;
+  line-height: 24px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.gallery-star:hover { transform: scale(1.12); }
+.gallery-star[aria-pressed="true"] { color: #ffc940; }
+
+/* Download / delete on the user's own textures, stacked in the top-left corner opposite the star. */
+.gallery-tool {
+  position: absolute;
+  left: 5px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s, background 0.15s;
+}
+
+.gallery-tool-download { top: 5px; }
+.gallery-tool-delete { top: 33px; }
+.gallery-tool:hover { transform: scale(1.12); }
+.gallery-tool-delete:hover { background: var(--danger); }
+
+/* Unstarred stars and tile tools only appear on hover/focus where hovering exists; touch keeps them visible. */
+@media (hover: hover) {
+  .gallery-star[aria-pressed="false"],
+  .gallery-tool { opacity: 0; }
+  .gallery-tile:hover .gallery-star,
+  .gallery-star:focus-visible,
+  .gallery-tile:hover .gallery-tool,
+  .gallery-tool:focus-visible { opacity: 1; }
+}
+
+.gallery-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  pointer-events: none;
+}
+
+.gallery-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── Your textures (uploads kept in this browser, js/customTextures.js) ── */
+.gallery-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+
+.gallery-section-head:first-child { margin-top: 2px; }
+.gallery-section-head .gallery-section-title { margin: 0; min-width: 0; }
+
+.gallery-danger-link {
+  font-size: 11px;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.gallery-custom-note {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: color-mix(in srgb, #f59e0b 8%, var(--surface2));
+  border-left: 3px solid #f59e0b;
+  border-radius: 4px;
+}
+
+.gallery-custom-note-warn {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface2));
+  border-left-color: var(--danger);
+}
+
+.gallery-custom-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.gallery-custom-empty p { margin: 0; line-height: 1.5; }
+
+.gallery-credits {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.gallery-credits strong { color: var(--text); }
+.gallery-credits a { color: var(--accent); text-decoration: none; }
+.gallery-credits a:hover { text-decoration: underline; }
+
+@media (max-width: 520px) {
+  .gallery-panel { padding: 12px 10px 10px; }
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+}
+
+/* Too short for a fixed toolbar over a scrolling grid (landscape phones, the stacked phone layout):
+   the whole panel scrolls, and only the header with Done stays put. */
+@media (max-height: 560px), (max-width: 699px) and (orientation: portrait) {
+  .gallery-panel { overflow-y: auto; padding-top: 0; }
+  .gallery-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding-top: 12px;
+    padding-bottom: 6px;
+    background: var(--surface);
+  }
+  .gallery-body { flex: none; overflow: visible; }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────── */
+
 /* Global utility for hiding elements */
 .hidden {
   display: none !important;
