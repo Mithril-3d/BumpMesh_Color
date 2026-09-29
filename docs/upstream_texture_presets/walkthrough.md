@@ -83,7 +83,10 @@ Chrome リモートデバッグ (CDP) によるヘッドレス自動テストお
 
 ---
 
-## 4. ブランチ情報
+## 4. リリースおよびブランチ情報
 
-- **作業ブランチ**: `feature/upstream-texture-gallery`
-- 動作確認完了後、レビューおよび `main` への統合（マージ）を行うことが可能です。
+- **統合ブランチ**: `main` （`feature/upstream-texture-gallery` からマージ完了）
+- **本番デプロイブランチ**: `vercel` （`main` と同期プッシュ完了）
+- **リリースタグ**: `v1.3.0` （安定版としてタグ付け・push完了）
+- **バージョン番号**: `1.3.0` (`js/version.js`, `index.html`, `README.md`, `CHANGELOG.md` 更新済み)
+
