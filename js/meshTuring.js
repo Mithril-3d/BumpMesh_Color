@@ -21,8 +21,8 @@ export const TURING_PRESETS = {
     name: 'Maze / Brain (迷路・脳皺)',
     feed: 0.030,
     kill: 0.062,
-    diffU: 0.14,
-    diffV: 0.07,
+    diffU: 0.16,
+    diffV: 0.08,
     dt: 1.0,
     subSteps: 12,
     defaultHeight: 1.5,
@@ -30,10 +30,10 @@ export const TURING_PRESETS = {
   coral: {
     id: 'coral',
     name: 'Coral / Fingerprint (サンゴ・指紋)',
-    feed: 0.046,
+    feed: 0.050,
     kill: 0.063,
-    diffU: 0.14,
-    diffV: 0.07,
+    diffU: 0.16,
+    diffV: 0.08,
     dt: 1.0,
     subSteps: 12,
     defaultHeight: 1.5,
@@ -43,8 +43,8 @@ export const TURING_PRESETS = {
     name: 'Spots / Leopard (ヒョウ柄・水玉)',
     feed: 0.034,
     kill: 0.063,
-    diffU: 0.14,
-    diffV: 0.07,
+    diffU: 0.16,
+    diffV: 0.08,
     dt: 1.0,
     subSteps: 12,
     defaultHeight: 1.2,
@@ -54,8 +54,8 @@ export const TURING_PRESETS = {
     name: 'Waves / Solitons (波紋・パルス)',
     feed: 0.014,
     kill: 0.047,
-    diffU: 0.14,
-    diffV: 0.07,
+    diffU: 0.16,
+    diffV: 0.08,
     dt: 1.0,
     subSteps: 12,
     defaultHeight: 1.5,
@@ -65,8 +65,8 @@ export const TURING_PRESETS = {
     name: 'Spirals / Organics (渦巻・有機)',
     feed: 0.018,
     kill: 0.051,
-    diffU: 0.14,
-    diffV: 0.07,
+    diffU: 0.16,
+    diffV: 0.08,
     dt: 1.0,
     subSteps: 12,
     defaultHeight: 1.5,
@@ -148,102 +148,59 @@ export function buildMeshGraph(geometry) {
     }
   }
 
-  // 2. Accumulate Cotangent weights and Barycentric dual areas
-  // For each edge (i, j) with opposite vertex k:
-  // cot(theta) = (u . v) / |u x v| where u = p_i - p_k, v = p_j - p_k
-  const edgeMap = new Map();
-  function addCotanWeight(i, j, k) {
-    if (i === j) return;
-    const xi = uniquePositions[i * 3], yi = uniquePositions[i * 3 + 1], zi = uniquePositions[i * 3 + 2];
-    const xj = uniquePositions[j * 3], yj = uniquePositions[j * 3 + 1], zj = uniquePositions[j * 3 + 2];
-    const xk = uniquePositions[k * 3], yk = uniquePositions[k * 3 + 1], zk = uniquePositions[k * 3 + 2];
-
-    const u1 = xi - xk, u2 = yi - yk, u3 = zi - zk;
-    const v1 = xj - xk, v2 = yj - yk, v3 = zj - zk;
-
-    const dot = u1 * v1 + u2 * v2 + u3 * v3;
-    const cx = u2 * v3 - u3 * v2;
-    const cy = u3 * v1 - u1 * v3;
-    const cz = u1 * v2 - u2 * v1;
-    const crossNorm = Math.hypot(cx, cy, cz);
-
-    if (crossNorm < 1e-8) return;
-    const cot = dot / crossNorm;
-
-    const u = Math.min(i, j);
-    const v = Math.max(i, j);
-    const key = `${u}_${v}`;
-    edgeMap.set(key, (edgeMap.get(key) || 0) + cot * 0.5);
-  }
-
-  const dualAreas = new Float32Array(uniqueCount);
-
+  // 2. Build neighbor sets from mesh triangles
+  const neighborSets = Array.from({ length: uniqueCount }, () => new Set());
   for (let t = 0; t < triCount; t++) {
     const i0 = vertexToUnique[t * 3];
     const i1 = vertexToUnique[t * 3 + 1];
     const i2 = vertexToUnique[t * 3 + 2];
-
-    addCotanWeight(i0, i1, i2);
-    addCotanWeight(i1, i2, i0);
-    addCotanWeight(i2, i0, i1);
-
-    const x0 = uniquePositions[i0 * 3], y0 = uniquePositions[i0 * 3 + 1], z0 = uniquePositions[i0 * 3 + 2];
-    const x1 = uniquePositions[i1 * 3], y1 = uniquePositions[i1 * 3 + 1], z1 = uniquePositions[i1 * 3 + 2];
-    const x2 = uniquePositions[i2 * 3], y2 = uniquePositions[i2 * 3 + 1], z2 = uniquePositions[i2 * 3 + 2];
-
-    const ax = x1 - x0, ay = y1 - y0, az = z1 - z0;
-    const bx = x2 - x0, by = y2 - y0, bz = z2 - z0;
-    const area = 0.5 * Math.hypot(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
-
-    dualAreas[i0] += area / 3.0;
-    dualAreas[i1] += area / 3.0;
-    dualAreas[i2] += area / 3.0;
+    if (i0 !== i1) { neighborSets[i0].add(i1); neighborSets[i1].add(i0); }
+    if (i1 !== i2) { neighborSets[i1].add(i2); neighborSets[i2].add(i1); }
+    if (i2 !== i0) { neighborSets[i2].add(i0); neighborSets[i0].add(i2); }
   }
 
-  // 3. Build Adjacency and compute calibrated Cotangent Laplace weights
-  const adj = Array.from({ length: uniqueCount }, () => []);
-  for (const [key, cot] of edgeMap.entries()) {
-    const sepIdx = key.indexOf('_');
-    const u = parseInt(key.slice(0, sepIdx), 10);
-    const v = parseInt(key.slice(sepIdx + 1), 10);
-    // Non-negative cotangent weights for numerical monotonicity & stability
-    const w = Math.max(0, cot);
-    adj[u].push({ neighbor: v, weight: w });
-    adj[v].push({ neighbor: u, weight: w });
-  }
-
+  // 3. Build flattened adjacency and compute isotropic geometric Laplace weights
+  // Note: Cotangent weights degenerate to 0.0 on right-angle triangles (e.g. subdivided
+  // cube and cylinder grids where opposite angles are 90 deg), causing strong vertical
+  // anisotropy. Inverse-distance weights guarantee strictly positive, isotropic diffusion
+  // in all spatial directions (X, Y, Z) on any 3D mesh.
   const neighborOffsets = new Uint32Array(uniqueCount + 1);
   let totalEdges = 0;
   for (let u = 0; u < uniqueCount; u++) {
     neighborOffsets[u] = totalEdges;
-    totalEdges += adj[u].length;
+    totalEdges += neighborSets[u].size;
   }
   neighborOffsets[uniqueCount] = totalEdges;
 
   const neighborIndices = new Uint32Array(totalEdges);
   const neighborWeights = new Float32Array(totalEdges);
 
-  let sumArea = 0;
-  for (let u = 0; u < uniqueCount; u++) sumArea += dualAreas[u];
-  const avgArea = uniqueCount > 0 ? sumArea / uniqueCount : 1.0;
-
   for (let u = 0; u < uniqueCount; u++) {
     const offset = neighborOffsets[u];
-    const area = Math.max(dualAreas[u], 1e-6);
-    // Scale by avgArea so standard Gray-Scott constants remain calibrated
-    const areaScale = avgArea / area;
+    const neighbors = Array.from(neighborSets[u]);
+    const ux = uniquePositions[u * 3];
+    const uy = uniquePositions[u * 3 + 1];
+    const uz = uniquePositions[u * 3 + 2];
 
-    let localSum = 0;
-    for (let k = 0; k < adj[u].length; k++) {
-      localSum += adj[u][k].weight * areaScale;
+    let sumW = 0.0;
+    const tempW = [];
+    for (let k = 0; k < neighbors.length; k++) {
+      const v = neighbors[k];
+      neighborIndices[offset + k] = v;
+      const vx = uniquePositions[v * 3];
+      const vy = uniquePositions[v * 3 + 1];
+      const vz = uniquePositions[v * 3 + 2];
+      const dist = Math.hypot(vx - ux, vy - uy, vz - uz);
+      const w = 1.0 / Math.max(dist, 1e-4);
+      tempW.push(w);
+      sumW += w;
     }
-    // Target sum around 4.0 (standard 2D discrete Laplacian equivalence)
-    // Clamp to at most 4.0 for strict CFL numerical stability and proper pattern wavelengths
-    const clampScale = localSum > 4.0 ? (4.0 / localSum) : 1.0;
 
-    for (let k = 0; k < adj[u].length; k++) {
-      neighborIndices[offset + k] = adj[u][k].neighbor;
-      neighborWeights[offset + k] = adj[u][k].weight * areaScale * clampScale;
+    // Calibrate each vertex so total weight equals 4.0
+    // (exact mathematical equivalent of standard 2D 5-point discrete Laplacian stencil)
+    const normFactor = sumW > 0 ? (4.0 / sumW) : 1.0;
+    for (let k = 0; k < neighbors.length; k++) {
+      neighborWeights[offset + k] = tempW[k] * normFactor;
     }
   }
 
