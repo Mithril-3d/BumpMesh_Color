@@ -421,6 +421,7 @@ export default {
   "turing.remeshing": "Remeshing mesh…",
   "turing.presetTitle": "2. Pattern Presets",
   "turing.seedTitle": "3. Chemical Seeding",
+  "turing.seedRadius": "Seed Radius:",
   "turing.clickSeed": "Click Model to Seed",
   "turing.randomSeed": "Random",
   "turing.clickHint": "💡 Click any surface on the 3D model to plant a seed and watch the organic pattern self-organize.",

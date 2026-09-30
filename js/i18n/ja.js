@@ -421,6 +421,7 @@ export default {
   "turing.remeshing": "均一リメッシュ中…",
   "turing.presetTitle": "2. パターン・プリセット",
   "turing.seedTitle": "3. シード（発生源）投入",
+  "turing.seedRadius": "シード半径:",
   "turing.clickSeed": "モデルをクリックして注入",
   "turing.randomSeed": "ランダム",
   "turing.clickHint": "💡 モデル表面をクリックすると、その地点からパターンが有機的に成長し始めます。",

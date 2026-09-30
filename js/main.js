@@ -1355,6 +1355,9 @@ initTuringController({
   subdivide: (geo, len, uvs, norm, opts) => subdivide(geo, len, uvs, norm, opts),
   regularizeMesh: (geo, p, len, opts) => regularizeMesh(geo, p, len, opts),
   getRegularizeOpts: () => _regularizeOpts(),
+  getExcludedFaces: () => excludedFaces,
+  getInvertMask: () => (typeof invertMask !== 'undefined' ? invertMask : false),
+  buildFaceWeights: (geo, faces, inv) => buildFaceWeights(geo, faces, inv),
 });
 
 // Restore the map from the last session

@@ -25,6 +25,9 @@ export function initTuringController({
   subdivide,
   regularizeMesh,
   getRegularizeOpts,
+  getExcludedFaces,
+  getInvertMask,
+  buildFaceWeights,
 }) {
   // DOM Elements
   const secretTrigger = document.getElementById('secret-turing-trigger');
@@ -40,6 +43,8 @@ export function initTuringController({
   const remeshBtn      = document.getElementById('turing-remesh-btn');
 
   const presetBtns     = document.querySelectorAll('.turing-preset-btn');
+  const seedRadiusSlider = document.getElementById('turing-seed-radius-slider');
+  const seedRadiusVal    = document.getElementById('turing-seed-radius-val');
   const clickSeedBtn   = document.getElementById('turing-click-seed-btn');
   const randomSeedBtn  = document.getElementById('turing-random-seed-btn');
   const resetBtn       = document.getElementById('turing-reset-btn');
@@ -150,9 +155,19 @@ export function initTuringController({
 
     try {
       console.log('[Turing] Starting prepareMesh with targetEdge:', targetEdge, 'sourceGeo vertices:', sourceGeo.attributes.position.count);
+      
+      // Check exclusion paint mask
+      const excludedFaces = getExcludedFaces?.();
+      const invertMask = getInvertMask?.() ?? false;
+      let faceWeights = null;
+      if (excludedFaces && excludedFaces.size > 0 && typeof buildFaceWeights === 'function') {
+        faceWeights = buildFaceWeights(sourceGeo, excludedFaces, invertMask);
+        console.log('[Turing] Applied faceWeights from excludedFaces, count:', excludedFaces.size);
+      }
+
       // 1. Subdivide to targetEdge
       const { geometry: subGeo, faceParentId } = await subdivide(
-        sourceGeo, targetEdge, null, null, { fast: true }
+        sourceGeo, targetEdge, null, faceWeights, { fast: true }
       );
       console.log('[Turing] Subdivide done, subGeo vertices:', subGeo.attributes.position.count);
 
@@ -169,7 +184,7 @@ export function initTuringController({
       workingGeometry = regGeo.clone();
       originalBasePositions = new Float32Array(baseGeometry.attributes.position.array);
 
-      // 3. Build graph
+      // 3. Build cotangent graph
       const graph = buildMeshGraph(workingGeometry);
       console.log('[Turing] Graph built, unique vertices:', graph.uniqueCount);
       vertCountBadge.textContent = `${graph.uniqueCount.toLocaleString()} vertices`;
@@ -183,6 +198,27 @@ export function initTuringController({
         kill: parseFloat(killSlider.value),
         subSteps: parseInt(speedSlider.value, 10),
       });
+
+      // 4b. Map excluded vertices into simulator
+      const exclAttr = workingGeometry.attributes.excludeWeight;
+      if (exclAttr) {
+        const exclArr = exclAttr.array;
+        const excludedMask = new Uint8Array(graph.uniqueCount);
+        let exclCount = 0;
+        for (let i = 0; i < graph.vertexCount; i++) {
+          if (exclArr[i] > 0.5) {
+            const uIdx = graph.vertexToUnique[i];
+            if (!excludedMask[uIdx]) {
+              excludedMask[uIdx] = 1;
+              exclCount++;
+            }
+          }
+        }
+        if (exclCount > 0) {
+          console.log(`[Turing] Protected ${exclCount} unique excluded vertices from pattern propagation`);
+          simulator.setExcludedVertices(excludedMask);
+        }
+      }
 
       // Update mesh in viewer
       const mesh = getMesh();
@@ -258,6 +294,13 @@ export function initTuringController({
   });
 
   // ── Seeding ─────────────────────────────────────────────────────────────────
+  if (seedRadiusSlider) {
+    seedRadiusSlider.addEventListener('input', () => {
+      const r = parseFloat(seedRadiusSlider.value);
+      if (seedRadiusVal) seedRadiusVal.textContent = `${r.toFixed(1)} mm`;
+    });
+  }
+
   clickSeedBtn.addEventListener('click', () => {
     clickSeedActive = !clickSeedActive;
     clickSeedBtn.classList.toggle('active', clickSeedActive);
@@ -266,7 +309,8 @@ export function initTuringController({
 
   randomSeedBtn.addEventListener('click', () => {
     if (!simulator) return;
-    simulator.seedRandom(5, 6.0);
+    const radius = parseFloat(seedRadiusSlider?.value) || 3.0;
+    simulator.seedRandom(5, radius);
     updateDisplacementPreview();
   });
 
@@ -304,8 +348,9 @@ export function initTuringController({
       const hit = hits[0];
       const localPt = mesh.worldToLocal(hit.point.clone());
 
-      // Inject seed around click point
-      const count = simulator.seedAtPoint(localPt, 8.0, 1.0);
+      // Inject seed around click point with user-selected radius
+      const radius = parseFloat(seedRadiusSlider?.value) || 3.0;
+      const count = simulator.seedAtPoint(localPt, radius, 1.0);
       if (count > 0) {
         updateDisplacementPreview();
         // Give subtle pulse feedback

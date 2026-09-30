@@ -42,7 +42,7 @@ export const TURING_PRESETS = {
     id: 'spots',
     name: 'Spots / Leopard (ヒョウ柄・水玉)',
     feed: 0.034,
-    kill: 0.065,
+    kill: 0.063,
     diffU: 0.20,
     diffV: 0.10,
     dt: 1.0,
@@ -74,14 +74,17 @@ export const TURING_PRESETS = {
 };
 
 /**
- * Builds an adjacency graph and discrete Laplace weights on unique mesh vertices.
+ * Builds an adjacency graph and discrete Cotangent Laplace-Beltrami weights on unique mesh vertices.
+ *
+ * The cotangent formulation calculates w_ij = 0.5 * (cot(alpha) + cot(beta)), normalized by
+ * each vertex's barycentric dual area. This guarantees isotropic diffusion even on highly
+ * irregular, anisotropic, or diagonal-biased meshes (e.g. cylinders, organic surfaces).
  *
  * @param {THREE.BufferGeometry} geometry - non-indexed triangle mesh
- * @returns {object} Graph structure with flattened neighbor lookups and mappings
+ * @returns {object} Graph structure with flattened neighbor lookups and cotangent weights
  */
 export function buildMeshGraph(geometry) {
   const posAttr = geometry.attributes.position;
-  const normAttr = geometry.attributes.normal;
   const vertexCount = posAttr.count;
   const triCount = Math.floor(vertexCount / 3);
 
@@ -145,57 +148,94 @@ export function buildMeshGraph(geometry) {
     }
   }
 
-  // 2. Build neighbor sets
-  const neighborSets = Array.from({ length: uniqueCount }, () => new Set());
+  // 2. Accumulate Cotangent weights and Barycentric dual areas
+  // For each edge (i, j) with opposite vertex k:
+  // cot(theta) = (u . v) / |u x v| where u = p_i - p_k, v = p_j - p_k
+  const edgeMap = new Map();
+  function addCotanWeight(i, j, k) {
+    if (i === j) return;
+    const xi = uniquePositions[i * 3], yi = uniquePositions[i * 3 + 1], zi = uniquePositions[i * 3 + 2];
+    const xj = uniquePositions[j * 3], yj = uniquePositions[j * 3 + 1], zj = uniquePositions[j * 3 + 2];
+    const xk = uniquePositions[k * 3], yk = uniquePositions[k * 3 + 1], zk = uniquePositions[k * 3 + 2];
+
+    const u1 = xi - xk, u2 = yi - yk, u3 = zi - zk;
+    const v1 = xj - xk, v2 = yj - yk, v3 = zj - zk;
+
+    const dot = u1 * v1 + u2 * v2 + u3 * v3;
+    const cx = u2 * v3 - u3 * v2;
+    const cy = u3 * v1 - u1 * v3;
+    const cz = u1 * v2 - u2 * v1;
+    const crossNorm = Math.hypot(cx, cy, cz);
+
+    if (crossNorm < 1e-8) return;
+    const cot = dot / crossNorm;
+
+    const u = Math.min(i, j);
+    const v = Math.max(i, j);
+    const key = `${u}_${v}`;
+    edgeMap.set(key, (edgeMap.get(key) || 0) + cot * 0.5);
+  }
+
+  const dualAreas = new Float32Array(uniqueCount);
 
   for (let t = 0; t < triCount; t++) {
     const i0 = vertexToUnique[t * 3];
     const i1 = vertexToUnique[t * 3 + 1];
     const i2 = vertexToUnique[t * 3 + 2];
 
-    if (i0 !== i1) { neighborSets[i0].add(i1); neighborSets[i1].add(i0); }
-    if (i1 !== i2) { neighborSets[i1].add(i2); neighborSets[i2].add(i1); }
-    if (i2 !== i0) { neighborSets[i2].add(i0); neighborSets[i0].add(i2); }
+    addCotanWeight(i0, i1, i2);
+    addCotanWeight(i1, i2, i0);
+    addCotanWeight(i2, i0, i1);
+
+    const x0 = uniquePositions[i0 * 3], y0 = uniquePositions[i0 * 3 + 1], z0 = uniquePositions[i0 * 3 + 2];
+    const x1 = uniquePositions[i1 * 3], y1 = uniquePositions[i1 * 3 + 1], z1 = uniquePositions[i1 * 3 + 2];
+    const x2 = uniquePositions[i2 * 3], y2 = uniquePositions[i2 * 3 + 1], z2 = uniquePositions[i2 * 3 + 2];
+
+    const ax = x1 - x0, ay = y1 - y0, az = z1 - z0;
+    const bx = x2 - x0, by = y2 - y0, bz = z2 - z0;
+    const area = 0.5 * Math.hypot(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
+
+    dualAreas[i0] += area / 3.0;
+    dualAreas[i1] += area / 3.0;
+    dualAreas[i2] += area / 3.0;
   }
 
-  // 3. Flatten neighbor sets and compute inverse-distance weights
+  // 3. Build Adjacency and compute calibrated Cotangent Laplace weights
+  const adj = Array.from({ length: uniqueCount }, () => []);
+  for (const [key, cot] of edgeMap.entries()) {
+    const sepIdx = key.indexOf('_');
+    const u = parseInt(key.slice(0, sepIdx), 10);
+    const v = parseInt(key.slice(sepIdx + 1), 10);
+    // Non-negative cotangent weights for numerical monotonicity & stability
+    const w = Math.max(0, cot);
+    adj[u].push({ neighbor: v, weight: w });
+    adj[v].push({ neighbor: u, weight: w });
+  }
+
   const neighborOffsets = new Uint32Array(uniqueCount + 1);
   let totalEdges = 0;
   for (let u = 0; u < uniqueCount; u++) {
     neighborOffsets[u] = totalEdges;
-    totalEdges += neighborSets[u].size;
+    totalEdges += adj[u].length;
   }
   neighborOffsets[uniqueCount] = totalEdges;
 
   const neighborIndices = new Uint32Array(totalEdges);
   const neighborWeights = new Float32Array(totalEdges);
 
+  let sumArea = 0;
+  for (let u = 0; u < uniqueCount; u++) sumArea += dualAreas[u];
+  const avgArea = uniqueCount > 0 ? sumArea / uniqueCount : 1.0;
+
   for (let u = 0; u < uniqueCount; u++) {
     const offset = neighborOffsets[u];
-    const neighbors = Array.from(neighborSets[u]);
-    const ux = uniquePositions[u * 3];
-    const uy = uniquePositions[u * 3 + 1];
-    const uz = uniquePositions[u * 3 + 2];
+    const area = Math.max(dualAreas[u], 1e-6);
+    // Scale by avgArea so standard Gray-Scott constants (Du=0.20, Dv=0.10) remain calibrated
+    const areaScale = avgArea / area;
 
-    let sumWeight = 0.0;
-    for (let k = 0; k < neighbors.length; k++) {
-      const v = neighbors[k];
-      neighborIndices[offset + k] = v;
-
-      const vx = uniquePositions[v * 3];
-      const vy = uniquePositions[v * 3 + 1];
-      const vz = uniquePositions[v * 3 + 2];
-
-      const dist = Math.hypot(vx - ux, vy - uy, vz - uz);
-      const w = 1.0 / Math.max(dist, 1e-4);
-      neighborWeights[offset + k] = w;
-      sumWeight += w;
-    }
-
-    // Normalize weights so sum equals 1.0 (Laplace-Beltrami approximation)
-    const invSum = sumWeight > 0 ? 1.0 / sumWeight : 0.0;
-    for (let k = 0; k < neighbors.length; k++) {
-      neighborWeights[offset + k] *= invSum;
+    for (let k = 0; k < adj[u].length; k++) {
+      neighborIndices[offset + k] = adj[u][k].neighbor;
+      neighborWeights[offset + k] = adj[u][k].weight * areaScale;
     }
   }
 
@@ -238,6 +278,20 @@ export class MeshTuringSimulator {
     if (options.height != null) this.height = options.height;
 
     this.stepCount = 0;
+    this.excludedMask = null; // Uint8Array(uniqueCount), 1 = excluded
+  }
+
+  setExcludedVertices(mask) {
+    this.excludedMask = mask;
+    // Clear chemical concentrations on excluded vertices immediately
+    if (mask) {
+      for (let i = 0; i < this.uniqueCount; i++) {
+        if (mask[i]) {
+          this.u[i] = 1.0;
+          this.v[i] = 0.0;
+        }
+      }
+    }
   }
 
   setPreset(presetId) {
@@ -260,6 +314,7 @@ export class MeshTuringSimulator {
 
   /**
    * Injects seed chemical V at a specified 3D world position within a radius.
+   * Excluded vertices are never seeded.
    */
   seedAtPoint(targetPoint, radius = 5.0, amount = 1.0) {
     const { uniquePositions, uniqueCount } = this.graph;
@@ -267,9 +322,12 @@ export class MeshTuringSimulator {
     const ty = targetPoint.y;
     const tz = targetPoint.z;
     const rSq = radius * radius;
+    const mask = this.excludedMask;
 
     let affected = 0;
     for (let u = 0; u < uniqueCount; u++) {
+      if (mask && mask[u]) continue;
+
       const dx = uniquePositions[u * 3] - tx;
       const dy = uniquePositions[u * 3 + 1] - ty;
       const dz = uniquePositions[u * 3 + 2] - tz;
@@ -287,25 +345,33 @@ export class MeshTuringSimulator {
   }
 
   /**
-   * Injects random seeds across the surface.
+   * Injects random seeds across the non-excluded surface.
    */
-  seedRandom(count = 5, radius = 6.0) {
+  seedRandom(count = 5, radius = 4.0) {
     const { uniquePositions, uniqueCount } = this.graph;
     if (uniqueCount === 0) return;
+    const mask = this.excludedMask;
 
-    for (let i = 0; i < count; i++) {
+    let attempts = 0;
+    let seeded = 0;
+    while (seeded < count && attempts < count * 20) {
+      attempts++;
       const randomIdx = Math.floor(Math.random() * uniqueCount);
+      if (mask && mask[randomIdx]) continue;
+
       const pt = {
         x: uniquePositions[randomIdx * 3],
         y: uniquePositions[randomIdx * 3 + 1],
         z: uniquePositions[randomIdx * 3 + 2],
       };
-      this.seedAtPoint(pt, radius, 1.0);
+      const hit = this.seedAtPoint(pt, radius, 1.0);
+      if (hit > 0) seeded++;
     }
   }
 
   /**
    * Advances the simulation by `subSteps` using the Gray-Scott system.
+   * Excluded vertices remain clamped at V = 0, U = 1.
    */
   step(subSteps = this.subSteps) {
     const { uniqueCount, neighborOffsets, neighborIndices, neighborWeights } = this.graph;
@@ -314,6 +380,7 @@ export class MeshTuringSimulator {
     const diffV = this.diffV;
     const F = this.feed;
     const k = this.kill;
+    const mask = this.excludedMask;
 
     let curU = this.u;
     let curV = this.v;
@@ -322,6 +389,12 @@ export class MeshTuringSimulator {
 
     for (let s = 0; s < subSteps; s++) {
       for (let i = 0; i < uniqueCount; i++) {
+        if (mask && mask[i]) {
+          nxtU[i] = 1.0;
+          nxtV[i] = 0.0;
+          continue;
+        }
+
         let lapU = 0.0;
         let lapV = 0.0;
 
