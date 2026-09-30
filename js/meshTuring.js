@@ -21,21 +21,21 @@ export const TURING_PRESETS = {
     name: 'Maze / Brain (迷路・脳皺)',
     feed: 0.030,
     kill: 0.062,
-    diffU: 0.20,
-    diffV: 0.10,
+    diffU: 0.14,
+    diffV: 0.07,
     dt: 1.0,
-    subSteps: 8,
+    subSteps: 12,
     defaultHeight: 1.5,
   },
   coral: {
     id: 'coral',
     name: 'Coral / Fingerprint (サンゴ・指紋)',
-    feed: 0.054,
-    kill: 0.062,
-    diffU: 0.20,
-    diffV: 0.10,
+    feed: 0.046,
+    kill: 0.063,
+    diffU: 0.14,
+    diffV: 0.07,
     dt: 1.0,
-    subSteps: 8,
+    subSteps: 12,
     defaultHeight: 1.5,
   },
   spots: {
@@ -43,10 +43,10 @@ export const TURING_PRESETS = {
     name: 'Spots / Leopard (ヒョウ柄・水玉)',
     feed: 0.034,
     kill: 0.063,
-    diffU: 0.20,
-    diffV: 0.10,
+    diffU: 0.14,
+    diffV: 0.07,
     dt: 1.0,
-    subSteps: 8,
+    subSteps: 12,
     defaultHeight: 1.2,
   },
   waves: {
@@ -54,10 +54,10 @@ export const TURING_PRESETS = {
     name: 'Waves / Solitons (波紋・パルス)',
     feed: 0.014,
     kill: 0.047,
-    diffU: 0.20,
-    diffV: 0.10,
+    diffU: 0.14,
+    diffV: 0.07,
     dt: 1.0,
-    subSteps: 8,
+    subSteps: 12,
     defaultHeight: 1.5,
   },
   spirals: {
@@ -65,10 +65,10 @@ export const TURING_PRESETS = {
     name: 'Spirals / Organics (渦巻・有機)',
     feed: 0.018,
     kill: 0.051,
-    diffU: 0.20,
-    diffV: 0.10,
+    diffU: 0.14,
+    diffV: 0.07,
     dt: 1.0,
-    subSteps: 8,
+    subSteps: 12,
     defaultHeight: 1.5,
   },
 };
@@ -230,12 +230,20 @@ export function buildMeshGraph(geometry) {
   for (let u = 0; u < uniqueCount; u++) {
     const offset = neighborOffsets[u];
     const area = Math.max(dualAreas[u], 1e-6);
-    // Scale by avgArea so standard Gray-Scott constants (Du=0.20, Dv=0.10) remain calibrated
+    // Scale by avgArea so standard Gray-Scott constants remain calibrated
     const areaScale = avgArea / area;
+
+    let localSum = 0;
+    for (let k = 0; k < adj[u].length; k++) {
+      localSum += adj[u][k].weight * areaScale;
+    }
+    // Target sum around 4.0 (standard 2D discrete Laplacian equivalence)
+    // Clamp to at most 4.0 for strict CFL numerical stability and proper pattern wavelengths
+    const clampScale = localSum > 4.0 ? (4.0 / localSum) : 1.0;
 
     for (let k = 0; k < adj[u].length; k++) {
       neighborIndices[offset + k] = adj[u][k].neighbor;
-      neighborWeights[offset + k] = adj[u][k].weight * areaScale;
+      neighborWeights[offset + k] = adj[u][k].weight * areaScale * clampScale;
     }
   }
 
@@ -314,28 +322,98 @@ export class MeshTuringSimulator {
 
   /**
    * Injects seed chemical V at a specified 3D world position within a radius.
+   * Uses an organic multi-subseed cluster with random angular perturbation
+   * to break rotational symmetry and trigger natural branching / mitosis.
    * Excluded vertices are never seeded.
    */
   seedAtPoint(targetPoint, radius = 5.0, amount = 1.0) {
-    const { uniquePositions, uniqueCount } = this.graph;
+    const { uniquePositions, uniqueNormals, uniqueCount } = this.graph;
     const tx = targetPoint.x;
     const ty = targetPoint.y;
     const tz = targetPoint.z;
     const rSq = radius * radius;
     const mask = this.excludedMask;
 
+    // Find local normal at seed point or use (0, 0, 1) default
+    let nx = 0, ny = 0, nz = 1;
+    let minD = Infinity;
+    for (let u = 0; u < uniqueCount; u++) {
+      const dx = uniquePositions[u * 3] - tx;
+      const dy = uniquePositions[u * 3 + 1] - ty;
+      const dz = uniquePositions[u * 3 + 2] - tz;
+      const d = dx * dx + dy * dy + dz * dz;
+      if (d < minD) {
+        minD = d;
+        nx = uniqueNormals[u * 3];
+        ny = uniqueNormals[u * 3 + 1];
+        nz = uniqueNormals[u * 3 + 2];
+      }
+    }
+
+    // Build orthonormal tangent frame (t1, t2)
+    let upX = 0, upY = 1, upZ = 0;
+    if (Math.abs(ny) > 0.9) { upX = 1; upY = 0; upZ = 0; }
+    // t1 = normalize(up x n)
+    let t1x = upY * nz - upZ * ny;
+    let t1y = upZ * nx - upX * nz;
+    let t1z = upX * ny - upY * nx;
+    const t1len = Math.hypot(t1x, t1y, t1z) || 1;
+    t1x /= t1len; t1y /= t1len; t1z /= t1len;
+    // t2 = n x t1
+    const t2x = ny * t1z - nz * t1y;
+    const t2y = nz * t1x - nx * t1z;
+    const t2z = nx * t1y - ny * t1x;
+
+    // Generate 3-5 sub-seed offsets on the tangent disk
+    const subSeeds = [{ ox: 0, oy: 0, oz: 0, weight: 1.0, radScale: 0.7 }];
+    const numSub = 4;
+    for (let s = 0; s < numSub; s++) {
+      const angle = (s / numSub) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+      const dist = (0.25 + 0.45 * Math.random()) * radius;
+      const su = Math.cos(angle) * dist;
+      const sv = Math.sin(angle) * dist;
+      subSeeds.push({
+        ox: t1x * su + t2x * sv,
+        oy: t1y * su + t2y * sv,
+        oz: t1z * su + t2z * sv,
+        weight: 0.6 + 0.4 * Math.random(),
+        radScale: 0.55 + 0.25 * Math.random(),
+      });
+    }
+
     let affected = 0;
     for (let u = 0; u < uniqueCount; u++) {
       if (mask && mask[u]) continue;
 
-      const dx = uniquePositions[u * 3] - tx;
-      const dy = uniquePositions[u * 3 + 1] - ty;
-      const dz = uniquePositions[u * 3 + 2] - tz;
+      const px = uniquePositions[u * 3];
+      const py = uniquePositions[u * 3 + 1];
+      const pz = uniquePositions[u * 3 + 2];
+      const dx = px - tx;
+      const dy = py - ty;
+      const dz = pz - tz;
       const distSq = dx * dx + dy * dy + dz * dz;
 
-      if (distSq <= rSq) {
-        const falloff = 1.0 - Math.sqrt(distSq) / radius;
-        const addV = amount * falloff;
+      // Generous bounding sphere
+      if (distSq > rSq * 1.5) continue;
+
+      let totalVal = 0;
+      for (let s = 0; s < subSeeds.length; s++) {
+        const sub = subSeeds[s];
+        const sdx = dx - sub.ox;
+        const sdy = dy - sub.oy;
+        const sdz = dz - sub.oz;
+        const sDist = Math.hypot(sdx, sdy, sdz);
+        const subR = radius * sub.radScale;
+        if (sDist < subR) {
+          const fall = 1.0 - sDist / subR;
+          totalVal += fall * sub.weight;
+        }
+      }
+
+      if (totalVal > 0.05) {
+        // High-frequency subtle perturbation to break uniformity
+        const noise = 0.85 + 0.3 * Math.random();
+        const addV = Math.min(1.0, amount * totalVal * noise);
         this.v[u] = Math.min(1.0, this.v[u] + addV);
         this.u[u] = Math.max(0.0, this.u[u] - addV);
         affected++;
@@ -435,6 +513,7 @@ export class MeshTuringSimulator {
 
   /**
    * Copies current V concentration to geometry vertex colors for preview.
+   * Uses smoothstep thresholding to isolate sharp pattern ridges from base levels.
    *
    * @param {THREE.BufferAttribute} colorAttr - RGB Float32 BufferAttribute
    */
@@ -447,11 +526,14 @@ export class MeshTuringSimulator {
       const uIdx = vertexToUnique[i];
       const val = v[uIdx];
 
-      // Organic gold/coral highlight or monochrome grayscale
-      // val = 0: dark slate/blue; val = 1: bright gold/cream
-      const r = 0.15 + val * 0.85;
-      const g = 0.18 + val * 0.72;
-      const b = 0.25 + val * 0.35;
+      // Smoothstep mapping (baseline cutoff at 0.16, peak at 0.38)
+      const norm = Math.max(0, Math.min(1, (val - 0.16) / 0.22));
+      const smoothVal = norm * norm * (3.0 - 2.0 * norm);
+
+      // Organic gold/coral highlight: smoothVal = 0 (dark navy), smoothVal = 1 (bright gold)
+      const r = 0.15 + smoothVal * 0.85;
+      const g = 0.18 + smoothVal * 0.72;
+      const b = 0.25 + smoothVal * 0.35;
 
       const idx = i * 3;
       arr[idx] = r;
@@ -463,6 +545,7 @@ export class MeshTuringSimulator {
 
   /**
    * Displaces vertices along their normal based on V concentration.
+   * Smoothstep curve eliminates broad plateaus and keeps base surfaces flat.
    *
    * @param {Float32Array} basePositions - original undisplaced positions
    * @param {THREE.BufferAttribute} posAttr - live position attribute to write to
@@ -476,7 +559,11 @@ export class MeshTuringSimulator {
     for (let i = 0; i < vertexCount; i++) {
       const uIdx = vertexToUnique[i];
       const val = v[uIdx];
-      const disp = val * height;
+
+      // Smoothstep mapping isolates sharp ridges and keeps background at 0 displacement
+      const norm = Math.max(0, Math.min(1, (val - 0.16) / 0.22));
+      const smoothVal = norm * norm * (3.0 - 2.0 * norm);
+      const disp = smoothVal * height;
 
       const i3 = i * 3;
       const u3 = uIdx * 3;

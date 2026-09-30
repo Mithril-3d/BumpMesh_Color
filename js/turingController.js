@@ -189,15 +189,22 @@ export function initTuringController({
       console.log('[Turing] Graph built, unique vertices:', graph.uniqueCount);
       vertCountBadge.textContent = `${graph.uniqueCount.toLocaleString()} vertices`;
 
-      // 4. Create Simulator
+      // 4. Create Simulator with active preset
+      const activeBtn = panel.querySelector('.turing-preset-btn.active');
+      const activePresetId = activeBtn?.dataset?.preset || 'maze';
       simulator = new MeshTuringSimulator(graph, {
         height: parseFloat(heightSlider.value),
-        diffU: 0.20,
-        diffV: 0.10,
         feed: parseFloat(feedSlider.value),
         kill: parseFloat(killSlider.value),
         subSteps: parseInt(speedSlider.value, 10),
       });
+      simulator.setPreset(activePresetId);
+      // Synchronize slider values if custom wasn't tweaked
+      const p = TURING_PRESETS[activePresetId];
+      if (p) {
+        simulator.feed = parseFloat(feedSlider.value) || p.feed;
+        simulator.kill = parseFloat(killSlider.value) || p.kill;
+      }
 
       // 4b. Map excluded vertices into simulator
       const exclAttr = workingGeometry.attributes.excludeWeight;
