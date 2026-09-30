@@ -20,6 +20,7 @@ import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextu
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
 import { initTextureGallery } from './textureGallery.js?v=20260929_130';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
+import { initTuringController } from './turingController.js?v=20260929_130';
 import {
   computeAutoFitDimensions,
   createCylinderGeometry,
@@ -1336,6 +1337,25 @@ initSidebarToggle();
 
 // Load geometry immediately — don't wait for textures
 loadDefaultCube();
+
+initTuringController({
+  getGeometry: () => currentGeometry,
+  setGeometry: (geo) => {
+    currentGeometry = geo;
+    updateSceneBounds(geo);
+    const triCount = getTriangleCount(geo);
+    const mb = (geo.attributes.position.array.byteLength / 1024 / 1024).toFixed(2);
+    const bounds = computeBounds(geo);
+    _setMeshInfo(triCount, mb, bounds.size.x.toFixed(2), bounds.size.y.toFixed(2), bounds.size.z.toFixed(2));
+  },
+  getMesh: () => getCurrentMesh(),
+  getCamera: () => getCamera(),
+  getRendererCanvas: () => canvas,
+  requestRender: () => requestRender(),
+  subdivide: (geo, len, uvs, norm, opts) => subdivide(geo, len, uvs, norm, opts),
+  regularizeMesh: (geo, p, len, opts) => regularizeMesh(geo, p, len, opts),
+  getRegularizeOpts: () => _regularizeOpts(),
+});
 
 // Restore the map from the last session
 queueMicrotask(async () => {

@@ -390,7 +390,10 @@
       <section class="panel-section">
         <div class="model-presets-header" style="margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
           <h2 id="displacement-map-title" data-i18n="sections.displacementMap" style="margin:0;cursor:pointer;" title="Double click for secret Pattern Generator">Displacement Map</h2>
-          <button type="button" id="secret-texgen-trigger" class="secret-mode-trigger" title="3-Color Pattern Generator (Secret Mode)" aria-label="3-Color Pattern Generator">✦</button>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <button type="button" id="secret-texgen-trigger" class="secret-mode-trigger" title="3-Color Pattern Generator (Secret Mode 1)" aria-label="3-Color Pattern Generator">✦</button>
+            <button type="button" id="secret-turing-trigger" class="secret-mode-trigger" title="3D Mesh Turing Pattern (Secret Mode 2)" aria-label="3D Mesh Turing Pattern" style="font-size:12px;line-height:1;">🧬</button>
+          </div>
         </div>
 
         <!-- Secret Texture Generator Launch Button (revealed by secret trigger or URL) -->
@@ -398,6 +401,13 @@
           <span>🎨</span>
           <span data-i18n="ui.openTexGen">3-Color Pattern Generator</span>
           <span style="font-size:9px;background:rgba(255,255,255,0.15);padding:1px 4px;border-radius:3px;">PRO</span>
+        </button>
+
+        <!-- Secret 3D Mesh Turing Pattern Launch Button -->
+        <button type="button" id="open-turing-btn" class="texgen-open-trigger-btn hidden" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:4px;">
+          <span>🧬</span>
+          <span data-i18n="ui.openTuring">3D Mesh Turing Pattern</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.15);padding:1px 4px;border-radius:3px;">BETA</span>
         </button>
 
         <!-- Preset grid (Favourites) -->
@@ -1460,6 +1470,143 @@
       </div>
     </div>
   </div>
+
+  <!-- 3D Mesh Turing Pattern Floating Panel (Approach B) -->
+  <aside id="turing-panel" class="turing-panel hidden" aria-label="3D Mesh Turing Pattern Generator">
+    <div class="turing-header">
+      <div class="turing-title-wrap">
+        <span style="font-size:16px;">🧬</span>
+        <div>
+          <div class="turing-title" data-i18n="turing.title">Mesh Turing Pattern</div>
+          <div class="turing-subtitle" data-i18n="turing.subtitle">Surface Reaction-Diffusion</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="turing-badge">BETA · Approach B</span>
+        <button type="button" id="turing-close-btn" class="turing-btn-icon" title="Close" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="turing-body">
+      <!-- 1. Mesh Preparation / Resolution -->
+      <div class="turing-section">
+        <div class="turing-section-header">
+          <span data-i18n="turing.meshPrepTitle">1. メッシュ等方性均一化</span>
+          <span id="turing-vert-count" class="turing-count-badge">0 vertices</span>
+        </div>
+        <div class="turing-row" style="margin-top:6px;">
+          <label style="font-size:11px;color:var(--text-muted,#94a3b8);" data-i18n="turing.edgeLength">目標エッジ長:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;">
+            <input type="range" id="turing-edge-slider" min="0.6" max="2.5" step="0.1" value="1.2" style="flex:1;" />
+            <span id="turing-edge-val" style="font-size:11px;font-family:monospace;width:38px;text-align:right;">1.2 mm</span>
+          </div>
+        </div>
+        <button type="button" id="turing-remesh-btn" class="turing-action-btn primary" style="margin-top:8px;">
+          <span>⚡</span> <span data-i18n="turing.remeshBtn">メッシュを均一化して準備</span>
+        </button>
+      </div>
+
+      <!-- 2. Preset Selection -->
+      <div class="turing-section">
+        <div class="turing-section-header" data-i18n="turing.presetTitle">2. パターン・プリセット</div>
+        <div class="turing-presets-grid" id="turing-presets-grid">
+          <button type="button" class="turing-preset-btn active" data-preset="maze">
+            <span>🧠</span> <span>迷路 / 脳皺</span>
+          </button>
+          <button type="button" class="turing-preset-btn" data-preset="coral">
+            <span>🪸</span> <span>サンゴ / 指紋</span>
+          </button>
+          <button type="button" class="turing-preset-btn" data-preset="spots">
+            <span>🐆</span> <span>ヒョウ柄 / 水玉</span>
+          </button>
+          <button type="button" class="turing-preset-btn" data-preset="waves">
+            <span>🌊</span> <span>波紋 / パルス</span>
+          </button>
+          <button type="button" class="turing-preset-btn" data-preset="spirals">
+            <span>🌀</span> <span>有機渦巻</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Seeding / Chemical Injection -->
+      <div class="turing-section">
+        <div class="turing-section-header" data-i18n="turing.seedTitle">3. シード（発生源）投入</div>
+        <div class="turing-btn-group" style="margin-top:6px;">
+          <button type="button" id="turing-click-seed-btn" class="turing-action-btn active" style="flex:2;">
+            <span>🎯</span> <span data-i18n="turing.clickSeed">モデルをクリックして注入</span>
+          </button>
+          <button type="button" id="turing-random-seed-btn" class="turing-action-btn" style="flex:1.2;">
+            <span>🎲</span> <span data-i18n="turing.randomSeed">ランダム</span>
+          </button>
+          <button type="button" id="turing-reset-btn" class="turing-action-btn danger" style="flex:0.8;" title="Reset pattern">
+            <span>↺</span>
+          </button>
+        </div>
+        <div id="turing-seed-hint" class="turing-hint-text" data-i18n="turing.clickHint">
+          💡 モデル表面をクリックすると、その地点からパターンが有機的に成長し始めます。
+        </div>
+      </div>
+
+      <!-- 4. Simulation Playback Controls -->
+      <div class="turing-section">
+        <div class="turing-section-header">
+          <span data-i18n="turing.simControlTitle">4. シミュレーション実行</span>
+          <span id="turing-step-counter" class="turing-count-badge" style="background:rgba(59,130,246,0.2);color:#93c5fd;">Step: 0</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button type="button" id="turing-play-btn" class="turing-play-btn">
+            <span id="turing-play-icon">▶</span> <span id="turing-play-text" data-i18n="turing.play">成長を開始</span>
+          </button>
+          <button type="button" id="turing-step-btn" class="turing-step-btn" title="1ステップ進む" aria-label="Step forward">
+            <span>⏭</span>
+          </button>
+        </div>
+        <div class="turing-row" style="margin-top:8px;">
+          <label style="font-size:11px;color:var(--text-muted,#94a3b8);" data-i18n="turing.speed">計算速度:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;">
+            <input type="range" id="turing-speed-slider" min="1" max="16" step="1" value="8" style="flex:1;" />
+            <span id="turing-speed-val" style="font-size:11px;font-family:monospace;width:30px;text-align:right;">8x</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Parameters & Displacement Height -->
+      <div class="turing-section">
+        <div class="turing-section-header" data-i18n="turing.paramsTitle">5. パラメータ &amp; 凹凸高さ</div>
+        <div class="turing-row" style="margin-top:6px;">
+          <label style="font-size:11px;color:var(--text-muted,#94a3b8);" data-i18n="turing.height">立体変位の高さ:</label>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;">
+            <input type="range" id="turing-height-slider" min="0.1" max="4.0" step="0.1" value="1.5" style="flex:1;" />
+            <span id="turing-height-val" style="font-size:11px;font-family:monospace;width:38px;text-align:right;">1.5 mm</span>
+          </div>
+        </div>
+        <div class="turing-row" style="margin-top:4px;">
+          <label style="font-size:10px;color:var(--text-muted,#94a3b8);">Feed (F):</label>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;">
+            <input type="range" id="turing-feed-slider" min="0.010" max="0.075" step="0.001" value="0.030" style="flex:1;" />
+            <span id="turing-feed-val" style="font-size:10px;font-family:monospace;width:38px;text-align:right;">0.030</span>
+          </div>
+        </div>
+        <div class="turing-row" style="margin-top:4px;">
+          <label style="font-size:10px;color:var(--text-muted,#94a3b8);">Kill (k):</label>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;">
+            <input type="range" id="turing-kill-slider" min="0.040" max="0.075" step="0.001" value="0.062" style="flex:1;" />
+            <span id="turing-kill-val" style="font-size:10px;font-family:monospace;width:38px;text-align:right;">0.062</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Footer -->
+    <div class="turing-footer">
+      <button type="button" id="turing-apply-btn" class="turing-apply-btn">
+        <span>✨</span> <span data-i18n="turing.applyModel">モデルに変位を適用</span>
+      </button>
+      <button type="button" id="turing-cancel-btn" class="turing-cancel-btn" data-i18n="step.cancel">
+        キャンセル
+      </button>
+    </div>
+  </aside>
 
   <script type="module" src="js/main.js?v=20260929_130"></script>
 </body>

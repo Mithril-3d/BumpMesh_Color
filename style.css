@@ -3666,7 +3666,353 @@ main.gallery-open #settings-panel { display: none; }
   .gallery-body { flex: none; overflow: visible; }
 }
 
-/* ── Phones ──────────────────────────────────────────────────────────── */
+/* ── 3D Mesh Turing Pattern Panel (Approach B) ───────────────────────── */
+.turing-panel {
+  position: fixed;
+  top: 56px;
+  right: 20px;
+  width: 350px;
+  max-height: calc(100vh - 76px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+  z-index: 105;
+  animation: turingFadeSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes turingFadeSlideIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.turing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.turing-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.turing-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+}
+
+.turing-subtitle {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.turing-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 10px;
+}
+
+.turing-btn-icon {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.turing-btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.turing-body {
+  padding: 12px 14px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.turing-section {
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.turing-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.turing-count-badge {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #94a3b8;
+}
+
+.turing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.turing-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.turing-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.turing-action-btn.active {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.turing-action-btn.primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.turing-action-btn.primary:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+  transform: translateY(-1px);
+}
+
+.turing-action-btn.danger {
+  color: #f87171;
+}
+
+.turing-action-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+}
+
+.turing-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.turing-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.turing-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.turing-preset-btn.active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+.turing-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+.turing-hint-text {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 6px;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 8px;
+  border-radius: 4px;
+  border-left: 2px solid #10b981;
+}
+
+.turing-play-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  transition: all 0.15s ease;
+}
+
+.turing-play-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.5);
+}
+
+.turing-play-btn.playing {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+}
+
+.turing-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.turing-step-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.turing-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.turing-apply-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+  transition: all 0.15s ease;
+}
+
+.turing-apply-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.6);
+}
+
+.turing-cancel-btn {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.turing-cancel-btn:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Light theme support */
+[data-theme="light"] .turing-panel {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: #cbd5e1;
+  color: #1e293b;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+[data-theme="light"] .turing-header {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+[data-theme="light"] .turing-title { color: #0f172a; }
+[data-theme="light"] .turing-section {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+[data-theme="light"] .turing-action-btn {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+[data-theme="light"] .turing-preset-btn {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+[data-theme="light"] .turing-footer {
+  background: #f8fafc;
+  border-top-color: #e2e8f0;
+}
 
 /* Global utility for hiding elements */
 .hidden {
