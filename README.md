@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.3.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.4.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,7 +30,16 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.3.0 (Latest Release - 2026-09-29)**:
+- **v1.4.0 (Latest Release - 2026-10-01)**:
+  - **3D Mesh Turing Pattern Reaction-Diffusion Simulator (Official Feature)**:
+    - Self-organizing Gray-Scott reaction-diffusion directly on any 3D triangle mesh surface graph without UV unwrapping or distortion.
+    - **Strictly Isotropic Discrete Geometric Laplacian**: Eliminates right-angle triangle grid degeneracy on cubes, cylinders, and CAD meshes, ensuring 100% isotropic pattern propagation in all directions (X, Y, Z).
+    - **5 Organic Morphogenetic Presets**: Maze / Brain (迷路), Coral / Fingerprint (サンゴ/指紋), Spots / Leopard (水玉分裂/ヒョウ柄), Waves / Solitons (波紋), and Organic Spirals (渦巻).
+    - **Dynamic Interactive Seeding**: Click anywhere on the 3D model surface to plant organic spore clusters that break symmetry and self-organize, or seed uniformly at random.
+    - **Smoothstep Ridge Isolation**: Cleanly separates pattern ridges from baseline chemical concentrations, completely eliminating broad disc/plateau artifacts.
+    - **Exclusion Paint Protection**: Seamlessly respects user-painted exclusion zones—patterns automatically stop and reflect at protected boundaries.
+    - **Complete 14-Language i18n & High-Contrast Light/Dark Themes**: Fully localized across all 14 supported languages with vibrant, accessible light and dark theme styling.
+- **v1.3.0 (2026-09-29)**:
   - **Texture Gallery & Preset Overhaul (upstream v1.3.0〜v1.3.6 integration)**:
     - Integrated CNC Kitchen's texture overhaul: 88 new high-quality presets (Hero Patterns, Filter Forge, ambientCG, Poly Haven) with optimized WebP thumbnails.
     - Preserved all 24 BumpMesh_Color multicolor/Japanese textures, totaling **112 presets** in the catalog.
@@ -223,7 +232,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.2.2--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.4.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -253,7 +262,22 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
-- **v1.2.2 (最新安定版 - 2026-09-27)**:
+- **v1.4.0 (最新安定版 - 2026-10-01)**:
+  - **3Dメッシュ・チューリングパターン表面反応拡散シミュレーター（正規機能化）**:
+    - UV展開やテクスチャ画像一切不要。3Dメッシュ表面の幾何グラフ上で直接 Gray-Scott 方程式を解き、有機的な自己組織化パターンを自律形成。
+    - **完全等方的幾何学ラプラシアン**: 立方体や円柱などの直角三角形・長方形グリッドで生じていたコタンジェント退化（重み0）を解消し、上下や特定方向への偏り（異方性）を完全に根絶。全方位へ均等に美しく拡散。
+    - **5種類の有機的形態形成プリセット**: 迷路 / 脳皺、サンゴ / 指紋、ヒョウ柄 / 水玉（細胞分裂）、波紋 / パルス、有機渦巻。
+    - **直感的なインタラクティブ・シード注入**: 3Dモデル表面をクリックした地点から胞子状クラスタを注入し、リアルタイムに枝分かれ・自己分裂しながら成長。
+    - **Smoothstep 変位カーブによるクレーター化排除**: 背景や未分離領域の残留濃度をカットオフし、シャープで美しい立体の筋・水玉リブだけを最大1.5mm隆起。
+    - **テクスチャ除外ペイント領域への侵入防止**: ユーザーが除外ペイントで塗ったロゴや底面などを完全保護。境界で自動停止・反射。
+    - **全14言語完全対応＆ライト/ダーク両テーマ高コントラストUI**: すべてのUI要素・プリセット名を14言語に対応させ、ライトテーマでも選択状態がひと目でわかるクリアなデザインに刷新。
+- **v1.3.0 (2026-09-29)**:
+  - **Texture Gallery ＆ テクスチャプリセット大幅拡充（本家 upstream v1.3.0〜v1.3.6 統合）**:
+    - CNC Kitchen 本家の最新プリセット88種を取り込み、BumpMesh_Color 独自和柄・カラーテクスチャ24種と統合（計112種）。
+    - 非モーダルな Texture Gallery サイドパネル、7つのカテゴリ＋お気に入り＋和柄フィルタ、リアルタイム検索。
+    - LocalStorage 連動のお気に入りピン留め（★）、IndexedDB によるマイテクスチャ保管・再利用。
+    - テクスチャ反転（白黒反転）チェックボックス、サイドバー開閉トグルボタン。
+- **v1.2.2 (2026-09-27)**:
   - **振り重ね・カラー量子化エクスポートにおける除外ペイント反映バグ修正**:
     - 除外ペイントで塗った領域（◯や△など）が、メッシュ分割・水密レイヤースライス・メッシュ単純化・3MFエクスポートパイプラインの各工程で欠落し全面テクスチャ化されていた不具合を修正。
     - 除外領域に対して非テクスチャ部ツール（デフォルト: ツール7）とフラット形状が正確に割り当てられるよう改修。

@@ -21,7 +21,7 @@
   <meta name="twitter:description" content="Add displacement textures and multi-color tool assignments to 3D models directly in your browser. Preview, mask, and export printable meshes locally." />
 
   <link rel="icon" type="image/png" href="logo.png" />
-  <link rel="stylesheet" href="style.css?v=20260929_130" />
+  <link rel="stylesheet" href="style.css?v=20261001_140" />
   <script>
     // Apply saved theme before first paint to avoid flash
     (function() {
@@ -403,11 +403,11 @@
           <span style="font-size:9px;background:rgba(255,255,255,0.15);padding:1px 4px;border-radius:3px;">PRO</span>
         </button>
 
-        <!-- Secret 3D Mesh Turing Pattern Launch Button -->
-        <button type="button" id="open-turing-btn" class="texgen-open-trigger-btn hidden" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:4px;">
+        <!-- 3D Mesh Turing Pattern Launch Button (Official v1.4.0 Feature) -->
+        <button type="button" id="open-turing-btn" class="texgen-open-trigger-btn" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:4px;">
           <span>🧬</span>
           <span data-i18n="ui.openTuring">3D Mesh Turing Pattern</span>
-          <span style="font-size:9px;background:rgba(255,255,255,0.15);padding:1px 4px;border-radius:3px;">BETA</span>
+          <span style="font-size:9px;background:rgba(255,255,255,0.2);padding:1px 4px;border-radius:3px;font-weight:700;">NEW</span>
         </button>
 
         <!-- Preset grid (Favourites) -->
@@ -1482,7 +1482,7 @@
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span class="turing-badge">BETA · Approach B</span>
+        <span class="turing-badge">v1.4 · 3D Surface</span>
         <button type="button" id="turing-close-btn" class="turing-btn-icon" title="Close" aria-label="Close">✕</button>
       </div>
     </div>
@@ -1511,19 +1511,19 @@
         <div class="turing-section-header" data-i18n="turing.presetTitle">2. パターン・プリセット</div>
         <div class="turing-presets-grid" id="turing-presets-grid">
           <button type="button" class="turing-preset-btn active" data-preset="maze">
-            <span>🧠</span> <span>迷路 / 脳皺</span>
+            <span>🧠</span> <span data-i18n="turing.presetMaze">迷路 / 脳皺</span>
           </button>
           <button type="button" class="turing-preset-btn" data-preset="coral">
-            <span>🪸</span> <span>サンゴ / 指紋</span>
+            <span>🪸</span> <span data-i18n="turing.presetCoral">サンゴ / 指紋</span>
           </button>
           <button type="button" class="turing-preset-btn" data-preset="spots">
-            <span>🐆</span> <span>ヒョウ柄 / 水玉</span>
+            <span>🐆</span> <span data-i18n="turing.presetSpots">ヒョウ柄 / 水玉</span>
           </button>
           <button type="button" class="turing-preset-btn" data-preset="waves">
-            <span>🌊</span> <span>波紋 / パルス</span>
+            <span>🌊</span> <span data-i18n="turing.presetWaves">波紋 / パルス</span>
           </button>
           <button type="button" class="turing-preset-btn" data-preset="spirals">
-            <span>🌀</span> <span>有機渦巻</span>
+            <span>🌀</span> <span data-i18n="turing.presetSpirals">有機渦巻</span>
           </button>
         </div>
       </div>
@@ -1615,6 +1615,6 @@
     </div>
   </aside>
 
-  <script type="module" src="js/main.js?v=20260929_130"></script>
+  <script type="module" src="js/main.js?v=20261001_140"></script>
 </body>
 </html>

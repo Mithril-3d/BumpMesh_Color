@@ -414,7 +414,7 @@ export default {
   "gallery.catMulticolor": "マルチカラー / 和柄",
   "ui.openTuring": "3Dメッシュ・チューリングパターン",
   "turing.title": "3Dメッシュ・チューリングパターン",
-  "turing.subtitle": "表面反応拡散シミュレーター (アプローチB)",
+  "turing.subtitle": "表面反応拡散シミュレーター",
   "turing.meshPrepTitle": "1. メッシュ等方性均一化",
   "turing.edgeLength": "目標エッジ長:",
   "turing.remeshBtn": "メッシュを均一化して準備",
@@ -432,4 +432,9 @@ export default {
   "turing.paramsTitle": "5. パラメータ & 凹凸高さ",
   "turing.height": "立体変位の高さ:",
   "turing.applyModel": "モデルに変位を適用",
+  "turing.presetMaze": "迷路 / 脳皺",
+  "turing.presetCoral": "サンゴ / 指紋",
+  "turing.presetSpots": "ヒョウ柄 / 水玉",
+  "turing.presetWaves": "波紋 / パルス",
+  "turing.presetSpirals": "有機渦巻",
 };
