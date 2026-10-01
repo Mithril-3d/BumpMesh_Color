@@ -82,19 +82,12 @@ export function initTuringController({
   // ── Secret Trigger / URL Param ──────────────────────────────────────────────
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('turing') === '1' || urlParams.get('secret') === '2') {
-    if (openBtn) openBtn.classList.remove('hidden');
+    openPanel();
   }
 
   if (secretTrigger) {
     secretTrigger.addEventListener('click', () => {
-      if (openBtn) {
-        openBtn.classList.toggle('hidden');
-        if (!openBtn.classList.contains('hidden')) {
-          openPanel();
-        }
-      } else {
-        openPanel();
-      }
+      openPanel();
     });
   }
 

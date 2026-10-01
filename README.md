@@ -31,7 +31,8 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 ## 🌟 What's New in Recent Updates
 
 - **v1.4.0 (Latest Release - 2026-10-01)**:
-  - **3D Mesh Turing Pattern Reaction-Diffusion Simulator (Official Feature)**:
+  - **3D Mesh Turing Pattern Reaction-Diffusion Simulator (Secret Mode 2)**:
+    - Activated via the `🧬` icon in the Displacement Map header or `?turing=1` URL query (keeps the main UI clean without bulky text buttons).
     - Self-organizing Gray-Scott reaction-diffusion directly on any 3D triangle mesh surface graph without UV unwrapping or distortion.
     - **Strictly Isotropic Discrete Geometric Laplacian**: Eliminates right-angle triangle grid degeneracy on cubes, cylinders, and CAD meshes, ensuring 100% isotropic pattern propagation in all directions (X, Y, Z).
     - **5 Organic Morphogenetic Presets**: Maze / Brain (迷路), Coral / Fingerprint (サンゴ/指紋), Spots / Leopard (水玉分裂/ヒョウ柄), Waves / Solitons (波紋), and Organic Spirals (渦巻).
@@ -263,7 +264,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
 - **v1.4.0 (最新安定版 - 2026-10-01)**:
-  - **3Dメッシュ・チューリングパターン表面反応拡散シミュレーター（正規機能化）**:
+  - **3Dメッシュ・チューリングパターン表面反応拡散シミュレーター（隠し機能 Secret Mode 2）**:
+    - Displacement Map 見出しの秘密の `🧬` アイコンクリック、または URLパラメータ `?turing=1` で直接起動（メインUIをシンプルに保つため文字ボタンは非表示）。
     - UV展開やテクスチャ画像一切不要。3Dメッシュ表面の幾何グラフ上で直接 Gray-Scott 方程式を解き、有機的な自己組織化パターンを自律形成。
     - **完全等方的幾何学ラプラシアン**: 立方体や円柱などの直角三角形・長方形グリッドで生じていたコタンジェント退化（重み0）を解消し、上下や特定方向への偏り（異方性）を完全に根絶。全方位へ均等に美しく拡散。
     - **5種類の有機的形態形成プリセット**: 迷路 / 脳皺、サンゴ / 指紋、ヒョウ柄 / 水玉（細胞分裂）、波紋 / パルス、有機渦巻。
