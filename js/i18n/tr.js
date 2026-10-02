@@ -399,6 +399,7 @@ export default {
   "turing.speed": "Hız:",
   "turing.paramsTitle": "5. Parametreler ve Yükseklik",
   "turing.height": "Kabartma Yüksekliği:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Modele Uygula",
   "turing.presetMaze": "Labirent / Beyin",
   "turing.presetCoral": "Mercan / Parmak İzi",

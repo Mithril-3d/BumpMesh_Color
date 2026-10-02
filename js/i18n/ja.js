@@ -431,6 +431,7 @@ export default {
   "turing.speed": "計算速度:",
   "turing.paramsTitle": "5. パラメータ & 凹凸高さ",
   "turing.height": "立体変位の高さ:",
+  "turing.boundaryMargin": "境界マージン:",
   "turing.applyModel": "モデルに変位を適用",
   "turing.presetMaze": "迷路 / 脳皺",
   "turing.presetCoral": "サンゴ / 指紋",

@@ -399,6 +399,7 @@ export default {
   "turing.speed": "Hastighed:",
   "turing.paramsTitle": "5. Parametre og højde",
   "turing.height": "Forskydningshøjde:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Anvend på model",
   "turing.presetMaze": "Labyrint / Hjerne",
   "turing.presetCoral": "Koral / Fingeraftryk",

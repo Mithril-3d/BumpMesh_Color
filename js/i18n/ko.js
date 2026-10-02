@@ -399,6 +399,7 @@ export default {
   "turing.speed": "계산 속도:",
   "turing.paramsTitle": "5. 파라미터 및 요철 높이",
   "turing.height": "입체 변위 높이:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "모델에 변위 적용",
   "turing.presetMaze": "미로 / 뇌주름",
   "turing.presetCoral": "산호 / 지문",

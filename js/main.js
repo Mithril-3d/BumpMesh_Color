@@ -20,7 +20,7 @@ import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextu
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
 import { initTextureGallery } from './textureGallery.js?v=20260929_130';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
-import { initTuringController } from './turingController.js?v=20260929_130';
+import { initTuringController } from './turingController.js?v=20261002_141';
 import {
   computeAutoFitDimensions,
   createCylinderGeometry,

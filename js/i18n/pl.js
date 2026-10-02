@@ -394,6 +394,7 @@ export default {
   "turing.speed": "Szybkość:",
   "turing.paramsTitle": "5. Parametry i wysokość",
   "turing.height": "Wysokość uwypuklenia:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Zastosuj do modelu",
   "turing.presetMaze": "Labirynt / Mózg",
   "turing.presetCoral": "Koralowiec / Odcisk",

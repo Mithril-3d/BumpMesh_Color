@@ -241,22 +241,107 @@ export class MeshTuringSimulator {
     if (options.dt != null) this.dt = options.dt;
     if (options.subSteps != null) this.subSteps = options.subSteps;
     if (options.height != null) this.height = options.height;
+    this.boundaryMargin = options.boundaryMargin ?? 2.0;
 
     this.stepCount = 0;
     this.excludedMask = null; // Uint8Array(uniqueCount), 1 = excluded
+    this.boundaryDist = null; // Float32Array(uniqueCount), distance in mm to boundary
+    this.effectiveWeights = graph.neighborWeights;
   }
 
   setExcludedVertices(mask) {
     this.excludedMask = mask;
-    // Clear chemical concentrations on excluded vertices immediately
-    if (mask) {
-      for (let i = 0; i < this.uniqueCount; i++) {
-        if (mask[i]) {
-          this.u[i] = 1.0;
-          this.v[i] = 0.0;
+    if (!mask) {
+      this.effectiveWeights = this.graph.neighborWeights;
+      this.boundaryDist = null;
+      return;
+    }
+
+    const { uniqueCount, uniquePositions, neighborOffsets, neighborIndices, neighborWeights } = this.graph;
+
+    // 1. Clear chemical concentrations on excluded vertices immediately
+    for (let i = 0; i < uniqueCount; i++) {
+      if (mask[i]) {
+        this.u[i] = 1.0;
+        this.v[i] = 0.0;
+      }
+    }
+
+    // 2. Precompute zero-flux Neumann Laplace weights:
+    // Any edge connecting to an excluded neighbor is treated as zero-flux.
+    // Active non-excluded neighbor weights are re-normalized to sum to 4.0,
+    // ensuring consistent isotropic diffusion without boundary accumulation or artificial wall ridges.
+    const effW = new Float32Array(neighborWeights.length);
+    for (let i = 0; i < uniqueCount; i++) {
+      if (mask[i]) continue;
+      const start = neighborOffsets[i];
+      const end = neighborOffsets[i + 1];
+      let sumActiveW = 0.0;
+      for (let idx = start; idx < end; idx++) {
+        const j = neighborIndices[idx];
+        if (!mask[j]) {
+          sumActiveW += neighborWeights[idx];
+        }
+      }
+      const scale = sumActiveW > 0 ? (4.0 / sumActiveW) : 1.0;
+      for (let idx = start; idx < end; idx++) {
+        const j = neighborIndices[idx];
+        if (!mask[j]) {
+          effW[idx] = neighborWeights[idx] * scale;
+        } else {
+          effW[idx] = 0.0; // zero flux across boundary
         }
       }
     }
+    this.effectiveWeights = effW;
+
+    // 3. Compute geodesic surface distance to boundary via BFS on the mesh graph
+    const bDist = new Float32Array(uniqueCount).fill(Infinity);
+    const queue = [];
+    for (let i = 0; i < uniqueCount; i++) {
+      if (mask[i]) {
+        bDist[i] = 0.0;
+        queue.push(i);
+      }
+    }
+
+    let head = 0;
+    while (head < queue.length) {
+      const u = queue[head++];
+      const d = bDist[u];
+      const ux = uniquePositions[u * 3];
+      const uy = uniquePositions[u * 3 + 1];
+      const uz = uniquePositions[u * 3 + 2];
+
+      const start = neighborOffsets[u];
+      const end = neighborOffsets[u + 1];
+      for (let idx = start; idx < end; idx++) {
+        const v = neighborIndices[idx];
+        const vx = uniquePositions[v * 3];
+        const vy = uniquePositions[v * 3 + 1];
+        const vz = uniquePositions[v * 3 + 2];
+        const edgeLen = Math.hypot(vx - ux, vy - uy, vz - uz);
+        const candDist = d + edgeLen;
+        if (candDist < bDist[v]) {
+          bDist[v] = candDist;
+          queue.push(v);
+        }
+      }
+    }
+    this.boundaryDist = bDist;
+  }
+
+  setBoundaryMargin(margin) {
+    this.boundaryMargin = Math.max(0, margin);
+  }
+
+  getBoundaryFactor(uIdx) {
+    if (!this.boundaryDist || this.boundaryMargin <= 0) return 1.0;
+    const d = this.boundaryDist[uIdx];
+    if (d <= 0.0) return 0.0;
+    if (d >= this.boundaryMargin) return 1.0;
+    const t = d / this.boundaryMargin;
+    return t * t * (3.0 - 2.0 * t); // smoothstep
   }
 
   setPreset(presetId) {
@@ -386,6 +471,8 @@ export class MeshTuringSimulator {
     const { uniquePositions, uniqueCount } = this.graph;
     if (uniqueCount === 0) return;
     const mask = this.excludedMask;
+    const bDist = this.boundaryDist;
+    const margin = this.boundaryMargin;
 
     let attempts = 0;
     let seeded = 0;
@@ -393,6 +480,8 @@ export class MeshTuringSimulator {
       attempts++;
       const randomIdx = Math.floor(Math.random() * uniqueCount);
       if (mask && mask[randomIdx]) continue;
+      // Avoid planting seeds right at the exclusion boundary margin
+      if (bDist && margin > 0 && bDist[randomIdx] < margin + 1.0) continue;
 
       const pt = {
         x: uniquePositions[randomIdx * 3],
@@ -406,10 +495,12 @@ export class MeshTuringSimulator {
 
   /**
    * Advances the simulation by `subSteps` using the Gray-Scott system.
-   * Excluded vertices remain clamped at V = 0, U = 1.
+   * Uses precomputed zero-flux Neumann Laplace weights so excluded boundaries
+   * do not bleed excess substrate U or produce artificial ridges/walls.
    */
   step(subSteps = this.subSteps) {
-    const { uniqueCount, neighborOffsets, neighborIndices, neighborWeights } = this.graph;
+    const { uniqueCount, neighborOffsets, neighborIndices } = this.graph;
+    const weights = this.effectiveWeights;
     const dt = this.dt;
     const diffU = this.diffU;
     const diffV = this.diffV;
@@ -439,8 +530,9 @@ export class MeshTuringSimulator {
         const vi = curV[i];
 
         for (let idx = start; idx < end; idx++) {
+          const w = weights[idx];
+          if (w === 0) continue;
           const j = neighborIndices[idx];
-          const w = neighborWeights[idx];
           lapU += w * (curU[j] - ui);
           lapV += w * (curV[j] - vi);
         }
@@ -470,7 +562,8 @@ export class MeshTuringSimulator {
 
   /**
    * Copies current V concentration to geometry vertex colors for preview.
-   * Uses smoothstep thresholding to isolate sharp pattern ridges from base levels.
+   * Uses smoothstep thresholding and boundary falloff to isolate sharp pattern ridges
+   * and smoothly transition to flat background at exclusion boundaries.
    *
    * @param {THREE.BufferAttribute} colorAttr - RGB Float32 BufferAttribute
    */
@@ -485,7 +578,8 @@ export class MeshTuringSimulator {
 
       // Smoothstep mapping (baseline cutoff at 0.16, peak at 0.38)
       const norm = Math.max(0, Math.min(1, (val - 0.16) / 0.22));
-      const smoothVal = norm * norm * (3.0 - 2.0 * norm);
+      const bFactor = this.getBoundaryFactor(uIdx);
+      const smoothVal = norm * norm * (3.0 - 2.0 * norm) * bFactor;
 
       // Organic gold/coral highlight: smoothVal = 0 (dark navy), smoothVal = 1 (bright gold)
       const r = 0.15 + smoothVal * 0.85;
@@ -502,7 +596,8 @@ export class MeshTuringSimulator {
 
   /**
    * Displaces vertices along their normal based on V concentration.
-   * Smoothstep curve eliminates broad plateaus and keeps base surfaces flat.
+   * Smoothstep curve and boundary falloff eliminate broad plateaus and keep
+   * exclusion borders completely flat without unsightly boundary ridges/walls.
    *
    * @param {Float32Array} basePositions - original undisplaced positions
    * @param {THREE.BufferAttribute} posAttr - live position attribute to write to
@@ -519,7 +614,8 @@ export class MeshTuringSimulator {
 
       // Smoothstep mapping isolates sharp ridges and keeps background at 0 displacement
       const norm = Math.max(0, Math.min(1, (val - 0.16) / 0.22));
-      const smoothVal = norm * norm * (3.0 - 2.0 * norm);
+      const bFactor = this.getBoundaryFactor(uIdx);
+      const smoothVal = norm * norm * (3.0 - 2.0 * norm) * bFactor;
       const disp = smoothVal * height;
 
       const i3 = i * 3;

@@ -12,7 +12,7 @@
  */
 
 import { THREE } from './threeCompat.js';
-import { buildMeshGraph, MeshTuringSimulator, TURING_PRESETS } from './meshTuring.js?v=20260929_130';
+import { buildMeshGraph, MeshTuringSimulator, TURING_PRESETS } from './meshTuring.js?v=20261002_141';
 import { t } from './i18n.js?v=20260929_130';
 
 export function initTuringController({
@@ -64,6 +64,8 @@ export function initTuringController({
   const feedVal        = document.getElementById('turing-feed-val');
   const killSlider     = document.getElementById('turing-kill-slider');
   const killVal        = document.getElementById('turing-kill-val');
+  const marginSlider   = document.getElementById('turing-margin-slider');
+  const marginVal      = document.getElementById('turing-margin-val');
 
   // State
   let isOpen = false;
@@ -190,6 +192,7 @@ export function initTuringController({
         feed: parseFloat(feedSlider.value),
         kill: parseFloat(killSlider.value),
         subSteps: parseInt(speedSlider.value, 10),
+        boundaryMargin: parseFloat(marginSlider?.value ?? 2.0),
       });
       simulator.setPreset(activePresetId);
       // Synchronize slider values if custom wasn't tweaked
@@ -292,6 +295,19 @@ export function initTuringController({
     speedVal.textContent = `${s}x`;
     if (simulator) simulator.subSteps = s;
   });
+
+  if (marginSlider) {
+    marginSlider.addEventListener('input', () => {
+      const m = parseFloat(marginSlider.value);
+      if (marginVal) marginVal.textContent = `${m.toFixed(1)} mm`;
+      if (simulator) {
+        simulator.setBoundaryMargin(m);
+        if (!isPlaying) {
+          updateDisplacementPreview();
+        }
+      }
+    });
+  }
 
   // ── Seeding ─────────────────────────────────────────────────────────────────
   if (seedRadiusSlider) {

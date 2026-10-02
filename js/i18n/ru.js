@@ -399,6 +399,7 @@ export default {
   "turing.speed": "Скорость:",
   "turing.paramsTitle": "5. Параметры и высота рельефа",
   "turing.height": "Высота рельефа:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Применить к модели",
   "turing.presetMaze": "Лабиринт / Мозг",
   "turing.presetCoral": "Коралл / Отпечаток",

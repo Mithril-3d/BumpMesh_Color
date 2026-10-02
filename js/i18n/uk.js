@@ -399,6 +399,7 @@ export default {
   "turing.speed": "Швидкість:",
   "turing.paramsTitle": "5. Параметри та висота",
   "turing.height": "Висота рельєфу:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Застосувати до моделі",
   "turing.presetMaze": "Лабіринт / Мозок",
   "turing.presetCoral": "Корал / Відбиток",

@@ -399,6 +399,7 @@ export default {
   "turing.speed": "Geschwindigkeit:",
   "turing.paramsTitle": "5. Parameter & Reliefhöhe",
   "turing.height": "Reliefhöhe:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Auf Modell anwenden",
   "turing.presetMaze": "Labyrinth / Gehirn",
   "turing.presetCoral": "Koralle / Fingerabdruck",

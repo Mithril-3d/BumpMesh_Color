@@ -399,6 +399,7 @@ export default {
   "turing.speed": "Velocidad:",
   "turing.paramsTitle": "5. Parámetros y altura",
   "turing.height": "Altura de desplazamiento:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Aplicar al modelo",
   "turing.presetMaze": "Laberinto / Cerebro",
   "turing.presetCoral": "Coral / Huella",

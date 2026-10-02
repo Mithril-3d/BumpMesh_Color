@@ -431,6 +431,7 @@ export default {
   "turing.speed": "Speed:",
   "turing.paramsTitle": "5. Parameters & Height",
   "turing.height": "Displacement Height:",
+  "turing.boundaryMargin": "Boundary Margin:",
   "turing.applyModel": "Apply to Model",
   "turing.presetMaze": "Maze / Brain",
   "turing.presetCoral": "Coral / Fingerprint",

@@ -399,6 +399,7 @@ export default {
   "turing.speed": "计算速度:",
   "turing.paramsTitle": "5. 参数与凹凸高度",
   "turing.height": "置换高度:",
+  "turing.boundaryMargin": "排除边界间距:",
   "turing.applyModel": "应用到位移模型",
   "turing.presetMaze": "迷宫 / 大脑",
   "turing.presetCoral": "珊瑚 / 指纹",
