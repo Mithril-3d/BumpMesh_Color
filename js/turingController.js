@@ -12,7 +12,7 @@
  */
 
 import { THREE } from './threeCompat.js';
-import { buildMeshGraph, MeshTuringSimulator, TURING_PRESETS } from './meshTuring.js?v=20261002_141';
+import { buildMeshGraph, MeshTuringSimulator, TURING_PRESETS } from './meshTuring.js?v=20261002_143';
 import { t } from './i18n.js?v=20260929_130';
 
 export function initTuringController({
@@ -28,6 +28,7 @@ export function initTuringController({
   getExcludedFaces,
   getInvertMask,
   buildFaceWeights,
+  hasExclusionOrAngleMask,
 }) {
   // DOM Elements
   const secretTrigger = document.getElementById('secret-turing-trigger');
@@ -151,13 +152,16 @@ export function initTuringController({
     try {
       console.log('[Turing] Starting prepareMesh with targetEdge:', targetEdge, 'sourceGeo vertices:', sourceGeo.attributes.position.count);
       
-      // Check exclusion paint mask
+      // Check exclusion paint mask & angle-based exclusion (top/bottom angle limits)
       const excludedFaces = getExcludedFaces?.();
       const invertMask = getInvertMask?.() ?? false;
+      const shouldApplyMask = (typeof hasExclusionOrAngleMask === 'function')
+        ? hasExclusionOrAngleMask()
+        : (excludedFaces && excludedFaces.size > 0);
       let faceWeights = null;
-      if (excludedFaces && excludedFaces.size > 0 && typeof buildFaceWeights === 'function') {
+      if (shouldApplyMask && typeof buildFaceWeights === 'function') {
         faceWeights = buildFaceWeights(sourceGeo, excludedFaces, invertMask);
-        console.log('[Turing] Applied faceWeights from excludedFaces, count:', excludedFaces.size);
+        console.log('[Turing] Applied combined faceWeights (paint + angle mask)');
       }
 
       // 1. Subdivide to targetEdge

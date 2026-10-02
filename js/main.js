@@ -20,7 +20,7 @@ import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextu
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
 import { initTextureGallery } from './textureGallery.js?v=20260929_130';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
-import { initTuringController } from './turingController.js?v=20261002_141';
+import { initTuringController } from './turingController.js?v=20261002_143';
 import {
   computeAutoFitDimensions,
   createCylinderGeometry,
@@ -1357,7 +1357,8 @@ initTuringController({
   getRegularizeOpts: () => _regularizeOpts(),
   getExcludedFaces: () => excludedFaces,
   getInvertMask: () => (typeof invertMask !== 'undefined' ? invertMask : false),
-  buildFaceWeights: (geo, faces, inv) => buildFaceWeights(geo, faces, inv),
+  buildFaceWeights: (geo, faces, inv) => buildCombinedFaceWeights(geo, faces, inv, settings),
+  hasExclusionOrAngleMask: () => (excludedFaces && excludedFaces.size > 0) || (settings.bottomAngleLimit > 0) || (settings.topAngleLimit > 0) || (settings.mappingMode === 3),
 });
 
 // Restore the map from the last session
