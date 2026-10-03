@@ -187,10 +187,10 @@ export function computeLouverDisplacement(
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
     const isMatch = (activeTool === targetToolId);
-    if (profileMode === 0 || !isMatch) {
+    if ((profileMode !== 2 && profileMode !== 3) || !isMatch) {
       return isMatch ? convexAmp : -concaveAmp;
     }
-    if (profileMode === 2 && weaveOptions) {
+    if ((profileMode === 2 || profileMode === 3) && weaveOptions) {
       const pitch = Math.max(0.2, weaveOptions.pitch ?? 1.5);
       const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.25);
       const px = weaveOptions.x ?? 0;
@@ -209,7 +209,14 @@ export function computeLouverDisplacement(
       }
       const k = (2.0 * Math.PI) / pitch;
       const layerPhase = (layerIdx % 2) * Math.PI;
-      const W = Math.sin(k * sHoriz + layerPhase);
+      const phi = k * sHoriz + layerPhase;
+      let W;
+      if (profileMode === 3) {
+        const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
+        W = 1.0 - 4.0 * Math.abs(u - 0.5);
+      } else {
+        W = Math.sin(phi);
+      }
       return isMatch ? (convexAmp + waveAmp * W) : -concaveAmp;
     }
     const zFrac = Math.max(0, Math.min(1, (zRel - layerIdx * t) / t));
@@ -218,8 +225,64 @@ export function computeLouverDisplacement(
     return base + zFrac * slope;
   }
 
-  // Mode 1: Gradient (continuous exposure ratio)
-  // Supports 2, 3, or more tools seamlessly:
+  // ProfileMode 2 (Sinusoidal Weave) & ProfileMode 3 (Zigzag / Triangle Weave)
+  if (profileMode === 2 || profileMode === 3) {
+    const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.6);
+    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.20);
+    const px = weaveOptions?.x ?? 0;
+    const py = weaveOptions?.y ?? 0;
+    const nx = weaveOptions?.nx ?? 0;
+    const ny = weaveOptions?.ny ?? 0;
+    const absNx = Math.abs(nx);
+    const absNy = Math.abs(ny);
+    let sHoriz;
+    if (absNx + absNy > 1e-4) {
+      const len = Math.hypot(nx, ny);
+      sHoriz = (-ny * px + nx * py) / len;
+    } else {
+      sHoriz = px * 0.7071 - py * 0.7071;
+    }
+
+    const k = (2.0 * Math.PI) / pitch;
+    const layerPhase = (layerIdx % 2) * Math.PI;
+    const phi = k * sHoriz + layerPhase;
+
+    let W;
+    if (profileMode === 3) {
+      // Triangle wave (Zigzag) normalized in [-1, 1]
+      const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
+      W = 1.0 - 4.0 * Math.abs(u - 0.5);
+    } else {
+      // Sinusoidal wave
+      W = Math.sin(phi);
+    }
+
+    // Determine exposure ratio for the active tool
+    let exposure = 0.5;
+    if (multiColorInfo) {
+      const { toolA, toolB, t: tAffinity } = multiColorInfo;
+      if (activeTool === toolA) {
+        exposure = tAffinity;
+      } else if (activeTool === toolB) {
+        exposure = 1.0 - tAffinity;
+      } else {
+        exposure = 0.0;
+      }
+    } else if (toolIds.length >= 2) {
+      const isTool0 = (activeTool === toolIds[0]);
+      exposure = isTool0 ? blendWeight : (1.0 - blendWeight);
+    } else {
+      exposure = (activeTool === targetToolId) ? 1.0 : 0.0;
+    }
+    exposure = Math.max(0, Math.min(1, exposure));
+
+    const dcOffset = -concaveAmp + (convexAmp + concaveAmp) * exposure;
+    // Modulation envelope: maximum at exposure=0.5, smoothly tapering to 0 at extremes (100% / 0%)
+    const modFactor = 2.0 * Math.min(exposure, 1.0 - exposure);
+    return dcOffset + waveAmp * W * modFactor;
+  }
+
+  // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
   let ratio = 0.0;
   if (multiColorInfo) {
     const { toolA, toolB, t: tAffinity } = multiColorInfo;
@@ -244,33 +307,6 @@ export function computeLouverDisplacement(
 
   if (ratio <= 0.0) {
     return -concaveAmp;
-  }
-
-  // ProfileMode 2: Sinusoidal Weave (Halftone Interlocking)
-  if (profileMode === 2) {
-    const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.5);
-    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.25);
-    const px = weaveOptions?.x ?? 0;
-    const py = weaveOptions?.y ?? 0;
-    const nx = weaveOptions?.nx ?? 0;
-    const ny = weaveOptions?.ny ?? 0;
-    const absNx = Math.abs(nx);
-    const absNy = Math.abs(ny);
-    let sHoriz;
-    if (absNx + absNy > 1e-4) {
-      const len = Math.hypot(nx, ny);
-      sHoriz = (-ny * px + nx * py) / len;
-    } else {
-      sHoriz = px * 0.7071 - py * 0.7071;
-    }
-    const k = (2.0 * Math.PI) / pitch;
-    const layerPhase = (layerIdx % 2) * Math.PI;
-    const W = Math.sin(k * sHoriz + layerPhase);
-
-    // Continuous exposure: base offset moves from -concaveAmp to +convexAmp
-    const dcOffset = -concaveAmp + (convexAmp + concaveAmp) * ratio;
-    // Modulate wave height with ratio so wave fades smoothly into extremes
-    return dcOffset + waveAmp * W * ratio;
   }
 
   const effAmp = convexAmp * ratio;

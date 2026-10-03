@@ -1796,8 +1796,9 @@ function renderInterleavedUI() {
     const { totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
     const isLouver = (interleavedSettings.profileMode === 1);
     const isWeave = (interleavedSettings.profileMode === 2);
+    const isZigzag = (interleavedSettings.profileMode === 3);
     const isGradient = (interleavedSettings.shadingMode === 1);
-    const profileStr = isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep'));
+    const profileStr = isZigzag ? (t('color.profileZigzag') || '三角波編み重ね') : (isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep')));
     const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
     interleavedInfoText.textContent = `• ピッチ: ${thickness.toFixed(2)}mm (${totalLayers}層) • 断面: ${profileStr} • 階調: ${shadingStr}`;
   }
@@ -1834,7 +1835,8 @@ function renderInterleavedUI() {
   }
 
   if (interleavedWeaveContainer) {
-    interleavedWeaveContainer.classList.toggle('hidden', interleavedSettings.profileMode !== 2);
+    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3);
+    interleavedWeaveContainer.classList.toggle('hidden', !isWeaveMode);
     const nDia = interleavedSettings.nozzleDiameter || 0.40;
     const standardPresets = ['0.1', '0.2', '0.25', '0.4', '0.6', '0.8', '1.0', '1.2', '2.0'];
     const diaStr = String(nDia);
@@ -4010,10 +4012,13 @@ function formatM(n) {
 // ── STL loading & Presets ─────────────────────────────────────────────────────
 
 function createPresetGeometry(type) {
+  // 適正な円周解像度: 波長ピッチ（約1.6mm）に対してナイキスト限界を十分に上回り、
+  // 三角波・正弦波の山谷を忠実に捉える 384 分割（1波あたり約 2.5〜3 頂点、頂点間隔 約 0.65mm）
+  const radSegs = 384;
   if (type === 'cylinder') {
-    return createCylinderGeometry({ radius: 40, height: 100, radialSegments: 128, heightSegments: 100 });
+    return createCylinderGeometry({ radius: 40, height: 100, radialSegments: radSegs, heightSegments: 100 });
   } else if (type === 'bowl') {
-    return createBowlGeometry({ outerRadius: 40, height: 45, radialSegments: 128, heightSteps: 45 });
+    return createBowlGeometry({ outerRadius: 40, height: 45, radialSegments: radSegs, heightSteps: 45 });
   } else {
     // デフォルト: 立方体 (50×50×50 mm, 50分割)
     return createCubeGeometry(50, 50);
@@ -6209,9 +6214,9 @@ async function handleExport(format = 'stl') {
     // (circumference / XY) detail. Enforce a safe refineLength lower bound (>= 1.0mm)
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
-    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2);
+    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3);
     const effectiveRefineLength = isWeaveMode
-      ? Math.max(0.18, Math.min(settings.refineLength, (interleavedSettings.weavePitch || 1.6) / 5.0))
+      ? Math.max(0.18, Math.min(settings.refineLength, (interleavedSettings.weavePitch || 1.6) / 4.0))
       : (isLayerBlendMode ? Math.max(settings.refineLength, 0.6) : settings.refineLength);
 
     const effectiveSettings = {
@@ -6419,7 +6424,7 @@ async function handleExport(format = 'stl') {
         const exclusionMode = effectiveSettings.interleavedExclusionMode ?? interleavedSettings.exclusionMode ?? 0;
 
         let weaveParams = null;
-        if (effectiveSettings.interleavedProfileMode === 2) {
+        if (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3) {
           const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
           const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
           const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;

@@ -331,10 +331,10 @@ function computeLayerDisplacementByLayer(
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
     const isMatch = (activeTool === targetToolId);
-    if (profileMode === 0 || !isMatch) {
+    if ((profileMode !== 2 && profileMode !== 3) || !isMatch) {
       return isMatch ? convexVal : -concaveVal;
     }
-    if (profileMode === 2 && weaveOptions) {
+    if ((profileMode === 2 || profileMode === 3) && weaveOptions) {
       const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.20);
       const cx = weaveOptions.cx ?? 0;
       const cy = weaveOptions.cy ?? 0;
@@ -344,7 +344,14 @@ function computeLayerDisplacementByLayer(
       const theta = Math.atan2(dy, dx);
       const waveCount = weaveOptions.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions.pitch ?? 1.6)));
       const layerPhase = (lay % 2) * Math.PI;
-      const W = Math.sin(waveCount * theta + layerPhase);
+      const phi = waveCount * theta + layerPhase;
+      let W;
+      if (profileMode === 3) {
+        const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
+        W = 1.0 - 4.0 * Math.abs(u - 0.5);
+      } else {
+        W = Math.sin(phi);
+      }
       return isMatch ? (convexVal + waveAmp * W) : -concaveVal;
     }
     const zFrac = Math.max(0, Math.min(1, (z - (minZ + lay * t)) / t));
@@ -353,8 +360,55 @@ function computeLayerDisplacementByLayer(
     return base + zFrac * slope;
   }
 
-  // Mode 1: Gradient (continuous exposure ratio)
-  // Supports 2, 3, or more tools seamlessly
+  // ProfileMode 2 (Sinusoidal Weave) & ProfileMode 3 (Zigzag / Triangle Weave)
+  if (profileMode === 2 || profileMode === 3) {
+    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.20);
+    const cx = weaveOptions?.cx ?? 0;
+    const cy = weaveOptions?.cy ?? 0;
+    const px = weaveOptions?.x ?? 0;
+    const py = weaveOptions?.y ?? 0;
+    const dx = px - cx, dy = py - cy;
+    const theta = Math.atan2(dy, dx);
+    const waveCount = weaveOptions?.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions?.pitch ?? 1.6)));
+    const layerPhase = (lay % 2) * Math.PI;
+    const phi = waveCount * theta + layerPhase;
+
+    let W;
+    if (profileMode === 3) {
+      // Triangle wave (Zigzag) normalized in [-1, 1]
+      const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
+      W = 1.0 - 4.0 * Math.abs(u - 0.5);
+    } else {
+      // Sinusoidal wave
+      W = Math.sin(phi);
+    }
+
+    // Determine exposure ratio for the active tool
+    let exposure = 0.5;
+    if (multiColorInfo) {
+      const { toolA, toolB, t: tAffinity } = multiColorInfo;
+      if (activeTool === toolA) {
+        exposure = tAffinity;
+      } else if (activeTool === toolB) {
+        exposure = 1.0 - tAffinity;
+      } else {
+        exposure = 0.0;
+      }
+    } else if (toolIds.length >= 2) {
+      const isTool0 = (activeTool === toolIds[0]);
+      exposure = isTool0 ? blendWeight : (1.0 - blendWeight);
+    } else {
+      exposure = (activeTool === targetToolId) ? 1.0 : 0.0;
+    }
+    exposure = Math.max(0, Math.min(1, exposure));
+
+    const dcOffset = -concaveVal + (convexVal + concaveVal) * exposure;
+    // Modulation envelope: maximum at exposure=0.5, smoothly tapering to 0 at extremes (100% / 0%)
+    const modFactor = 2.0 * Math.min(exposure, 1.0 - exposure);
+    return dcOffset + waveAmp * W * modFactor;
+  }
+
+  // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
   let ratio = 0.0;
   if (multiColorInfo) {
     const { toolA, toolB, t: tAffinity } = multiColorInfo;
@@ -379,23 +433,6 @@ function computeLayerDisplacementByLayer(
 
   if (ratio <= 0.0) {
     return -concaveVal;
-  }
-
-  // ProfileMode 2: Sinusoidal Weave (Halftone Interlocking)
-  if (profileMode === 2) {
-    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.20);
-    const cx = weaveOptions?.cx ?? 0;
-    const cy = weaveOptions?.cy ?? 0;
-    const px = weaveOptions?.x ?? 0;
-    const py = weaveOptions?.y ?? 0;
-    const dx = px - cx, dy = py - cy;
-    const theta = Math.atan2(dy, dx);
-    const waveCount = weaveOptions?.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions?.pitch ?? 1.6)));
-    const layerPhase = (lay % 2) * Math.PI;
-    const W = Math.sin(waveCount * theta + layerPhase);
-
-    const dcOffset = -concaveVal + (convexVal + concaveVal) * ratio;
-    return dcOffset + waveAmp * W * ratio;
   }
 
   let effAmp = convexVal * ratio;
