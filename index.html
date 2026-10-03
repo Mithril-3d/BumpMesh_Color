@@ -297,6 +297,10 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9c0 7.18 4.48 13 10 13s10-5.82 10-13H2z"/><line x1="2" y1="9" x2="22" y2="9"/></svg>
               <span data-i18n="ui.presetBowl">Bowl</span>
             </button>
+            <button type="button" id="preset-model-suzanne" class="model-preset-btn" data-preset="suzanne" title="Suzanne (Blender Monkey 60mm)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.5" fill="currentColor"/><circle cx="15" cy="10" r="1.5" fill="currentColor"/><path d="M8 15c1.5 2 6.5 2 8 0"/><path d="M3 10a3 3 0 0 0 3 3"/><path d="M21 10a3 3 0 0 1-3 3"/></svg>
+              <span data-i18n="ui.presetSuzanne">Suzanne</span>
+            </button>
             <label class="model-preset-btn" for="stl-file-input" style="cursor:pointer;" title="Upload custom model">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span data-i18n="ui.uploadShort">Upload</span>
@@ -509,6 +513,11 @@
             <div id="curvature-options-container" class="hidden" style="margin-bottom:10px;padding:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:6px;">
               <div style="font-size:11px;font-weight:700;color:var(--accent,#38bdf8);margin-bottom:6px;display:flex;align-items:center;gap:4px;">
                 <span>🧬</span> <span data-i18n="color.curvatureSettings">メッシュ凹凸シェーディング設定</span>
+              </div>
+              <div class="form-row slider-row" style="margin-bottom:6px;">
+                <label for="curvature-radius" data-i18n="color.curvatureRadius" title="凹凸を検出する空間半径（大きいほど大まかな陰影、小さいほど微細な溝）">検出半径 (mm)</label>
+                <input type="range" id="curvature-radius" min="1.0" max="15.0" step="0.5" value="3.5" />
+                <span class="val" id="curvature-radius-val">3.5</span>
               </div>
               <div class="form-row slider-row" style="margin-bottom:6px;">
                 <label for="curvature-scale" data-i18n="color.curvatureScale" title="凹凸のコントラスト・感度">コントラスト</label>

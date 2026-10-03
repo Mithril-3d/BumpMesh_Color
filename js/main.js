@@ -12,7 +12,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
          updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_130';
-import { loadModelFile, computeBounds, getTriangleCount }  from './stlLoader.js?v=20260908d';
+import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl }  from './stlLoader.js?v=20261003_151';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
@@ -506,6 +506,8 @@ const interleavedWeaveAmpSlider       = document.getElementById('interleaved-wea
 const interleavedWeaveAmpVal          = document.getElementById('interleaved-weave-amp-val');
 const shadingSourceSelect             = document.getElementById('shading-source-select');
 const curvatureOptionsContainer       = document.getElementById('curvature-options-container');
+const curvatureRadiusSlider           = document.getElementById('curvature-radius');
+const curvatureRadiusVal              = document.getElementById('curvature-radius-val');
 const curvatureScaleSlider            = document.getElementById('curvature-scale');
 const curvatureScaleVal               = document.getElementById('curvature-scale-val');
 const curvatureBiasSlider             = document.getElementById('curvature-bias');
@@ -538,6 +540,7 @@ let interleavedSettings          = {
   gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
   exclusionMode: 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
   shadingSource: 'texture', // 'texture' or 'curvature'
+  curvatureRadius: 3.5, // mm
   curvatureScale: 1.0,
   curvatureBias: 0.50,
   curvatureSmooth: 2,
@@ -1873,6 +1876,7 @@ function triggerCurvatureUpdate() {
 
   try {
     currentCurvatureResult = computeMeshCurvatureShading(geom, {
+      radius: interleavedSettings.curvatureRadius ?? 3.5,
       scale: interleavedSettings.curvatureScale,
       bias: interleavedSettings.curvatureBias,
       smoothSteps: interleavedSettings.curvatureSmooth,
@@ -1967,6 +1971,17 @@ function initInterleavedEvents() {
   if (shadingSourceSelect) {
     shadingSourceSelect.addEventListener('change', (e) => {
       interleavedSettings.shadingSource = e.target.value;
+      triggerCurvatureUpdate();
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (curvatureRadiusSlider) {
+    curvatureRadiusSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 3.5;
+      interleavedSettings.curvatureRadius = v;
+      if (curvatureRadiusVal) curvatureRadiusVal.textContent = v.toFixed(1);
       triggerCurvatureUpdate();
       renderInterleavedUI();
       updatePreview();
@@ -4035,7 +4050,7 @@ function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
   initModelScale(geo);
 }
 
-function loadPresetModel(presetKey = 'cube') {
+async function loadPresetModel(presetKey = 'cube') {
   currentModelMode = 'preset';
   currentPresetKey = presetKey;
   updateModelModeUI();
@@ -4044,6 +4059,20 @@ function loadPresetModel(presetKey = 'cube') {
   document.querySelectorAll('#standard-preset-btns .model-preset-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.preset === presetKey);
   });
+
+  if (presetKey === 'suzanne') {
+    try {
+      const { geometry } = await loadSTLFromUrl('models/suzanne.stl');
+      _applyLoadedPresetGeometry(geometry, 'suzanne_monkey_60mm', null);
+      if (interleavedSettings.shadingSource === 'curvature') {
+        triggerCurvatureUpdate();
+        updatePreview();
+      }
+    } catch (err) {
+      console.error('Failed to load Suzanne preset:', err);
+    }
+    return;
+  }
 
   const geo = createPresetGeometry(presetKey);
   let modelName = 'cube_50x50x50';
@@ -4058,6 +4087,10 @@ function loadPresetModel(presetKey = 'cube') {
   }
 
   _applyLoadedPresetGeometry(geo, modelName, cylOptions);
+  if (interleavedSettings.shadingSource === 'curvature') {
+    triggerCurvatureUpdate();
+    updatePreview();
+  }
 }
 
 function loadAutoFitModel() {
@@ -6938,6 +6971,7 @@ function getSettingsSnapshot() {
   snap.interleavedShadingMode = interleavedSettings.shadingMode;
   snap.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
   snap.shadingSource          = interleavedSettings.shadingSource;
+  snap.curvatureRadius        = interleavedSettings.curvatureRadius;
   snap.curvatureScale         = interleavedSettings.curvatureScale;
   snap.curvatureBias          = interleavedSettings.curvatureBias;
   snap.curvatureSmooth        = interleavedSettings.curvatureSmooth;
@@ -7174,6 +7208,13 @@ function applySettingsSnapshot(snap) {
   if (snap.shadingSource != null) {
     interleavedSettings.shadingSource = snap.shadingSource;
     if (shadingSourceSelect) shadingSourceSelect.value = snap.shadingSource;
+  }
+  if (snap.curvatureRadius != null) {
+    interleavedSettings.curvatureRadius = snap.curvatureRadius;
+    if (curvatureRadiusSlider) {
+      curvatureRadiusSlider.value = snap.curvatureRadius;
+      if (curvatureRadiusVal) curvatureRadiusVal.textContent = snap.curvatureRadius.toFixed(1);
+    }
   }
   if (snap.curvatureScale != null) {
     interleavedSettings.curvatureScale = snap.curvatureScale;

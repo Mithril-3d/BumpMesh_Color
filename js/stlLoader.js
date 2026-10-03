@@ -42,6 +42,21 @@ export function loadSTLFile(file) {
 }
 
 /**
+ * Load an STL from a URL (e.g. preset models).
+ */
+export async function loadSTLFromUrl(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error('Failed to fetch STL from ' + url + ': ' + resp.status + ' ' + resp.statusText);
+  }
+  const buffer = await resp.arrayBuffer();
+  const geometry = stlLoader.parse(buffer);
+  const { nanCount, degenerateCount, originOffset } = setupGeometry(geometry);
+  const bounds = computeBounds(geometry);
+  return { geometry, bounds, nanCount, degenerateCount, originOffset };
+}
+
+/**
  * Scan a non-indexed geometry's position array and remove:
  *   - triangles with any non-finite (NaN / ±Infinity) coordinate
  *   - degenerate triangles whose area is below 1e-12 mm²

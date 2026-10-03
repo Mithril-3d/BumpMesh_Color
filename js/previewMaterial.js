@@ -191,13 +191,12 @@ const sharedGLSL = /* glsl */`
         if (interleavedProfileMode == 2) {
           float pitch = max(0.2, interleavedWeavePitch);
           float waveAmp = max(0.0, interleavedWeaveAmp);
-          vec2 dXY = pos.xy - boundsCenter.xy;
-          float r = length(dXY);
-          float theta = atan(dXY.y, dXY.x);
-          float arc = r * theta;
+          vec2 hN = projN.xy;
+          float lenHN = length(hN);
+          float sHoriz = (lenHN > 1e-4) ? dot(pos.xy, vec2(-hN.y, hN.x) / lenHN) : (pos.x * 0.7071 - pos.y * 0.7071);
           float k = TWO_PI / pitch;
           float layerPhase = mod(float(layerIdx), 2.0) * PI;
-          float W = sin(k * arc + layerPhase);
+          float W = sin(k * sHoriz + layerPhase);
           float dcOffset = -interleavedConcave + (interleavedConvex + interleavedConcave) * ratio;
           return dcOffset + waveAmp * W * ratio;
         }
@@ -225,13 +224,12 @@ const sharedGLSL = /* glsl */`
           if (interleavedProfileMode == 2) {
             float pitch = max(0.2, interleavedWeavePitch);
             float waveAmp = max(0.0, interleavedWeaveAmp);
-            vec2 dXY = pos.xy - boundsCenter.xy;
-            float r = length(dXY);
-            float theta = atan(dXY.y, dXY.x);
-            float arc = r * theta;
+            vec2 hN = projN.xy;
+            float lenHN = length(hN);
+            float sHoriz = (lenHN > 1e-4) ? dot(pos.xy, vec2(-hN.y, hN.x) / lenHN) : (pos.x * 0.7071 - pos.y * 0.7071);
             float k = TWO_PI / pitch;
             float layerPhase = mod(float(layerIdx), 2.0) * PI;
-            float W = sin(k * arc + layerPhase);
+            float W = sin(k * sHoriz + layerPhase);
             return interleavedConvex + waveAmp * W;
           }
           if (interleavedProfileMode == 0) {
@@ -436,12 +434,41 @@ const sharedGLSL = /* glsl */`
 
   // Compute final surface color at a world-space point
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
-    if (colorSubMode == 1 && shadingSource == 1) {
+    if (colorSubMode == 1) {
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
       int layerIdx = int(floor(zRel / t));
       int activeK = int(mod(float(abs(layerIdx)), float(max(1, interleavedToolCount))));
-      return interleavedPalette[activeK];
+
+      if (interleavedProfileMode == 2 && interleavedToolCount >= 2) {
+        vec2 hN = projN.xy;
+        float lenHN = length(hN);
+        vec2 tangent = (lenHN > 1e-4) ? (vec2(-hN.y, hN.x) / lenHN) : vec2(0.7071, -0.7071);
+        float sHoriz = dot(pos.xy, tangent);
+        float k = TWO_PI / max(0.2, interleavedWeavePitch);
+        float layerPhase = mod(float(layerIdx), 2.0) * PI;
+        float W = sin(k * sHoriz + layerPhase);
+
+        float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
+        int neighborIdx = (zFrac > 0.5) ? (layerIdx + 1) : (layerIdx - 1);
+        if (neighborIdx < 0) neighborIdx = layerIdx + 1;
+        int neighborK = int(mod(float(abs(neighborIdx)), float(interleavedToolCount)));
+
+        // Protrusion weight: wave peaks bias towards the protruding tool
+        float waveProtrusion = clamp(0.5 + W * 0.70, 0.0, 1.0);
+        vec3 weaveColor = mix(interleavedPalette[neighborK], interleavedPalette[activeK], waveProtrusion);
+
+        if (shadingSource == 1) {
+          return weaveColor;
+        } else {
+          vec3 rawCol = computeRawColorAtPoint(pos, projN, blendN);
+          return mix(rawCol, weaveColor, 0.50);
+        }
+      }
+
+      if (shadingSource == 1) {
+        return interleavedPalette[activeK];
+      }
     }
     return computeRawColorAtPoint(pos, projN, blendN);
   }

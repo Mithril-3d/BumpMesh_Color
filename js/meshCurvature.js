@@ -5,29 +5,31 @@
  */
 
 /**
- * meshCurvature.js — 3D Mesh Surface Curvature & Cavity Shading Engine
+ * meshCurvature.js — 3D Mesh Surface Multi-scale Geometric Cavity & Curvature Shading Engine
  *
- * Computes geometric mean curvature, crevice/cavity depth, and ridge highlights
- * directly from 3D triangle mesh topology without requiring UV unwrapping or external textures.
- * Used for automatic organic shading on complex models (e.g. human heads, sculptures, figurines).
+ * Computes geometric cavity (crevices, depressions, eye sockets, nostrils) and ridge highlights
+ * using multi-scale geodesic/spherical neighborhood evaluation directly from 3D triangle mesh topology.
+ * Independent of local triangle tessellation or UV unwrapping.
+ * Used for automatic organic shading on complex models (e.g. Suzanne monkey head, statues, figurines).
  */
 
 import { THREE } from './threeCompat.js';
 import { QuantizedPointMap } from './meshIndex.js';
 
 /**
- * Compute curvature and cavity shading scalar field across mesh vertices.
+ * Compute multi-scale cavity and curvature shading scalar field across mesh vertices.
  *
  * @param {THREE.BufferGeometry} geometry - non-indexed triangle mesh
  * @param {object} options
- * @param {number} [options.scale=1.0] - contrast/sensitivity multiplier
+ * @param {number} [options.radius=3.5] - evaluation radius in mm (determines scale of feature detection)
+ * @param {number} [options.scale=1.0] - contrast multiplier
  * @param {number} [options.bias=0.5] - baseline brightness for flat areas (0.0=black, 0.5=mid grey, 1.0=white)
- * @param {number} [options.smoothSteps=2] - number of smoothing diffusion passes to reduce mesh faceting noise
+ * @param {number} [options.smoothSteps=2] - number of smoothing diffusion passes to reduce noise
  * @param {boolean} [options.invert=false] - if true, ridges are dark and crevices are light
  * @param {number} [options.gamma=1.0] - gamma curve exponent (<1 brightens shadows, >1 deepens blacks)
  * @returns {{
  *   uniqueCount: number,
- *   uniqueCurvature: Float32Array, // raw signed curvature per unique vertex
+ *   uniqueCurvature: Float32Array, // raw signed cavity score per unique vertex (-1..+1)
  *   uniqueLuminance: Float32Array, // 0.0..1.0 brightness per unique vertex
  *   vertexLuminance: Float32Array, // 0.0..1.0 brightness per triangle vertex
  *   vertexToUnique: Int32Array,
@@ -36,6 +38,7 @@ import { QuantizedPointMap } from './meshIndex.js';
  * }}
  */
 export function computeMeshCurvatureShading(geometry, options = {}) {
+  const R = Math.max(0.2, options.radius ?? 3.5);
   const scale = options.scale ?? 1.0;
   const bias = options.bias ?? 0.5;
   const smoothSteps = Math.max(0, Math.min(10, options.smoothSteps ?? 2));
@@ -46,7 +49,7 @@ export function computeMeshCurvatureShading(geometry, options = {}) {
   const vertexCount = posAttr.count;
   const triCount = Math.floor(vertexCount / 3);
 
-  // 1. Identify unique vertices using spatial quantization
+  // 1. Quantize and identify unique vertices
   const qmap = new QuantizedPointMap(1e4);
   const vertexToUnique = new Int32Array(vertexCount);
   const uniquePositionsList = [];
@@ -68,7 +71,7 @@ export function computeMeshCurvatureShading(geometry, options = {}) {
   const uniquePositions = new Float32Array(uniquePositionsList);
   const uniqueNormals = new Float32Array(uniqueCount * 3);
 
-  // 2. Compute area-weighted vertex normals from face normals
+  // 2. Compute area-weighted vertex normals
   for (let t = 0; t < triCount; t++) {
     const i0 = vertexToUnique[t * 3];
     const i1 = vertexToUnique[t * 3 + 1];
@@ -116,20 +119,21 @@ export function computeMeshCurvatureShading(geometry, options = {}) {
     if (i1 !== i2) { neighborSets[i1].add(i2); neighborSets[i2].add(i1); }
     if (i2 !== i0) { neighborSets[i2].add(i0); neighborSets[i0].add(i2); }
   }
+  const adj = neighborSets.map(s => Array.from(s));
 
-  // 4. Calculate initial raw curvature: L_u = (centroid of neighbors) - p_u
-  // Signed mean curvature scalar: C_u = - (L_u . n_u)
-  // Positive = Ridge (convex), Negative = Crevice/Cavity (concave)
+  // 4. Multi-scale Geometric Cavity & Ridge Evaluation
+  // Evaluates the relative height/projection of surface points within geodesic radius R
+  // Crevices: neighbors lie in front of vertex normal (h > 0) -> cavity score < 0 (dark)
+  // Ridges: neighbors lie behind vertex normal (h < 0) -> cavity score > 0 (bright)
+  // Flat surfaces: h approx 0 -> neutral
   const rawCurvature = new Float32Array(uniqueCount);
+  const visitedTag = new Int32Array(uniqueCount);
+  let visitToken = 0;
+  const queue = new Int32Array(Math.min(10000, uniqueCount + 10));
+
   let maxAbsCurv = 1e-4;
 
   for (let u = 0; u < uniqueCount; u++) {
-    const neighbors = Array.from(neighborSets[u]);
-    if (neighbors.length === 0) {
-      rawCurvature[u] = 0;
-      continue;
-    }
-
     const ux = uniquePositions[u * 3];
     const uy = uniquePositions[u * 3 + 1];
     const uz = uniquePositions[u * 3 + 2];
@@ -137,84 +141,102 @@ export function computeMeshCurvatureShading(geometry, options = {}) {
     const uny = uniqueNormals[u * 3 + 1];
     const unz = uniqueNormals[u * 3 + 2];
 
-    let cx = 0, cy = 0, cz = 0;
+    visitToken++;
+    visitedTag[u] = visitToken;
+
+    let qHead = 0;
+    let qTail = 0;
+    queue[qTail++] = u;
+
+    let sumScore = 0;
     let sumWeight = 0;
 
-    for (let k = 0; k < neighbors.length; k++) {
-      const v = neighbors[k];
-      const vx = uniquePositions[v * 3];
-      const vy = uniquePositions[v * 3 + 1];
-      const vz = uniquePositions[v * 3 + 2];
-      const d = Math.hypot(vx - ux, vy - uy, vz - uz);
-      const w = 1.0 / Math.max(d, 1e-4);
-      cx += vx * w;
-      cy += vy * w;
-      cz += vz * w;
-      sumWeight += w;
+    while (qHead < qTail && qTail < queue.length - 20) {
+      const curr = queue[qHead++];
+      const nbrs = adj[curr];
+      for (let k = 0; k < nbrs.length; k++) {
+        const v = nbrs[k];
+        if (visitedTag[v] === visitToken) continue;
+        visitedTag[v] = visitToken;
+
+        const vx = uniquePositions[v * 3];
+        const vy = uniquePositions[v * 3 + 1];
+        const vz = uniquePositions[v * 3 + 2];
+
+        const dx = vx - ux;
+        const dy = vy - uy;
+        const dz = vz - uz;
+        const dist = Math.hypot(dx, dy, dz);
+
+        if (dist <= R) {
+          queue[qTail++] = v;
+
+          // Projection along vertex normal
+          const h = dx * unx + dy * uny + dz * unz;
+          // Weight with linear falloff
+          const w = (1.0 - dist / R);
+
+          // Normal direction alignment weight:
+          // If neighbor's normal faces inward relative to u, cavity is confirmed
+          const vnx = uniqueNormals[v * 3];
+          const vny = uniqueNormals[v * 3 + 1];
+          const vnz = uniqueNormals[v * 3 + 2];
+          const normalAlignment = unx * vnx + uny * vny + unz * vnz;
+
+          // Scale score: negative for crevices/cavities, positive for ridges
+          const s = (-h / R) * (1.2 - 0.2 * normalAlignment);
+          sumScore += s * w;
+          sumWeight += w;
+        }
+      }
     }
 
-    if (sumWeight > 0) {
-      cx /= sumWeight;
-      cy /= sumWeight;
-      cz /= sumWeight;
-    }
-
-    // Displacement from vertex to neighbor centroid
-    const lx = cx - ux;
-    const ly = cy - uy;
-    const lz = cz - uz;
-
-    // Projection along outward normal:
-    // If vertex protrudes outwards (ridge), neighbor centroid is inward -> (L . n) < 0 -> curvature > 0
-    // If vertex is in a cavity (crevice), neighbor centroid is outward -> (L . n) > 0 -> curvature < 0
-    const c = - (lx * unx + ly * uny + lz * unz);
+    const c = sumWeight > 0 ? (sumScore / sumWeight) : 0;
     rawCurvature[u] = c;
     if (Math.abs(c) > maxAbsCurv) {
       maxAbsCurv = Math.abs(c);
     }
   }
 
-  // 5. Smoothing diffusion passes to eliminate discrete polygon facet noise
+  // 5. Smoothing diffusion passes to eliminate mesh faceting noise
   let curBuffer = rawCurvature;
   if (smoothSteps > 0) {
     let nextBuffer = new Float32Array(uniqueCount);
     for (let step = 0; step < smoothSteps; step++) {
       for (let u = 0; u < uniqueCount; u++) {
-        const neighbors = Array.from(neighborSets[u]);
-        if (neighbors.length === 0) {
+        const nbrs = adj[u];
+        if (nbrs.length === 0) {
           nextBuffer[u] = curBuffer[u];
           continue;
         }
-        let sum = curBuffer[u] * 2.0; // Self-weight
+        let sum = curBuffer[u] * 2.0;
         let countW = 2.0;
-        for (let k = 0; k < neighbors.length; k++) {
-          sum += curBuffer[neighbors[k]];
+        for (let k = 0; k < nbrs.length; k++) {
+          sum += curBuffer[nbrs[k]];
           countW += 1.0;
         }
         nextBuffer[u] = sum / countW;
       }
-      // Swap buffers
       const temp = curBuffer;
       curBuffer = nextBuffer;
       nextBuffer = temp;
     }
   }
 
-  // Re-estimate robust range for normalization (using 98th percentile to avoid needle outliers)
+  // 6. Robust normalization using 98th percentile
   const absVals = new Float32Array(uniqueCount);
   for (let u = 0; u < uniqueCount; u++) {
     absVals[u] = Math.abs(curBuffer[u]);
   }
   absVals.sort();
   const percentile98 = absVals[Math.floor(uniqueCount * 0.98)] || maxAbsCurv;
-  const normScale = percentile98 > 1e-6 ? (1.0 / percentile98) : 1.0;
+  const normScale = percentile98 > 1e-5 ? (1.0 / percentile98) : 1.0;
 
-  // 6. Map to normalized luminance (0.0 to 1.0)
+  // 7. Map to normalized luminance (0.0 to 1.0)
   const uniqueLuminance = new Float32Array(uniqueCount);
   for (let u = 0; u < uniqueCount; u++) {
-    // Normalised signed curvature [-1.0 .. +1.0]
+    // Normalised signed cavity [-1.0 .. +1.0]
     let normalized = curBuffer[u] * normScale * scale;
-    // Clamp to [-1.0, 1.0]
     normalized = Math.max(-1.0, Math.min(1.0, normalized));
 
     // Map: -1 (crevice) -> 0.0 (dark), 0 (flat) -> bias (e.g. 0.5), +1 (ridge) -> 1.0 (light)
@@ -229,7 +251,6 @@ export function computeMeshCurvatureShading(geometry, options = {}) {
       lum = 1.0 - lum;
     }
 
-    // Apply gamma curve
     if (Math.abs(gamma - 1.0) > 1e-3) {
       lum = Math.pow(Math.max(0.0, Math.min(1.0, lum)), gamma);
     }
@@ -237,7 +258,7 @@ export function computeMeshCurvatureShading(geometry, options = {}) {
     uniqueLuminance[u] = Math.max(0.0, Math.min(1.0, lum));
   }
 
-  // 7. Expand to per-triangle vertices for direct rendering and displacement consumption
+  // 8. Expand to per-triangle vertices
   const vertexLuminance = new Float32Array(vertexCount);
   for (let i = 0; i < vertexCount; i++) {
     const u = vertexToUnique[i];

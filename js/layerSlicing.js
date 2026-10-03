@@ -388,18 +388,22 @@ function computeLayerDisplacementByLayer(
   if (profileMode === 2) {
     const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.5);
     const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.25);
-    const cx = weaveOptions?.cx ?? 0;
-    const cy = weaveOptions?.cy ?? 0;
     const px = weaveOptions?.x ?? 0;
     const py = weaveOptions?.y ?? 0;
-
-    const dx = px - cx, dy = py - cy;
-    const r = Math.hypot(dx, dy);
-    const theta = Math.atan2(dy, dx);
-    const arc = r * theta;
+    const nx = weaveOptions?.nx ?? 0;
+    const ny = weaveOptions?.ny ?? 0;
+    const absNx = Math.abs(nx);
+    const absNy = Math.abs(ny);
+    let sHoriz;
+    if (absNx + absNy > 1e-4) {
+      const len = Math.hypot(nx, ny);
+      sHoriz = (-ny * px + nx * py) / len;
+    } else {
+      sHoriz = px * 0.7071 - py * 0.7071;
+    }
     const k = (2.0 * Math.PI) / pitch;
     const layerPhase = (lay % 2) * Math.PI;
-    const W = Math.sin(k * arc + layerPhase);
+    const W = Math.sin(k * sHoriz + layerPhase);
 
     const dcOffset = -concaveVal + (convexVal + concaveVal) * ratio;
     return dcOffset + waveAmp * W * ratio;
@@ -498,9 +502,11 @@ export function applyLayerAlignedDisplacement(
     exclMode,
     multiColorInfo = null,
     x = 0,
-    y = 0
+    y = 0,
+    nx = 0,
+    ny = 0
   ) {
-    const weaveOptions = weaveParams ? { ...weaveParams, x, y } : { x, y };
+    const weaveOptions = weaveParams ? { ...weaveParams, x, y, nx, ny } : { x, y, nx, ny };
     if (isExcl) {
       if (exclMode === 1) {
         // Mode 2: OFF, ON - 指定ツールが出っ張り交互積層
@@ -639,7 +645,9 @@ export function applyLayerAlignedDisplacement(
           exclusionMode,
           multiColorInfo,
           x,
-          y
+          y,
+          nx,
+          ny
         );
         disp *= layerFade;
 
@@ -726,10 +734,10 @@ export function applyLayerAlignedDisplacement(
         const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
         const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
 
-        const dispBot0 = (hlen0 >= 0.15) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo) * botFade : 0;
-        const dispBot1 = (hlen1 >= 0.15) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo) * botFade : 0;
-        const dispTop0 = (hlen0 >= 0.15) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo) * topFade : 0;
-        const dispTop1 = (hlen1 >= 0.15) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo) * topFade : 0;
+        const dispBot0 = (hlen0 >= 0.15) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1]) * botFade : 0;
+        const dispBot1 = (hlen1 >= 0.15) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1]) * botFade : 0;
+        const dispTop0 = (hlen0 >= 0.15) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1]) * topFade : 0;
+        const dispTop1 = (hlen1 >= 0.15) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1]) * topFade : 0;
 
         const diff0 = dispBot0 - dispTop0;
         const diff1 = dispBot1 - dispTop1;

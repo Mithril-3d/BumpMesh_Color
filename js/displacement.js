@@ -536,8 +536,8 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const weaveOptions = {
         x: tmpPos.x,
         y: tmpPos.y,
-        cx: bounds ? bounds.center.x : 0,
-        cy: bounds ? bounds.center.y : 0,
+        nx: tmpNrm.x,
+        ny: tmpNrm.y,
         pitch: settings.weavePitch ?? 1.5,
         amp: settings.weaveAmp ?? 0.25
       };
