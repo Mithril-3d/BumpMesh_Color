@@ -57,7 +57,10 @@ const sharedGLSL = /* glsl */`
   uniform vec3      interleavedPalette[8];
   uniform int       interleavedShadingMode;
   uniform int       interleavedProfileMode;
+  uniform float     interleavedWeavePitch;
+  uniform float     interleavedWeaveAmp;
   uniform float     interleavedGamma;
+  uniform int       shadingSource;
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
@@ -185,6 +188,19 @@ const sharedGLSL = /* glsl */`
         if (ratio <= 0.0) {
           return -interleavedConcave;
         }
+        if (interleavedProfileMode == 2) {
+          float pitch = max(0.2, interleavedWeavePitch);
+          float waveAmp = max(0.0, interleavedWeaveAmp);
+          vec2 dXY = pos.xy - boundsCenter.xy;
+          float r = length(dXY);
+          float theta = atan(dXY.y, dXY.x);
+          float arc = r * theta;
+          float k = TWO_PI / pitch;
+          float layerPhase = mod(float(layerIdx), 2.0) * PI;
+          float W = sin(k * arc + layerPhase);
+          float dcOffset = -interleavedConcave + (interleavedConvex + interleavedConcave) * ratio;
+          return dcOffset + waveAmp * W * ratio;
+        }
         float targetPeak = interleavedConvex * ratio;
         if (interleavedProfileMode == 0) {
           return targetPeak;
@@ -206,6 +222,18 @@ const sharedGLSL = /* glsl */`
           }
         }
         if (activeK == bestK) {
+          if (interleavedProfileMode == 2) {
+            float pitch = max(0.2, interleavedWeavePitch);
+            float waveAmp = max(0.0, interleavedWeaveAmp);
+            vec2 dXY = pos.xy - boundsCenter.xy;
+            float r = length(dXY);
+            float theta = atan(dXY.y, dXY.x);
+            float arc = r * theta;
+            float k = TWO_PI / pitch;
+            float layerPhase = mod(float(layerIdx), 2.0) * PI;
+            float W = sin(k * arc + layerPhase);
+            return interleavedConvex + waveAmp * W;
+          }
           if (interleavedProfileMode == 0) {
             return interleavedConvex;
           }
@@ -408,8 +436,13 @@ const sharedGLSL = /* glsl */`
 
   // Compute final surface color at a world-space point
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
-    // In interleaved mode, render the true texture color so the pattern is clearly visible,
-    // combined with the 45° louver displacement geometry and shading.
+    if (colorSubMode == 1 && shadingSource == 1) {
+      float zRel = max(0.0, pos.z - boundsMin.z);
+      float t = max(0.01, interleavedThickness);
+      int layerIdx = int(floor(zRel / t));
+      int activeK = int(mod(float(abs(layerIdx)), float(max(1, interleavedToolCount))));
+      return interleavedPalette[activeK];
+    }
     return computeRawColorAtPoint(pos, projN, blendN);
   }
 `;
@@ -748,11 +781,20 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedProfileMode) u.interleavedProfileMode = { value: 0 };
   u.interleavedProfileMode.value = settings.interleavedProfileMode ?? 0;
 
+  if (!u.interleavedWeavePitch) u.interleavedWeavePitch = { value: 1.5 };
+  u.interleavedWeavePitch.value = settings.interleavedWeavePitch ?? 1.5;
+
+  if (!u.interleavedWeaveAmp) u.interleavedWeaveAmp = { value: 0.25 };
+  u.interleavedWeaveAmp.value = settings.interleavedWeaveAmp ?? 0.25;
+
   if (!u.interleavedGamma) u.interleavedGamma = { value: 1.0 };
   u.interleavedGamma.value = settings.interleavedGamma ?? 1.0;
 
   if (!u.interleavedExclusionMode) u.interleavedExclusionMode = { value: 0 };
   u.interleavedExclusionMode.value = settings.interleavedExclusionMode ?? 0;
+
+  if (!u.shadingSource) u.shadingSource = { value: 0 };
+  u.shadingSource.value = (settings.shadingSource === 'curvature') ? 1 : 0;
 
   if (settings.layerBlendMap) {
     if (!u.layerBlendMap) u.layerBlendMap = { value: settings.layerBlendMap };
@@ -818,8 +860,11 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedPalette:       { value: initPalette },
     interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 1 },
     interleavedProfileMode:   { value: settings.interleavedProfileMode ?? 0 },
+    interleavedWeavePitch:    { value: settings.interleavedWeavePitch ?? 1.5 },
+    interleavedWeaveAmp:      { value: settings.interleavedWeaveAmp ?? 0.25 },
     interleavedGamma:         { value: settings.interleavedGamma ?? 1.0 },
     interleavedExclusionMode: { value: settings.interleavedExclusionMode ?? 0 },
+    shadingSource:            { value: (settings.shadingSource === 'curvature') ? 1 : 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },
     boundaryEdgeTex:          { value: createFallbackDataTexture() },

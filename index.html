@@ -496,6 +496,43 @@
 
           <!-- Tab 2: Interleaved Layer Blending Panel (Phase 2) -->
           <div id="layerblend-controls-container" class="hidden" style="margin-top:6px;">
+            <!-- Shading Source Selection (Texture Map vs Mesh Curvature) -->
+            <div class="form-row" style="margin-bottom:10px;background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);">
+              <label for="shading-source-select" data-i18n="color.shadingSource" title="陰影（白黒グラデーション）の入力元。外部テクスチャ画像を使うか、モデル自身の立体凹凸（曲率・キャビティ）から自動生成するかを選びます。" style="font-weight:600;">陰影ソース</label>
+              <select id="shading-source-select" class="interleaved-select">
+                <option value="texture" selected data-i18n-opt="color.shadingSourceTexture">テクスチャ画像 (Texture Map)</option>
+                <option value="curvature" data-i18n-opt="color.shadingSourceCurvature">✨ モデルの凹凸 (Mesh Curvature / UV不要)</option>
+              </select>
+            </div>
+
+            <!-- Curvature Shading Options (Visible when shading-source == 'curvature') -->
+            <div id="curvature-options-container" class="hidden" style="margin-bottom:10px;padding:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:6px;">
+              <div style="font-size:11px;font-weight:700;color:var(--accent,#38bdf8);margin-bottom:6px;display:flex;align-items:center;gap:4px;">
+                <span>🧬</span> <span data-i18n="color.curvatureSettings">メッシュ凹凸シェーディング設定</span>
+              </div>
+              <div class="form-row slider-row" style="margin-bottom:6px;">
+                <label for="curvature-scale" data-i18n="color.curvatureScale" title="凹凸のコントラスト・感度">コントラスト</label>
+                <input type="range" id="curvature-scale" min="0.2" max="3.0" step="0.1" value="1.0" />
+                <span class="val" id="curvature-scale-val">1.0</span>
+              </div>
+              <div class="form-row slider-row" style="margin-bottom:6px;">
+                <label for="curvature-bias" data-i18n="color.curvatureBias" title="平坦部の基本明度（0.5 = 中間グレー）">明るさバイアス</label>
+                <input type="range" id="curvature-bias" min="0.0" max="1.0" step="0.05" value="0.5" />
+                <span class="val" id="curvature-bias-val">0.50</span>
+              </div>
+              <div class="form-row slider-row" style="margin-bottom:6px;">
+                <label for="curvature-smooth" data-i18n="color.curvatureSmooth" title="ポリゴン小面のノイズを抑える平滑化回数">平滑化 (ノイズ低減)</label>
+                <input type="range" id="curvature-smooth" min="0" max="6" step="1" value="2" />
+                <span class="val" id="curvature-smooth-val">2</span>
+              </div>
+              <div class="form-row" style="margin-top:4px;">
+                <label class="checkbox-label" for="curvature-invert" style="font-size:11px;cursor:pointer;">
+                  <input type="checkbox" id="curvature-invert" />
+                  <span data-i18n="color.curvatureInvert">凹凸の白黒を反転 (凸部を黒・凹部を白)</span>
+                </label>
+              </div>
+            </div>
+
             <div class="form-row slider-row" style="margin-bottom:8px;">
               <label for="interleaved-layer-thickness" data-i18n="color.layerThickness" data-i18n-title="color.layerThicknessTitle" title="各ツールの1層あたりの厚み（スライサーの積層ピッチに合わせます）">積層厚み (mm)</label>
               <input type="range" id="interleaved-layer-thickness" min="0.08" max="0.40" step="0.04" value="0.20" />
@@ -519,7 +556,25 @@
               <select id="interleaved-profile-mode" class="interleaved-select">
                 <option value="0" selected data-i18n-opt="color.profileStep">フラット段差（標準ステップ・推奨）</option>
                 <option value="1" data-i18n-opt="color.profileLouver">45° ルーバー庇（他色シールド・実験的）</option>
+                <option value="2" data-i18n-opt="color.profileWeave">✨ 正弦波編み重ね（サイン波ハーフトーン・推奨）</option>
               </select>
+            </div>
+
+            <!-- Weave Parameters (Visible when profile-mode == '2') -->
+            <div id="interleaved-weave-container" class="hidden" style="margin-bottom:10px;padding:8px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.3);border-radius:6px;">
+              <div style="font-size:11px;font-weight:700;color:#c084fc;margin-bottom:6px;display:flex;align-items:center;gap:4px;">
+                <span>〰️</span> <span data-i18n="color.weaveSettings">編み重ねハーフトーン設定</span>
+              </div>
+              <div class="form-row slider-row" style="margin-bottom:6px;">
+                <label for="interleaved-weave-pitch" data-i18n="color.weavePitch" title="サイン波の波長ピッチ（mm）。1周の波の細かさを決めます。推奨: 1.5mm">波長ピッチ (mm)</label>
+                <input type="range" id="interleaved-weave-pitch" min="0.4" max="5.0" step="0.1" value="1.5" />
+                <span class="val" id="interleaved-weave-pitch-val">1.50</span>
+              </div>
+              <div class="form-row slider-row" style="margin-bottom:4px;">
+                <label for="interleaved-weave-amp" data-i18n="color.weaveAmp" title="正弦波の最大振れ幅（mm）。中間調での噛み合い深さを決めます。">波の振幅 (mm)</label>
+                <input type="range" id="interleaved-weave-amp" min="0.05" max="0.60" step="0.05" value="0.25" />
+                <span class="val" id="interleaved-weave-amp-val">0.25</span>
+              </div>
             </div>
 
             <div class="form-row" style="margin-bottom:8px;">

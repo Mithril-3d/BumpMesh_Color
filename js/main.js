@@ -21,6 +21,7 @@ import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
 import { initTextureGallery } from './textureGallery.js?v=20260929_130';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
 import { initTuringController } from './turingController.js?v=20261002_143';
+import { computeMeshCurvatureShading } from './meshCurvature.js?v=20261003_151';
 import {
   computeAutoFitDimensions,
   createCylinderGeometry,
@@ -498,6 +499,20 @@ const interleavedConvexAmpVal         = document.getElementById('interleaved-con
 const interleavedConcaveAmpSlider     = document.getElementById('interleaved-concave-amp');
 const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
 const interleavedProfileModeSelect    = document.getElementById('interleaved-profile-mode');
+const interleavedWeaveContainer       = document.getElementById('interleaved-weave-container');
+const interleavedWeavePitchSlider     = document.getElementById('interleaved-weave-pitch');
+const interleavedWeavePitchVal        = document.getElementById('interleaved-weave-pitch-val');
+const interleavedWeaveAmpSlider       = document.getElementById('interleaved-weave-amp');
+const interleavedWeaveAmpVal          = document.getElementById('interleaved-weave-amp-val');
+const shadingSourceSelect             = document.getElementById('shading-source-select');
+const curvatureOptionsContainer       = document.getElementById('curvature-options-container');
+const curvatureScaleSlider            = document.getElementById('curvature-scale');
+const curvatureScaleVal               = document.getElementById('curvature-scale-val');
+const curvatureBiasSlider             = document.getElementById('curvature-bias');
+const curvatureBiasVal                = document.getElementById('curvature-bias-val');
+const curvatureSmoothSlider           = document.getElementById('curvature-smooth');
+const curvatureSmoothVal              = document.getElementById('curvature-smooth-val');
+const curvatureInvertChk              = document.getElementById('curvature-invert');
 const interleavedShadingModeSelect    = document.getElementById('interleaved-shading-mode');
 const interleavedGammaRow             = document.getElementById('interleaved-gamma-row');
 const interleavedGammaSlider          = document.getElementById('interleaved-gamma');
@@ -510,15 +525,23 @@ let currentColorPalette          = [];
 let _userAssignedToolIds         = [1, 2, 3, 4, 5, 6, 7, 8];
 let currentQuantizedResult       = null;
 let _quantizedTextureCache       = null;
+let currentCurvatureResult       = null;
 let currentColorSubMode          = 0; // 0 = Quantize, 1 = Interleaved Layer Blending
 let interleavedSettings          = {
   layerThickness: 0.20,
   convexAmp: 0.35,
   concaveAmp: 0.00,
-  profileMode: 0, // 0 = Flat step (recommended), 1 = 45° Louver
+  profileMode: 0, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave
+  weavePitch: 1.50, // mm
+  weaveAmp: 0.25,   // mm
   shadingMode: 1, // 0 = Step (discrete), 1 = Gradient (continuous)
   gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
-  exclusionMode: 0 // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
+  exclusionMode: 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
+  shadingSource: 'texture', // 'texture' or 'curvature'
+  curvatureScale: 1.0,
+  curvatureBias: 0.50,
+  curvatureSmooth: 2,
+  curvatureInvert: false,
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -1763,8 +1786,9 @@ function renderInterleavedUI() {
     const maxZ = currentBounds ? currentBounds.max.z : 20;
     const { totalLayers } = generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette);
     const isLouver = (interleavedSettings.profileMode === 1);
+    const isWeave = (interleavedSettings.profileMode === 2);
     const isGradient = (interleavedSettings.shadingMode === 1);
-    const profileStr = isLouver ? t('color.profileLouver') : t('color.profileStep');
+    const profileStr = isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep'));
     const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
     interleavedInfoText.textContent = `• ピッチ: ${thickness.toFixed(2)}mm (${totalLayers}層) • 断面: ${profileStr} • 階調: ${shadingStr}`;
   }
@@ -1774,14 +1798,42 @@ function renderInterleavedUI() {
   settings.interleavedConvex      = interleavedSettings.convexAmp;
   settings.interleavedConcave     = interleavedSettings.concaveAmp;
   settings.interleavedProfileMode = interleavedSettings.profileMode;
+  settings.interleavedWeavePitch  = interleavedSettings.weavePitch ?? 1.50;
+  settings.interleavedWeaveAmp    = interleavedSettings.weaveAmp ?? 0.25;
   settings.interleavedShadingMode = interleavedSettings.shadingMode;
   settings.interleavedGamma       = interleavedSettings.gamma ?? 1.0;
   settings.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
   settings.interleavedToolIds     = toolIds;
   settings.colorSubMode           = currentColorSubMode;
+  settings.shadingSource          = interleavedSettings.shadingSource ?? 'texture';
+  settings.curvatureScale         = interleavedSettings.curvatureScale ?? 1.0;
+  settings.curvatureBias          = interleavedSettings.curvatureBias ?? 0.50;
+  settings.curvatureSmooth        = interleavedSettings.curvatureSmooth ?? 2;
+  settings.curvatureInvert        = !!interleavedSettings.curvatureInvert;
+  if (currentCurvatureResult && interleavedSettings.shadingSource === 'curvature') {
+    settings.curvatureLuminance   = currentCurvatureResult.uniqueLuminance;
+  } else {
+    settings.curvatureLuminance   = null;
+  }
 
   if (interleavedExclusionModeSelect) {
     interleavedExclusionModeSelect.value = String(interleavedSettings.exclusionMode ?? 0);
+  }
+
+  if (interleavedProfileModeSelect) {
+    interleavedProfileModeSelect.value = String(interleavedSettings.profileMode ?? 0);
+  }
+
+  if (interleavedWeaveContainer) {
+    interleavedWeaveContainer.classList.toggle('hidden', interleavedSettings.profileMode !== 2);
+  }
+
+  if (shadingSourceSelect) {
+    shadingSourceSelect.value = interleavedSettings.shadingSource ?? 'texture';
+  }
+
+  if (curvatureOptionsContainer) {
+    curvatureOptionsContainer.classList.toggle('hidden', interleavedSettings.shadingSource !== 'curvature');
   }
 
   if (interleavedGammaRow) {
@@ -1810,6 +1862,27 @@ function switchColorSubMode(subMode, triggerUpdate = true) {
   }
   if (triggerUpdate) {
     updatePreview();
+  }
+}
+
+function triggerCurvatureUpdate() {
+  if (interleavedSettings.shadingSource !== 'curvature') return;
+  const mesh = getCurrentMesh();
+  const geom = mesh?.geometry;
+  if (!geom) return;
+
+  try {
+    currentCurvatureResult = computeMeshCurvatureShading(geom, {
+      scale: interleavedSettings.curvatureScale,
+      bias: interleavedSettings.curvatureBias,
+      smoothSteps: interleavedSettings.curvatureSmooth,
+      invert: interleavedSettings.curvatureInvert,
+    });
+    if (currentCurvatureResult) {
+      settings.curvatureLuminance = currentCurvatureResult.uniqueLuminance;
+    }
+  } catch (err) {
+    console.warn('[Curvature] Failed to compute mesh curvature shading:', err);
   }
 }
 
@@ -1864,6 +1937,79 @@ function initInterleavedEvents() {
     interleavedShadingModeSelect.addEventListener('change', (e) => {
       const parsed = parseInt(e.target.value, 10);
       interleavedSettings.shadingMode = isNaN(parsed) ? 0 : parsed;
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedWeavePitchSlider) {
+    interleavedWeavePitchSlider.addEventListener('input', (e) => {
+      const parsed = parseFloat(e.target.value);
+      const v = isNaN(parsed) ? 1.50 : parsed;
+      interleavedSettings.weavePitch = v;
+      if (interleavedWeavePitchVal) interleavedWeavePitchVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedWeaveAmpSlider) {
+    interleavedWeaveAmpSlider.addEventListener('input', (e) => {
+      const parsed = parseFloat(e.target.value);
+      const v = isNaN(parsed) ? 0.25 : parsed;
+      interleavedSettings.weaveAmp = v;
+      if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (shadingSourceSelect) {
+    shadingSourceSelect.addEventListener('change', (e) => {
+      interleavedSettings.shadingSource = e.target.value;
+      triggerCurvatureUpdate();
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (curvatureScaleSlider) {
+    curvatureScaleSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 1.0;
+      interleavedSettings.curvatureScale = v;
+      if (curvatureScaleVal) curvatureScaleVal.textContent = v.toFixed(1);
+      triggerCurvatureUpdate();
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (curvatureBiasSlider) {
+    curvatureBiasSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 0.5;
+      interleavedSettings.curvatureBias = v;
+      if (curvatureBiasVal) curvatureBiasVal.textContent = v.toFixed(2);
+      triggerCurvatureUpdate();
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (curvatureSmoothSlider) {
+    curvatureSmoothSlider.addEventListener('input', (e) => {
+      const v = parseInt(e.target.value, 10) || 0;
+      interleavedSettings.curvatureSmooth = v;
+      if (curvatureSmoothVal) curvatureSmoothVal.textContent = String(v);
+      triggerCurvatureUpdate();
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (curvatureInvertChk) {
+    curvatureInvertChk.addEventListener('change', (e) => {
+      interleavedSettings.curvatureInvert = !!e.target.checked;
+      triggerCurvatureUpdate();
       renderInterleavedUI();
       updatePreview();
     });
@@ -5224,6 +5370,8 @@ function getFullPreviewSettings() {
     interleavedConvex: interleavedSettings.convexAmp ?? 0.35,
     interleavedConcave: interleavedSettings.concaveAmp ?? 0.00,
     interleavedProfileMode: interleavedSettings.profileMode ?? 0,
+    interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.50,
+    interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.25,
     interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
     interleavedGamma: interleavedSettings.gamma ?? 1.0,
     interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
@@ -5950,9 +6098,17 @@ async function handleExport(format = 'stl') {
       interleavedConvex: isLayerBlendMode ? 0.0 : (interleavedSettings.convexAmp ?? 0.35),
       interleavedConcave: isLayerBlendMode ? 0.0 : (interleavedSettings.concaveAmp ?? 0.00),
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
+      interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.50,
+      interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.25,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedGamma: interleavedSettings.gamma ?? 1.0,
       interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
+      shadingSource: interleavedSettings.shadingSource ?? 'texture',
+      curvatureScale: interleavedSettings.curvatureScale ?? 1.0,
+      curvatureBias: interleavedSettings.curvatureBias ?? 0.50,
+      curvatureSmooth: interleavedSettings.curvatureSmooth ?? 2,
+      curvatureInvert: !!interleavedSettings.curvatureInvert,
+      curvatureLuminance: (currentCurvatureResult && interleavedSettings.shadingSource === 'curvature') ? currentCurvatureResult.uniqueLuminance : null,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
       // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
       // so we receive a pristine subdivided base mesh, then slice & displace strictly per layer.
@@ -6045,6 +6201,31 @@ async function handleExport(format = 'stl') {
         const _sampleTmpP = new THREE.Vector3();
         const _sampleTmpN = new THREE.Vector3();
         const sampleFn = (x, y, z, nx, ny, nz) => {
+          if (effectiveSettings.shadingSource === 'curvature' && currentCurvatureResult) {
+            let lum = 0.5;
+            const uPos = currentCurvatureResult.uniquePositions;
+            const uLum = currentCurvatureResult.uniqueLuminance;
+            const uCount = currentCurvatureResult.uniqueCount;
+            if (uPos && uLum && uCount > 0) {
+              let bestDistSq = 1e9;
+              let bestIdx = 0;
+              const stride = Math.max(1, Math.floor(uCount / 1000));
+              for (let i = 0; i < uCount; i += stride) {
+                const dx = uPos[i * 3] - x;
+                const dy = uPos[i * 3 + 1] - y;
+                const dz = uPos[i * 3 + 2] - z;
+                const dSq = dx * dx + dy * dy + dz * dz;
+                if (dSq < bestDistSq) {
+                  bestDistSq = dSq;
+                  bestIdx = i;
+                }
+              }
+              lum = uLum[bestIdx] ?? 0.5;
+            }
+            const targetTool = (lum >= 0.5) ? toolIds[0] : (toolIds[1] ?? toolIds[0]);
+            return { targetTool, blendWeight: lum, multiColorInfo: null };
+          }
+
           _sampleTmpP.set(x + currentPoseTrans.x, y + currentPoseTrans.y, z + originMinZ + currentPoseTrans.z);
           _sampleTmpN.set(nx, ny, nz);
           const uvResult = computeUV(_sampleTmpP, _sampleTmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds);
@@ -6082,6 +6263,13 @@ async function handleExport(format = 'stl') {
 
         const exclusionMode = effectiveSettings.interleavedExclusionMode ?? interleavedSettings.exclusionMode ?? 0;
 
+        const weaveParams = (effectiveSettings.interleavedProfileMode === 2) ? {
+          cx: currentBounds ? currentBounds.center.x : 0,
+          cy: currentBounds ? currentBounds.center.y : 0,
+          pitch: effectiveSettings.interleavedWeavePitch ?? 1.50,
+          amp: effectiveSettings.interleavedWeaveAmp ?? 0.25
+        } : null;
+
         const aligned = applyLayerAlignedDisplacement(
           sliced,
           groundedMinZ + cutOffset,
@@ -6093,7 +6281,8 @@ async function handleExport(format = 'stl') {
           effectiveSettings.interleavedShadingMode,
           sampleFn,
           untexturedTool,
-          exclusionMode
+          exclusionMode,
+          weaveParams
         );
 
         finalGeometry = new THREE.BufferGeometry();
@@ -6744,8 +6933,15 @@ function getSettingsSnapshot() {
   snap.interleavedConvex      = interleavedSettings.convexAmp;
   snap.interleavedConcave     = interleavedSettings.concaveAmp;
   snap.interleavedProfileMode = interleavedSettings.profileMode;
+  snap.interleavedWeavePitch  = interleavedSettings.weavePitch;
+  snap.interleavedWeaveAmp    = interleavedSettings.weaveAmp;
   snap.interleavedShadingMode = interleavedSettings.shadingMode;
   snap.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
+  snap.shadingSource          = interleavedSettings.shadingSource;
+  snap.curvatureScale         = interleavedSettings.curvatureScale;
+  snap.curvatureBias          = interleavedSettings.curvatureBias;
+  snap.curvatureSmooth        = interleavedSettings.curvatureSmooth;
+  snap.curvatureInvert        = interleavedSettings.curvatureInvert;
 
   // Model Scale state
   snap.modelScale   = { x: _modelScale.x, y: _modelScale.y, z: _modelScale.z };
@@ -6960,6 +7156,52 @@ function applySettingsSnapshot(snap) {
   if (snap.interleavedExclusionMode != null) {
     interleavedSettings.exclusionMode = snap.interleavedExclusionMode;
     if (interleavedExclusionModeSelect) interleavedExclusionModeSelect.value = String(snap.interleavedExclusionMode);
+  }
+  if (snap.interleavedWeavePitch != null) {
+    interleavedSettings.weavePitch = snap.interleavedWeavePitch;
+    if (interleavedWeavePitchSlider) {
+      interleavedWeavePitchSlider.value = snap.interleavedWeavePitch;
+      if (interleavedWeavePitchVal) interleavedWeavePitchVal.textContent = snap.interleavedWeavePitch.toFixed(2);
+    }
+  }
+  if (snap.interleavedWeaveAmp != null) {
+    interleavedSettings.weaveAmp = snap.interleavedWeaveAmp;
+    if (interleavedWeaveAmpSlider) {
+      interleavedWeaveAmpSlider.value = snap.interleavedWeaveAmp;
+      if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = snap.interleavedWeaveAmp.toFixed(2);
+    }
+  }
+  if (snap.shadingSource != null) {
+    interleavedSettings.shadingSource = snap.shadingSource;
+    if (shadingSourceSelect) shadingSourceSelect.value = snap.shadingSource;
+  }
+  if (snap.curvatureScale != null) {
+    interleavedSettings.curvatureScale = snap.curvatureScale;
+    if (curvatureScaleSlider) {
+      curvatureScaleSlider.value = snap.curvatureScale;
+      if (curvatureScaleVal) curvatureScaleVal.textContent = snap.curvatureScale.toFixed(1);
+    }
+  }
+  if (snap.curvatureBias != null) {
+    interleavedSettings.curvatureBias = snap.curvatureBias;
+    if (curvatureBiasSlider) {
+      curvatureBiasSlider.value = snap.curvatureBias;
+      if (curvatureBiasVal) curvatureBiasVal.textContent = snap.curvatureBias.toFixed(2);
+    }
+  }
+  if (snap.curvatureSmooth != null) {
+    interleavedSettings.curvatureSmooth = snap.curvatureSmooth;
+    if (curvatureSmoothSlider) {
+      curvatureSmoothSlider.value = snap.curvatureSmooth;
+      if (curvatureSmoothVal) curvatureSmoothVal.textContent = String(snap.curvatureSmooth);
+    }
+  }
+  if (snap.curvatureInvert != null) {
+    interleavedSettings.curvatureInvert = Boolean(snap.curvatureInvert);
+    if (curvatureInvertChk) curvatureInvertChk.checked = interleavedSettings.curvatureInvert;
+  }
+  if (interleavedSettings.shadingSource === 'curvature') {
+    triggerCurvatureUpdate();
   }
   if (typeof renderInterleavedUI === 'function') renderInterleavedUI();
 

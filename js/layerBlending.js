@@ -158,10 +158,11 @@ export function computeMultiColorBlend(rgb, palette) {
  * @param {Array<number>} toolIds - list of participating tool IDs
  * @param {number} convexAmp - maximum protrusion (mm, e.g. 0.35)
  * @param {number} concaveAmp - retraction for non-matching (mm, e.g. 0.0)
- * @param {number} profileMode - 0 = Flat, 1 = Louver 45°
+ * @param {number} profileMode - 0 = Flat, 1 = Louver 45°, 2 = Sinusoidal Weave (Halftone)
  * @param {number} blendWeight - 0.0..1.0 ratio (1.0 = 100% Tool 1, 0.0 = 100% Tool 2)
  * @param {number} shadingMode - 0 = Step (discrete), 1 = Gradient (continuous)
  * @param {object} [multiColorInfo] - optional { toolA, toolB, t } from computeMultiColorBlend
+ * @param {object} [weaveOptions] - optional { x, y, cx, cy, pitch, amp, phaseOffset }
  * @returns {number} displacement (mm)
  */
 export function computeLouverDisplacement(
@@ -175,7 +176,8 @@ export function computeLouverDisplacement(
   profileMode = 0,
   blendWeight = 1.0,
   shadingMode = 1,
-  multiColorInfo = null
+  multiColorInfo = null,
+  weaveOptions = null
 ) {
   const t = Math.max(0.01, thickness);
   const zRel = Math.max(0, z - minZ);
@@ -187,6 +189,22 @@ export function computeLouverDisplacement(
     const isMatch = (activeTool === targetToolId);
     if (profileMode === 0 || !isMatch) {
       return isMatch ? convexAmp : -concaveAmp;
+    }
+    if (profileMode === 2 && weaveOptions) {
+      const pitch = Math.max(0.2, weaveOptions.pitch ?? 1.5);
+      const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.25);
+      const cx = weaveOptions.cx ?? 0;
+      const cy = weaveOptions.cy ?? 0;
+      const px = weaveOptions.x ?? 0;
+      const py = weaveOptions.y ?? 0;
+      const dx = px - cx, dy = py - cy;
+      const r = Math.hypot(dx, dy);
+      const theta = Math.atan2(dy, dx);
+      const arc = r * theta;
+      const k = (2.0 * Math.PI) / pitch;
+      const layerPhase = (layerIdx % 2) * Math.PI;
+      const W = Math.sin(k * arc + layerPhase);
+      return isMatch ? (convexAmp + waveAmp * W) : -concaveAmp;
     }
     const zFrac = Math.max(0, Math.min(1, (zRel - layerIdx * t) / t));
     const slope = Math.min(convexAmp, t);
@@ -220,6 +238,29 @@ export function computeLouverDisplacement(
 
   if (ratio <= 0.0) {
     return -concaveAmp;
+  }
+
+  // ProfileMode 2: Sinusoidal Weave (Halftone Interlocking)
+  if (profileMode === 2) {
+    const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.5);
+    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.25);
+    const cx = weaveOptions?.cx ?? 0;
+    const cy = weaveOptions?.cy ?? 0;
+    const px = weaveOptions?.x ?? 0;
+    const py = weaveOptions?.y ?? 0;
+
+    const dx = px - cx, dy = py - cy;
+    const r = Math.hypot(dx, dy);
+    const theta = Math.atan2(dy, dx);
+    const arc = r * theta;
+    const k = (2.0 * Math.PI) / pitch;
+    const layerPhase = (layerIdx % 2) * Math.PI;
+    const W = Math.sin(k * arc + layerPhase);
+
+    // Continuous exposure: base offset moves from -concaveAmp to +convexAmp
+    const dcOffset = -concaveAmp + (convexAmp + concaveAmp) * ratio;
+    // Modulate wave height with ratio so wave fades smoothly into extremes
+    return dcOffset + waveAmp * W * ratio;
   }
 
   const effAmp = convexAmp * ratio;

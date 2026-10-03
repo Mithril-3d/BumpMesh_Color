@@ -520,16 +520,27 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const toolIds = settings.interleavedToolIds || (palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
       const convexVal = settings.interleavedConvex ?? 0.35;
       const concaveVal = settings.interleavedConcave ?? 0.00;
-      const profileMode = settings.interleavedProfileMode ?? 0; // 0 = Flat step (recommended), 1 = 45° Louver
+      const profileMode = settings.interleavedProfileMode ?? 0; // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave
       const shadingMode = settings.interleavedShadingMode ?? 1; // 0 = Step, 1 = Gradient
 
       let multiColorInfo = null;
       let blendWeight = 1.0;
-      if (shadingMode === 1 && palette.length >= 2) {
+      if (settings.shadingSource === 'curvature' && settings.curvatureLuminance) {
+        blendWeight = settings.curvatureLuminance[vid] ?? 0.5;
+      } else if (shadingMode === 1 && palette.length >= 2) {
         const rgb = sampleRGBBilinear(imageData.data, imgWidth, imgHeight, u, v);
         multiColorInfo = computeMultiColorBlend(rgb, palette);
         blendWeight = multiColorInfo.t;
       }
+
+      const weaveOptions = {
+        x: tmpPos.x,
+        y: tmpPos.y,
+        cx: bounds ? bounds.center.x : 0,
+        cy: bounds ? bounds.center.y : 0,
+        pitch: settings.weavePitch ?? 1.5,
+        amp: settings.weaveAmp ?? 0.25
+      };
 
       dispCacheVal[vid] = computeLouverDisplacement(
         targetTool,
@@ -542,11 +553,14 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
         profileMode,
         blendWeight,
         shadingMode,
-        multiColorInfo
+        multiColorInfo,
+        weaveOptions
       );
     } else {
       let grey;
-      if (uvResult.triplanar) {
+      if (settings.shadingSource === 'curvature' && settings.curvatureLuminance) {
+        grey = settings.curvatureLuminance[vid] ?? 0.5;
+      } else if (uvResult.triplanar) {
         grey = 0;
         for (const s of uvResult.samples) {
           grey += sampleBilinear(imageData.data, imgWidth, imgHeight, s.u, s.v) * s.w;

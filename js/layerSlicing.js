@@ -325,13 +325,30 @@ function computeLayerDisplacementByLayer(
   profileMode,
   blendWeight,
   shadingMode,
-  multiColorInfo = null
+  multiColorInfo = null,
+  weaveOptions = null
 ) {
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
     const isMatch = (activeTool === targetToolId);
     if (profileMode === 0 || !isMatch) {
       return isMatch ? convexVal : -concaveVal;
+    }
+    if (profileMode === 2 && weaveOptions) {
+      const pitch = Math.max(0.2, weaveOptions.pitch ?? 1.5);
+      const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.25);
+      const cx = weaveOptions.cx ?? 0;
+      const cy = weaveOptions.cy ?? 0;
+      const px = weaveOptions.x ?? 0;
+      const py = weaveOptions.y ?? 0;
+      const dx = px - cx, dy = py - cy;
+      const r = Math.hypot(dx, dy);
+      const theta = Math.atan2(dy, dx);
+      const arc = r * theta;
+      const k = (2.0 * Math.PI) / pitch;
+      const layerPhase = (lay % 2) * Math.PI;
+      const W = Math.sin(k * arc + layerPhase);
+      return isMatch ? (convexVal + waveAmp * W) : -concaveVal;
     }
     const zFrac = Math.max(0, Math.min(1, (z - (minZ + lay * t)) / t));
     const slope = Math.min(convexVal, t);
@@ -365,6 +382,27 @@ function computeLayerDisplacementByLayer(
 
   if (ratio <= 0.0) {
     return -concaveVal;
+  }
+
+  // ProfileMode 2: Sinusoidal Weave (Halftone Interlocking)
+  if (profileMode === 2) {
+    const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.5);
+    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.25);
+    const cx = weaveOptions?.cx ?? 0;
+    const cy = weaveOptions?.cy ?? 0;
+    const px = weaveOptions?.x ?? 0;
+    const py = weaveOptions?.y ?? 0;
+
+    const dx = px - cx, dy = py - cy;
+    const r = Math.hypot(dx, dy);
+    const theta = Math.atan2(dy, dx);
+    const arc = r * theta;
+    const k = (2.0 * Math.PI) / pitch;
+    const layerPhase = (lay % 2) * Math.PI;
+    const W = Math.sin(k * arc + layerPhase);
+
+    const dcOffset = -concaveVal + (convexVal + concaveVal) * ratio;
+    return dcOffset + waveAmp * W * ratio;
   }
 
   let effAmp = convexVal * ratio;
@@ -404,7 +442,8 @@ export function applyLayerAlignedDisplacement(
   shadingMode,
   sampleFn, // (x, y, z, nx, ny, nz) => { targetTool, blendWeight }
   untexturedTool = 1,
-  exclusionMode = 0 // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
+  exclusionMode = 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
+  weaveParams = null
 ) {
   const { positions: inPos, normals: inNrm, layers: inLay, triExcluded, vertExcluded, cutEdgesPerCut, uniqueVerts, uniqueNorms, zCuts } = sliced;
   const triCount = inLay.length;
@@ -457,8 +496,11 @@ export function applyLayerAlignedDisplacement(
     z,
     isExcl,
     exclMode,
-    multiColorInfo = null
+    multiColorInfo = null,
+    x = 0,
+    y = 0
   ) {
+    const weaveOptions = weaveParams ? { ...weaveParams, x, y } : { x, y };
     if (isExcl) {
       if (exclMode === 1) {
         // Mode 2: OFF, ON - 指定ツールが出っ張り交互積層
@@ -475,7 +517,8 @@ export function applyLayerAlignedDisplacement(
           profileMode,
           1.0,
           0,
-          null
+          null,
+          weaveOptions
         );
       } else if (exclMode === 2) {
         // Mode 3: ON, OFF - 凹凸維持、ペイント解除（指定ツール単色立体レリーフ）
@@ -492,7 +535,8 @@ export function applyLayerAlignedDisplacement(
           profileMode,
           blendWeight,
           shadingMode,
-          multiColorInfo
+          multiColorInfo,
+          weaveOptions
         );
       } else {
         // Mode 1 (exclMode 0): OFF, OFF - 完全フラット
@@ -515,7 +559,8 @@ export function applyLayerAlignedDisplacement(
       profileMode,
       blendWeight,
       shadingMode,
-      multiColorInfo
+      multiColorInfo,
+      weaveOptions
     );
   }
 
@@ -592,7 +637,9 @@ export function applyLayerAlignedDisplacement(
           z,
           isExcluded,
           exclusionMode,
-          multiColorInfo
+          multiColorInfo,
+          x,
+          y
         );
         disp *= layerFade;
 
