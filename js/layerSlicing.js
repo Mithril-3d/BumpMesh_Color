@@ -331,11 +331,11 @@ function computeLayerDisplacementByLayer(
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
     const isMatch = (activeTool === targetToolId);
-    if ((profileMode !== 2 && profileMode !== 3) || !isMatch) {
+    if ((profileMode !== 2 && profileMode !== 3 && profileMode !== 4) || !isMatch) {
       return isMatch ? convexVal : -concaveVal;
     }
-    if ((profileMode === 2 || profileMode === 3) && weaveOptions) {
-      const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.20);
+    if ((profileMode === 2 || profileMode === 3 || profileMode === 4) && weaveOptions) {
+      const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.60);
       const cx = weaveOptions.cx ?? 0;
       const cy = weaveOptions.cy ?? 0;
       const px = weaveOptions.x ?? 0;
@@ -345,9 +345,17 @@ function computeLayerDisplacementByLayer(
       const waveCount = weaveOptions.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions.pitch ?? 1.6)));
       const layerPhase = (lay % 2) * Math.PI;
       const phi = waveCount * theta + layerPhase;
+      const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
       let W;
-      if (profileMode === 3) {
-        const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
+      if (profileMode === 4) {
+        // 🧱 Block Pulse (Trapezoidal Rectangular Wave)
+        const edge = 0.05;
+        if (u < edge) W = -1.0 + 2.0 * (u / edge);
+        else if (u < 0.5 - edge) W = 1.0;
+        else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
+        else if (u < 1.0 - edge) W = -1.0;
+        else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+      } else if (profileMode === 3) {
         W = 1.0 - 4.0 * Math.abs(u - 0.5);
       } else {
         W = Math.sin(phi);
@@ -360,9 +368,9 @@ function computeLayerDisplacementByLayer(
     return base + zFrac * slope;
   }
 
-  // ProfileMode 2 (Sinusoidal Weave) & ProfileMode 3 (Zigzag / Triangle Weave)
-  if (profileMode === 2 || profileMode === 3) {
-    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.20);
+  // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
+  if (profileMode === 2 || profileMode === 3 || profileMode === 4) {
+    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.60);
     const cx = weaveOptions?.cx ?? 0;
     const cy = weaveOptions?.cy ?? 0;
     const px = weaveOptions?.x ?? 0;
@@ -372,11 +380,19 @@ function computeLayerDisplacementByLayer(
     const waveCount = weaveOptions?.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions?.pitch ?? 1.6)));
     const layerPhase = (lay % 2) * Math.PI;
     const phi = waveCount * theta + layerPhase;
+    const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
 
     let W;
-    if (profileMode === 3) {
+    if (profileMode === 4) {
+      // 🧱 Block Pulse (Trapezoidal Rectangular Wave)
+      const edge = 0.05;
+      if (u < edge) W = -1.0 + 2.0 * (u / edge);
+      else if (u < 0.5 - edge) W = 1.0;
+      else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
+      else if (u < 1.0 - edge) W = -1.0;
+      else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+    } else if (profileMode === 3) {
       // Triangle wave (Zigzag) normalized in [-1, 1]
-      const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
       W = 1.0 - 4.0 * Math.abs(u - 0.5);
     } else {
       // Sinusoidal wave

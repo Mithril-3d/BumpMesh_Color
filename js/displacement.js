@@ -520,7 +520,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       const toolIds = settings.interleavedToolIds || (palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
       const convexVal = settings.interleavedConvex ?? 0.35;
       const concaveVal = settings.interleavedConcave ?? 0.00;
-      const profileMode = settings.interleavedProfileMode ?? 0; // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave, 3 = Zigzag Weave
+      const profileMode = settings.interleavedProfileMode ?? 0; // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave, 3 = Zigzag Weave, 4 = Block Pulse
       const shadingMode = settings.interleavedShadingMode ?? 1; // 0 = Step, 1 = Gradient
 
       let multiColorInfo = null;

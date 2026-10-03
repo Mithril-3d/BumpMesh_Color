@@ -28,3 +28,11 @@
 - [x] 3Dビューでのリアルタイム三角波プレビュー動作確認 <!-- id: 10 -->
 - [x] 構文検証および整合性チェック <!-- id: 11 -->
 - [x] `docs/triangle_wave_interleaved_slicing/walkthrough.md` の作成 <!-- id: 12 -->
+
+## 6. ひぃちゃん方式（矩形ブロック編み重ね）の実装と振幅・突出量上限の大幅拡張
+- [x] スライダー上限・推奨値の引き上げ（凸量 最大3.0mm/推奨0.8〜1.2mm、振幅 最大2.5mm/推奨0.6〜1.0mm） <!-- id: 13 -->
+- [x] 「🧱 矩形ブロック編み重ね（台形ブロックパルス・ひぃちゃん方式）」プロファイル（Mode 4）の新設 <!-- id: 14 -->
+- [x] `js/layerBlending.js`, `js/layerSlicing.js`, `js/displacement.js` へのブロック波変位の反映 <!-- id: 15 -->
+- [x] `js/previewMaterial.js`（WebGLシェーダー）へのブロック波プレビュー描画追加 <!-- id: 16 -->
+- [x] `index.html`, `js/main.js`, 多言語辞書の更新 <!-- id: 17 -->
+- [/] Gitコミットおよび `feature/v1.5.1-halftone-weave` & `vercel` ブランチへのプッシュ・デプロイ <!-- id: 18 -->

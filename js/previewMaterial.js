@@ -183,16 +183,23 @@ const sharedGLSL = /* glsl */`
           tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
         }
 
-        // ProfileMode 2 (Sinusoidal Weave) & ProfileMode 3 (Zigzag / Triangle Weave)
-        if (interleavedProfileMode == 2 || interleavedProfileMode == 3) {
+        // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
+        if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
           float waveAmp = max(0.0, interleavedWeaveAmp);
           float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
           float waveCount = max(6.0, interleavedWaveCount);
           float layerPhase = mod(float(layerIdx), 2.0) * PI;
           float phi = waveCount * theta + layerPhase;
+          float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
           float W;
-          if (interleavedProfileMode == 3) {
-            float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
+          if (interleavedProfileMode == 4) {
+            float edge = 0.05;
+            if (u < edge) W = -1.0 + 2.0 * (u / edge);
+            else if (u < 0.5 - edge) W = 1.0;
+            else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
+            else if (u < 1.0 - edge) W = -1.0;
+            else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+          } else if (interleavedProfileMode == 3) {
             W = 1.0 - 4.0 * abs(u - 0.5);
           } else {
             W = sin(phi);
@@ -238,15 +245,22 @@ const sharedGLSL = /* glsl */`
           }
         }
         if (activeK == bestK) {
-          if (interleavedProfileMode == 2 || interleavedProfileMode == 3) {
+          if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
             float waveAmp = max(0.0, interleavedWeaveAmp);
             float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
             float waveCount = max(6.0, interleavedWaveCount);
             float layerPhase = mod(float(layerIdx), 2.0) * PI;
             float phi = waveCount * theta + layerPhase;
+            float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
             float W;
-            if (interleavedProfileMode == 3) {
-              float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
+            if (interleavedProfileMode == 4) {
+              float edge = 0.05;
+              if (u < edge) W = -1.0 + 2.0 * (u / edge);
+              else if (u < 0.5 - edge) W = 1.0;
+              else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
+              else if (u < 1.0 - edge) W = -1.0;
+              else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+            } else if (interleavedProfileMode == 3) {
               W = 1.0 - 4.0 * abs(u - 0.5);
             } else {
               W = sin(phi);
@@ -461,14 +475,21 @@ const sharedGLSL = /* glsl */`
       int layerIdx = int(floor(zRel / t));
       int activeK = int(mod(float(abs(layerIdx)), float(max(1, interleavedToolCount))));
 
-      if ((interleavedProfileMode == 2 || interleavedProfileMode == 3) && interleavedToolCount >= 2) {
+      if ((interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) && interleavedToolCount >= 2) {
         float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
         float waveCount = max(6.0, interleavedWaveCount);
         float layerPhase = mod(float(layerIdx), 2.0) * PI;
         float phi = waveCount * theta + layerPhase;
+        float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
         float W;
-        if (interleavedProfileMode == 3) {
-          float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
+        if (interleavedProfileMode == 4) {
+          float edge = 0.05;
+          if (u < edge) W = -1.0 + 2.0 * (u / edge);
+          else if (u < 0.5 - edge) W = 1.0;
+          else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
+          else if (u < 1.0 - edge) W = -1.0;
+          else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+        } else if (interleavedProfileMode == 3) {
           W = 1.0 - 4.0 * abs(u - 0.5);
         } else {
           W = sin(phi);

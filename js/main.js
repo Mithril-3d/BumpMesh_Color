@@ -536,12 +536,12 @@ let currentCurvatureResult       = null;
 let currentColorSubMode          = 0; // 0 = Quantize, 1 = Interleaved Layer Blending
 let interleavedSettings          = {
   layerThickness: 0.20,
-  convexAmp: 0.35,
+  convexAmp: 0.80,
   concaveAmp: 0.00,
-  profileMode: 0, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave
+  profileMode: 4, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave, 3 = Zigzag Weave, 4 = Block Pulse
   nozzleDiameter: 0.40, // mm
   weavePitch: 1.60, // mm (rec: nozzle * 4)
-  weaveAmp: 0.20,   // mm (rec: nozzle * 0.5)
+  weaveAmp: 0.60,   // mm (rec: nozzle * 1.5 for distinct beads)
   shadingMode: 1, // 0 = Step (discrete), 1 = Gradient (continuous)
   gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
   exclusionMode: 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
@@ -1797,8 +1797,9 @@ function renderInterleavedUI() {
     const isLouver = (interleavedSettings.profileMode === 1);
     const isWeave = (interleavedSettings.profileMode === 2);
     const isZigzag = (interleavedSettings.profileMode === 3);
+    const isBlock = (interleavedSettings.profileMode === 4);
     const isGradient = (interleavedSettings.shadingMode === 1);
-    const profileStr = isZigzag ? (t('color.profileZigzag') || '三角波編み重ね') : (isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep')));
+    const profileStr = isBlock ? (t('color.profileBlock') || '矩形ブロック編み重ね') : (isZigzag ? (t('color.profileZigzag') || '三角波編み重ね') : (isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep'))));
     const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
     interleavedInfoText.textContent = `• ピッチ: ${thickness.toFixed(2)}mm (${totalLayers}層) • 断面: ${profileStr} • 階調: ${shadingStr}`;
   }
@@ -1809,7 +1810,7 @@ function renderInterleavedUI() {
   settings.interleavedConcave     = interleavedSettings.concaveAmp;
   settings.interleavedProfileMode = interleavedSettings.profileMode;
   settings.interleavedWeavePitch  = interleavedSettings.weavePitch ?? 1.50;
-  settings.interleavedWeaveAmp    = interleavedSettings.weaveAmp ?? 0.25;
+  settings.interleavedWeaveAmp    = interleavedSettings.weaveAmp ?? 0.60;
   settings.interleavedShadingMode = interleavedSettings.shadingMode;
   settings.interleavedGamma       = interleavedSettings.gamma ?? 1.0;
   settings.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
@@ -1831,11 +1832,11 @@ function renderInterleavedUI() {
   }
 
   if (interleavedProfileModeSelect) {
-    interleavedProfileModeSelect.value = String(interleavedSettings.profileMode ?? 0);
+    interleavedProfileModeSelect.value = String(interleavedSettings.profileMode ?? 4);
   }
 
   if (interleavedWeaveContainer) {
-    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3);
+    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4);
     interleavedWeaveContainer.classList.toggle('hidden', !isWeaveMode);
     const nDia = interleavedSettings.nozzleDiameter || 0.40;
     const standardPresets = ['0.1', '0.2', '0.25', '0.4', '0.6', '0.8', '1.0', '1.2', '2.0'];
@@ -1849,11 +1850,11 @@ function renderInterleavedUI() {
       interleavedNozzleCustomInput.value = nDia.toFixed(2);
     }
     const recPitch = nDia * 4.0;
-    const recAmp = nDia * 0.50;
+    const recAmp = nDia * 1.50; // 0.4mm nozzle -> 0.60mm amplitude for distinct bead formation
     if (weavePitchRecBadge) weavePitchRecBadge.textContent = `推奨: ${recPitch.toFixed(2)}mm`;
     if (weaveAmpRecBadge) weaveAmpRecBadge.textContent = `推奨: ${recAmp.toFixed(2)}mm`;
     if (weaveAmpWarning) {
-      const isOver = ((interleavedSettings.weaveAmp ?? 0.20) > recAmp + 1e-4);
+      const isOver = ((interleavedSettings.weaveAmp ?? 0.60) > nDia * 3.0 + 1e-4);
       weaveAmpWarning.classList.toggle('hidden', !isOver);
     }
   }
@@ -6214,7 +6215,7 @@ async function handleExport(format = 'stl') {
     // (circumference / XY) detail. Enforce a safe refineLength lower bound (>= 1.0mm)
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
-    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3);
+    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4);
     const effectiveRefineLength = isWeaveMode
       ? Math.max(0.18, Math.min(settings.refineLength, (interleavedSettings.weavePitch || 1.6) / 4.0))
       : (isLayerBlendMode ? Math.max(settings.refineLength, 0.6) : settings.refineLength);
@@ -6424,7 +6425,7 @@ async function handleExport(format = 'stl') {
         const exclusionMode = effectiveSettings.interleavedExclusionMode ?? interleavedSettings.exclusionMode ?? 0;
 
         let weaveParams = null;
-        if (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3) {
+        if (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4) {
           const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
           const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
           const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;
