@@ -342,6 +342,8 @@ export default {
   "color.profileLouver": "45° ルーバー庇（他色シールド・実験的）",
   "color.profileWeave": "✨ 正弦波編み重ね（サイン波ハーフトーン・推奨）",
   "color.weaveSettings": "編み重ねハーフトーン設定",
+  "color.nozzleDiameter": "ノズル径 (mm)",
+  "color.nozzleCustom": "手動入力 (カスタム)",
   "color.weavePitch": "波長ピッチ (mm)",
   "color.weaveAmp": "波の振幅 (mm)",
   "color.shadingSource": "陰影ソース",

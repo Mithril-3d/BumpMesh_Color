@@ -500,6 +500,11 @@ const interleavedConcaveAmpSlider     = document.getElementById('interleaved-con
 const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
 const interleavedProfileModeSelect    = document.getElementById('interleaved-profile-mode');
 const interleavedWeaveContainer       = document.getElementById('interleaved-weave-container');
+const interleavedNozzlePresetSelect   = document.getElementById('interleaved-nozzle-preset');
+const interleavedNozzleCustomInput    = document.getElementById('interleaved-nozzle-custom');
+const weavePitchRecBadge              = document.getElementById('weave-pitch-rec');
+const weaveAmpRecBadge                = document.getElementById('weave-amp-rec');
+const weaveAmpWarning                 = document.getElementById('weave-amp-warning');
 const interleavedWeavePitchSlider     = document.getElementById('interleaved-weave-pitch');
 const interleavedWeavePitchVal        = document.getElementById('interleaved-weave-pitch-val');
 const interleavedWeaveAmpSlider       = document.getElementById('interleaved-weave-amp');
@@ -534,8 +539,9 @@ let interleavedSettings          = {
   convexAmp: 0.35,
   concaveAmp: 0.00,
   profileMode: 0, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave
-  weavePitch: 1.50, // mm
-  weaveAmp: 0.25,   // mm
+  nozzleDiameter: 0.40, // mm
+  weavePitch: 1.60, // mm (rec: nozzle * 4)
+  weaveAmp: 0.20,   // mm (rec: nozzle * 0.5)
   shadingMode: 1, // 0 = Step (discrete), 1 = Gradient (continuous)
   gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
   exclusionMode: 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
@@ -1829,6 +1835,25 @@ function renderInterleavedUI() {
 
   if (interleavedWeaveContainer) {
     interleavedWeaveContainer.classList.toggle('hidden', interleavedSettings.profileMode !== 2);
+    const nDia = interleavedSettings.nozzleDiameter || 0.40;
+    const standardPresets = ['0.1', '0.2', '0.25', '0.4', '0.6', '0.8', '1.0', '1.2', '2.0'];
+    const diaStr = String(nDia);
+    const isPreset = standardPresets.includes(diaStr);
+    if (interleavedNozzlePresetSelect) {
+      interleavedNozzlePresetSelect.value = isPreset ? diaStr : 'custom';
+    }
+    if (interleavedNozzleCustomInput) {
+      interleavedNozzleCustomInput.style.display = isPreset ? 'none' : 'inline-block';
+      interleavedNozzleCustomInput.value = nDia.toFixed(2);
+    }
+    const recPitch = nDia * 4.0;
+    const recAmp = nDia * 0.50;
+    if (weavePitchRecBadge) weavePitchRecBadge.textContent = `推奨: ${recPitch.toFixed(2)}mm`;
+    if (weaveAmpRecBadge) weaveAmpRecBadge.textContent = `推奨: ${recAmp.toFixed(2)}mm`;
+    if (weaveAmpWarning) {
+      const isOver = ((interleavedSettings.weaveAmp ?? 0.20) > recAmp + 1e-4);
+      weaveAmpWarning.classList.toggle('hidden', !isOver);
+    }
   }
 
   if (shadingSourceSelect) {
@@ -1884,6 +1909,10 @@ function triggerCurvatureUpdate() {
     });
     if (currentCurvatureResult) {
       settings.curvatureLuminance = currentCurvatureResult.uniqueLuminance;
+      if (geom.attributes && currentCurvatureResult.vertexLuminance) {
+        geom.setAttribute('curvatureAttr', new THREE.BufferAttribute(currentCurvatureResult.vertexLuminance, 1));
+        geom.attributes.curvatureAttr.needsUpdate = true;
+      }
     }
   } catch (err) {
     console.warn('[Curvature] Failed to compute mesh curvature shading:', err);
@@ -1946,10 +1975,72 @@ function initInterleavedEvents() {
     });
   }
 
+  if (interleavedNozzlePresetSelect) {
+    interleavedNozzlePresetSelect.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val === 'custom') {
+        if (interleavedNozzleCustomInput) {
+          interleavedNozzleCustomInput.style.display = 'inline-block';
+          interleavedNozzleCustomInput.focus();
+        }
+      } else {
+        if (interleavedNozzleCustomInput) interleavedNozzleCustomInput.style.display = 'none';
+        const dia = parseFloat(val) || 0.40;
+        interleavedSettings.nozzleDiameter = dia;
+        // Auto-update to recommended pitch & amplitude on preset change
+        const recPitch = Math.round(dia * 4.0 * 20) / 20; // 0.05 step
+        const recAmp = Math.round(dia * 0.50 * 50) / 50;  // 0.02 step
+        interleavedSettings.weavePitch = recPitch;
+        interleavedSettings.weaveAmp = recAmp;
+        if (interleavedWeavePitchSlider) interleavedWeavePitchSlider.value = recPitch;
+        if (interleavedWeavePitchVal) interleavedWeavePitchVal.textContent = recPitch.toFixed(2);
+        if (interleavedWeaveAmpSlider) interleavedWeaveAmpSlider.value = recAmp;
+        if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = recAmp.toFixed(2);
+        renderInterleavedUI();
+        updatePreview();
+      }
+    });
+  }
+
+  if (interleavedNozzleCustomInput) {
+    interleavedNozzleCustomInput.addEventListener('input', (e) => {
+      const dia = parseFloat(e.target.value);
+      if (!isNaN(dia) && dia > 0.02) {
+        interleavedSettings.nozzleDiameter = dia;
+        renderInterleavedUI();
+        updatePreview();
+      }
+    });
+  }
+
+  if (weavePitchRecBadge) {
+    weavePitchRecBadge.addEventListener('click', () => {
+      const dia = interleavedSettings.nozzleDiameter || 0.40;
+      const recPitch = Math.round(dia * 4.0 * 20) / 20;
+      interleavedSettings.weavePitch = recPitch;
+      if (interleavedWeavePitchSlider) interleavedWeavePitchSlider.value = recPitch;
+      if (interleavedWeavePitchVal) interleavedWeavePitchVal.textContent = recPitch.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (weaveAmpRecBadge) {
+    weaveAmpRecBadge.addEventListener('click', () => {
+      const dia = interleavedSettings.nozzleDiameter || 0.40;
+      const recAmp = Math.round(dia * 0.50 * 50) / 50;
+      interleavedSettings.weaveAmp = recAmp;
+      if (interleavedWeaveAmpSlider) interleavedWeaveAmpSlider.value = recAmp;
+      if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = recAmp.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
   if (interleavedWeavePitchSlider) {
     interleavedWeavePitchSlider.addEventListener('input', (e) => {
       const parsed = parseFloat(e.target.value);
-      const v = isNaN(parsed) ? 1.50 : parsed;
+      const v = isNaN(parsed) ? 1.60 : parsed;
       interleavedSettings.weavePitch = v;
       if (interleavedWeavePitchVal) interleavedWeavePitchVal.textContent = v.toFixed(2);
       renderInterleavedUI();
@@ -1960,7 +2051,7 @@ function initInterleavedEvents() {
   if (interleavedWeaveAmpSlider) {
     interleavedWeaveAmpSlider.addEventListener('input', (e) => {
       const parsed = parseFloat(e.target.value);
-      const v = isNaN(parsed) ? 0.25 : parsed;
+      const v = isNaN(parsed) ? 0.20 : parsed;
       interleavedSettings.weaveAmp = v;
       if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = v.toFixed(2);
       renderInterleavedUI();
@@ -6118,9 +6209,10 @@ async function handleExport(format = 'stl') {
     // (circumference / XY) detail. Enforce a safe refineLength lower bound (>= 1.0mm)
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
-    const effectiveRefineLength = isLayerBlendMode
-      ? Math.max(settings.refineLength, 0.6)
-      : settings.refineLength;
+    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2);
+    const effectiveRefineLength = isWeaveMode
+      ? Math.max(0.18, Math.min(settings.refineLength, (interleavedSettings.weavePitch || 1.6) / 5.0))
+      : (isLayerBlendMode ? Math.max(settings.refineLength, 0.6) : settings.refineLength);
 
     const effectiveSettings = {
       ...settings,
@@ -6131,8 +6223,9 @@ async function handleExport(format = 'stl') {
       interleavedConvex: isLayerBlendMode ? 0.0 : (interleavedSettings.convexAmp ?? 0.35),
       interleavedConcave: isLayerBlendMode ? 0.0 : (interleavedSettings.concaveAmp ?? 0.00),
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
-      interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.50,
-      interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.25,
+      interleavedNozzleDiameter: interleavedSettings.nozzleDiameter ?? 0.40,
+      interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.60,
+      interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.20,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedGamma: interleavedSettings.gamma ?? 1.0,
       interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
@@ -6219,8 +6312,26 @@ async function handleExport(format = 'stl') {
         if (exportToken !== myToken) return;
 
         // 4. Sample texture and apply layer-aligned displacement:
-        // Every layer receives exact, uniform displacement for its active tool,
-        // completely eliminating periodic long/short moiré artifacts and residual micro-roughness.
+        // Build 3D spatial hash grid for instantaneous, 100% exact curvature lookup
+        let curvatureGrid = null;
+        if (effectiveSettings.shadingSource === 'curvature' && currentCurvatureResult) {
+          const uPos = currentCurvatureResult.uniquePositions;
+          const uLum = currentCurvatureResult.uniqueLuminance;
+          const uCount = currentCurvatureResult.uniqueCount;
+          const CELL = 2.0;
+          const gMap = new Map();
+          for (let i = 0; i < uCount; i++) {
+            const gx = Math.floor(uPos[i * 3] / CELL);
+            const gy = Math.floor(uPos[i * 3 + 1] / CELL);
+            const gz = Math.floor(uPos[i * 3 + 2] / CELL);
+            const k = `${gx},${gy},${gz}`;
+            let list = gMap.get(k);
+            if (!list) { list = []; gMap.set(k, list); }
+            list.push(i);
+          }
+          curvatureGrid = { gMap, uPos, uLum, CELL };
+        }
+
         const exportPalette = currentColorPalette || [];
         const toolIds = exportPalette && exportPalette.length > 0
           ? exportPalette.map(p => p.toolId)
@@ -6234,27 +6345,38 @@ async function handleExport(format = 'stl') {
         const _sampleTmpP = new THREE.Vector3();
         const _sampleTmpN = new THREE.Vector3();
         const sampleFn = (x, y, z, nx, ny, nz) => {
-          if (effectiveSettings.shadingSource === 'curvature' && currentCurvatureResult) {
-            let lum = 0.5;
-            const uPos = currentCurvatureResult.uniquePositions;
-            const uLum = currentCurvatureResult.uniqueLuminance;
-            const uCount = currentCurvatureResult.uniqueCount;
-            if (uPos && uLum && uCount > 0) {
-              let bestDistSq = 1e9;
-              let bestIdx = 0;
-              const stride = Math.max(1, Math.floor(uCount / 1000));
-              for (let i = 0; i < uCount; i += stride) {
-                const dx = uPos[i * 3] - x;
-                const dy = uPos[i * 3 + 1] - y;
-                const dz = uPos[i * 3 + 2] - z;
-                const dSq = dx * dx + dy * dy + dz * dz;
-                if (dSq < bestDistSq) {
-                  bestDistSq = dSq;
-                  bestIdx = i;
+          if (curvatureGrid) {
+            const { gMap, uPos, uLum, CELL } = curvatureGrid;
+            // Map sliced vertex coordinates back to working space where curvature was computed
+            const wx = x + currentPoseTrans.x;
+            const wy = y + currentPoseTrans.y;
+            const wz = z + originMinZ + currentPoseTrans.z;
+            const gx = Math.floor(wx / CELL);
+            const gy = Math.floor(wy / CELL);
+            const gz = Math.floor(wz / CELL);
+
+            let bestDistSq = 1e9;
+            let bestIdx = 0;
+            for (let dx = -1; dx <= 1; dx++) {
+              for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                  const list = gMap.get(`${gx + dx},${gy + dy},${gz + dz}`);
+                  if (!list) continue;
+                  for (let k = 0; k < list.length; k++) {
+                    const idx = list[k];
+                    const ex = uPos[idx * 3] - wx;
+                    const ey = uPos[idx * 3 + 1] - wy;
+                    const ez = uPos[idx * 3 + 2] - wz;
+                    const dSq = ex * ex + ey * ey + ez * ez;
+                    if (dSq < bestDistSq) {
+                      bestDistSq = dSq;
+                      bestIdx = idx;
+                    }
+                  }
                 }
               }
-              lum = uLum[bestIdx] ?? 0.5;
             }
+            const lum = uLum[bestIdx] ?? 0.5;
             const targetTool = (lum >= 0.5) ? toolIds[0] : (toolIds[1] ?? toolIds[0]);
             return { targetTool, blendWeight: lum, multiColorInfo: null };
           }
@@ -6296,12 +6418,23 @@ async function handleExport(format = 'stl') {
 
         const exclusionMode = effectiveSettings.interleavedExclusionMode ?? interleavedSettings.exclusionMode ?? 0;
 
-        const weaveParams = (effectiveSettings.interleavedProfileMode === 2) ? {
-          cx: currentBounds ? currentBounds.center.x : 0,
-          cy: currentBounds ? currentBounds.center.y : 0,
-          pitch: effectiveSettings.interleavedWeavePitch ?? 1.50,
-          amp: effectiveSettings.interleavedWeaveAmp ?? 0.25
-        } : null;
+        let weaveParams = null;
+        if (effectiveSettings.interleavedProfileMode === 2) {
+          const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
+          const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
+          const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;
+          const sy = currentBounds ? (currentBounds.max.y - currentBounds.min.y) : 40;
+          const rAvg = Math.max(1.0, (sx + sy) * 0.25);
+          const pitch = Math.max(0.2, effectiveSettings.interleavedWeavePitch ?? 1.60);
+          const waveCount = Math.max(6, Math.round((2.0 * Math.PI * rAvg) / pitch));
+          weaveParams = {
+            cx,
+            cy,
+            pitch,
+            amp: effectiveSettings.interleavedWeaveAmp ?? 0.20,
+            waveCount
+          };
+        }
 
         const aligned = applyLayerAlignedDisplacement(
           sliced,
@@ -6966,6 +7099,7 @@ function getSettingsSnapshot() {
   snap.interleavedConvex      = interleavedSettings.convexAmp;
   snap.interleavedConcave     = interleavedSettings.concaveAmp;
   snap.interleavedProfileMode = interleavedSettings.profileMode;
+  snap.interleavedNozzleDiameter = interleavedSettings.nozzleDiameter ?? 0.40;
   snap.interleavedWeavePitch  = interleavedSettings.weavePitch;
   snap.interleavedWeaveAmp    = interleavedSettings.weaveAmp;
   snap.interleavedShadingMode = interleavedSettings.shadingMode;
@@ -7190,6 +7324,9 @@ function applySettingsSnapshot(snap) {
   if (snap.interleavedExclusionMode != null) {
     interleavedSettings.exclusionMode = snap.interleavedExclusionMode;
     if (interleavedExclusionModeSelect) interleavedExclusionModeSelect.value = String(snap.interleavedExclusionMode);
+  }
+  if (snap.interleavedNozzleDiameter != null) {
+    interleavedSettings.nozzleDiameter = snap.interleavedNozzleDiameter;
   }
   if (snap.interleavedWeavePitch != null) {
     interleavedSettings.weavePitch = snap.interleavedWeavePitch;

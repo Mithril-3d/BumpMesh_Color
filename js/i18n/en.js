@@ -340,6 +340,8 @@ export default {
   "color.profileLouver": "45° Louver Overhang (Color Shielding / Experimental)",
   "color.profileWeave": "✨ Sinusoidal Weave (Halftone Interlocking / Recommended)",
   "color.weaveSettings": "Weave Halftone Settings",
+  "color.nozzleDiameter": "Nozzle Diameter (mm)",
+  "color.nozzleCustom": "Manual Input (Custom)",
   "color.weavePitch": "Wave Pitch (mm)",
   "color.weaveAmp": "Wave Amplitude (mm)",
   "color.shadingSource": "Shading Source",

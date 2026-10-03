@@ -59,6 +59,7 @@ const sharedGLSL = /* glsl */`
   uniform int       interleavedProfileMode;
   uniform float     interleavedWeavePitch;
   uniform float     interleavedWeaveAmp;
+  uniform float     interleavedWaveCount;
   uniform float     interleavedGamma;
   uniform int       shadingSource;
   uniform sampler2D layerBlendMap;
@@ -72,9 +73,9 @@ const sharedGLSL = /* glsl */`
   const float CUBIC_AXIS_EPSILON = 1e-4;
 
   // Forward declarations
-  float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN);
+  float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum);
   vec3 computeRawColorAtPoint(vec3 pos, vec3 projN, vec3 blendN);
-  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN);
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum);
 
   int dominantCubicAxis(vec3 n) {
     vec3 absN = abs(n);
@@ -136,9 +137,15 @@ const sharedGLSL = /* glsl */`
   // Compute displacement height at a world-space point.
   // projN  = face-stable projection normal (for axis selection)
   // blendN = smooth / interpolated normal  (for blend weights)
-  float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+  float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum) {
     if (colorSubMode == 1) {
-      vec3 cTarget = computeRawColorAtPoint(pos, projN, blendN);
+      vec3 cTarget;
+      if (shadingSource == 1) {
+        float lum = clamp(curvLum, 0.0, 1.0);
+        cTarget = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
+      } else {
+        cTarget = computeRawColorAtPoint(pos, projN, blendN);
+      }
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
       int layerIdx = int(floor(zRel / t));
@@ -189,14 +196,11 @@ const sharedGLSL = /* glsl */`
           return -interleavedConcave;
         }
         if (interleavedProfileMode == 2) {
-          float pitch = max(0.2, interleavedWeavePitch);
           float waveAmp = max(0.0, interleavedWeaveAmp);
-          vec2 hN = projN.xy;
-          float lenHN = length(hN);
-          float sHoriz = (lenHN > 1e-4) ? dot(pos.xy, vec2(-hN.y, hN.x) / lenHN) : (pos.x * 0.7071 - pos.y * 0.7071);
-          float k = TWO_PI / pitch;
+          float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
+          float waveCount = max(6.0, interleavedWaveCount);
           float layerPhase = mod(float(layerIdx), 2.0) * PI;
-          float W = sin(k * sHoriz + layerPhase);
+          float W = sin(waveCount * theta + layerPhase);
           float dcOffset = -interleavedConcave + (interleavedConvex + interleavedConcave) * ratio;
           return dcOffset + waveAmp * W * ratio;
         }
@@ -222,14 +226,11 @@ const sharedGLSL = /* glsl */`
         }
         if (activeK == bestK) {
           if (interleavedProfileMode == 2) {
-            float pitch = max(0.2, interleavedWeavePitch);
             float waveAmp = max(0.0, interleavedWeaveAmp);
-            vec2 hN = projN.xy;
-            float lenHN = length(hN);
-            float sHoriz = (lenHN > 1e-4) ? dot(pos.xy, vec2(-hN.y, hN.x) / lenHN) : (pos.x * 0.7071 - pos.y * 0.7071);
-            float k = TWO_PI / pitch;
+            float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
+            float waveCount = max(6.0, interleavedWaveCount);
             float layerPhase = mod(float(layerIdx), 2.0) * PI;
-            float W = sin(k * sHoriz + layerPhase);
+            float W = sin(waveCount * theta + layerPhase);
             return interleavedConvex + waveAmp * W;
           }
           if (interleavedProfileMode == 0) {
@@ -433,7 +434,7 @@ const sharedGLSL = /* glsl */`
   }
 
   // Compute final surface color at a world-space point
-  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum) {
     if (colorSubMode == 1) {
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
@@ -441,13 +442,10 @@ const sharedGLSL = /* glsl */`
       int activeK = int(mod(float(abs(layerIdx)), float(max(1, interleavedToolCount))));
 
       if (interleavedProfileMode == 2 && interleavedToolCount >= 2) {
-        vec2 hN = projN.xy;
-        float lenHN = length(hN);
-        vec2 tangent = (lenHN > 1e-4) ? (vec2(-hN.y, hN.x) / lenHN) : vec2(0.7071, -0.7071);
-        float sHoriz = dot(pos.xy, tangent);
-        float k = TWO_PI / max(0.2, interleavedWeavePitch);
+        float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
+        float waveCount = max(6.0, interleavedWaveCount);
         float layerPhase = mod(float(layerIdx), 2.0) * PI;
-        float W = sin(k * sHoriz + layerPhase);
+        float W = sin(waveCount * theta + layerPhase);
 
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
         int neighborIdx = (zFrac > 0.5) ? (layerIdx + 1) : (layerIdx - 1);
@@ -459,7 +457,9 @@ const sharedGLSL = /* glsl */`
         vec3 weaveColor = mix(interleavedPalette[neighborK], interleavedPalette[activeK], waveProtrusion);
 
         if (shadingSource == 1) {
-          return weaveColor;
+          float lum = clamp(curvLum, 0.0, 1.0);
+          vec3 baseCurv = mix(interleavedPalette[1], interleavedPalette[0], lum);
+          return mix(baseCurv, weaveColor, 0.65);
         } else {
           vec3 rawCol = computeRawColorAtPoint(pos, projN, blendN);
           return mix(rawCol, weaveColor, 0.50);
@@ -467,7 +467,9 @@ const sharedGLSL = /* glsl */`
       }
 
       if (shadingSource == 1) {
-        return interleavedPalette[activeK];
+        float lum = clamp(curvLum, 0.0, 1.0);
+        vec3 baseCurv = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
+        return mix(baseCurv, interleavedPalette[activeK], 0.35);
       }
     }
     return computeRawColorAtPoint(pos, projN, blendN);
@@ -483,6 +485,7 @@ const vertexShader = /* glsl */`
   attribute float faceMask;
   attribute float boundaryFalloffAttr;
   attribute float boundaryMaskTypeAttr;
+  attribute float curvatureAttr;
 
   varying vec3  vModelPos;    // ORIGINAL model-space position → UV computation in fragment
   varying vec3  vModelNormal; // model-space face normal       → stable UV blending
@@ -492,6 +495,7 @@ const vertexShader = /* glsl */`
   varying float vFaceMask;    // combined mask (angle + user exclusion + boundary falloff)
   varying float vUserMask;    // raw user-exclusion mask (0 = user-excluded, 1 = included)
   varying float vMaskType;    // boundary mask type (0 = user mask, 1 = angle mask)
+  varying float vCurvature;
 
   void main() {
     vec3 safeN = length(normal) > 1e-6 ? normalize(normal) : vec3(0.0, 0.0, 1.0);
@@ -511,9 +515,10 @@ const vertexShader = /* glsl */`
     vFaceMask = totalMask;
     vUserMask = faceMask;
     vMaskType = boundaryMaskTypeAttr;
+    vCurvature = curvatureAttr;
 
     if (useDisplacement == 1) {
-      float h = computeHeightAtPoint(position, safeN, safeN);
+      float h = computeHeightAtPoint(position, safeN, safeN, curvatureAttr);
       if (colorSubMode != 1 && symmetricDisplacement == 1) h = h - 0.5;
       if (colorSubMode == 1) {
         if (interleavedExclusionMode == 2) {
@@ -565,6 +570,7 @@ const fragmentShader = /* glsl */`
   varying float vFaceMask;
   varying float vUserMask;
   varying float vMaskType;
+  varying float vCurvature;
 
   // Fragment-only wrapper: compute face-stable projection normal via dFdx
   // then delegate to the shared height function.
@@ -573,7 +579,7 @@ const fragmentShader = /* glsl */`
     vec3 _dpy = dFdy(vModelPos);
     vec3 _fN  = cross(_dpx, _dpy);
     vec3 PN   = length(_fN) > 1e-10 ? normalize(_fN) : vModelNormal;
-    return computeHeightAtPoint(vModelPos, PN, vModelNormal);
+    return computeHeightAtPoint(vModelPos, PN, vModelNormal, vCurvature);
   }
 
   void main() {
@@ -666,7 +672,7 @@ const fragmentShader = /* glsl */`
     vec3 PN   = length(_fN) > 1e-10 ? normalize(_fN) : vModelNormal;
 
     vec3 tealBase      = vec3(0.22, 0.68, 0.68);
-    vec3 baseColor     = (useColorTexture == 1) ? computeColorAtPoint(vModelPos, PN, vModelNormal) : tealBase;
+    vec3 baseColor     = (useColorTexture == 1) ? computeColorAtPoint(vModelPos, PN, vModelNormal, vCurvature) : tealBase;
     vec3 userMaskColor = vec3(0.85, 0.40, 0.15);
     vec3 angleMaskColor = vec3(0.45, 0.48, 0.50);
 
@@ -808,11 +814,18 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedProfileMode) u.interleavedProfileMode = { value: 0 };
   u.interleavedProfileMode.value = settings.interleavedProfileMode ?? 0;
 
-  if (!u.interleavedWeavePitch) u.interleavedWeavePitch = { value: 1.5 };
-  u.interleavedWeavePitch.value = settings.interleavedWeavePitch ?? 1.5;
+  if (!u.interleavedWeavePitch) u.interleavedWeavePitch = { value: 1.6 };
+  u.interleavedWeavePitch.value = settings.interleavedWeavePitch ?? 1.6;
 
-  if (!u.interleavedWeaveAmp) u.interleavedWeaveAmp = { value: 0.25 };
-  u.interleavedWeaveAmp.value = settings.interleavedWeaveAmp ?? 0.25;
+  if (!u.interleavedWeaveAmp) u.interleavedWeaveAmp = { value: 0.20 };
+  u.interleavedWeaveAmp.value = settings.interleavedWeaveAmp ?? 0.20;
+
+  const bSize = settings.bounds?.size || new THREE.Vector3(40, 40, 40);
+  const rAvg = Math.max(1.0, (bSize.x + bSize.y) * 0.25);
+  const curPitch = Math.max(0.2, settings.interleavedWeavePitch ?? 1.6);
+  const curWaveCount = Math.max(6, Math.round((2.0 * Math.PI * rAvg) / curPitch));
+  if (!u.interleavedWaveCount) u.interleavedWaveCount = { value: curWaveCount };
+  u.interleavedWaveCount.value = curWaveCount;
 
   if (!u.interleavedGamma) u.interleavedGamma = { value: 1.0 };
   u.interleavedGamma.value = settings.interleavedGamma ?? 1.0;
@@ -887,8 +900,9 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedPalette:       { value: initPalette },
     interleavedShadingMode:   { value: settings.interleavedShadingMode ?? 1 },
     interleavedProfileMode:   { value: settings.interleavedProfileMode ?? 0 },
-    interleavedWeavePitch:    { value: settings.interleavedWeavePitch ?? 1.5 },
-    interleavedWeaveAmp:      { value: settings.interleavedWeaveAmp ?? 0.25 },
+    interleavedWeavePitch:    { value: settings.interleavedWeavePitch ?? 1.6 },
+    interleavedWeaveAmp:      { value: settings.interleavedWeaveAmp ?? 0.20 },
+    interleavedWaveCount:     { value: Math.max(6, Math.round((2.0 * Math.PI * Math.max(1.0, (b.size.x + b.size.y) * 0.25)) / Math.max(0.2, settings.interleavedWeavePitch ?? 1.6))) },
     interleavedGamma:         { value: settings.interleavedGamma ?? 1.0 },
     interleavedExclusionMode: { value: settings.interleavedExclusionMode ?? 0 },
     shadingSource:            { value: (settings.shadingSource === 'curvature') ? 1 : 0 },

@@ -20,18 +20,21 @@ Blender のノード手作業や有償配布アドオン（Nozzleboss等）を�
   - 平坦な面（立方体など）ではノイズが完全ゼロの中立値（0.50）を維持し、曲面彫刻モデルでは深い谷間から鋭い稜線まで美しい陰影を抽出。
   - スライダーで「検出半径 (mm)」「コントラスト」「明るさバイアス」「平滑化」「反転」を自在に調整可能。
 
-### ② 水平接線正弦波編み重ね & インターロックカラー表示 ([layerBlending.js](file:///c:/Users/Vogler/Documents/3dprint/Antigravity/BumpMesh_Color/js/layerBlending.js), [previewMaterial.js](file:///c:/Users/Vogler/Documents/3dprint/Antigravity/BumpMesh_Color/js/previewMaterial.js))
-**「ペリメータ1（外壁1周）でも崩れない交差トラス構造 ＆ 2色だけで滑らかな中間階調」**
+### ② 周方向連続正弦波編み重ね & ノズル径連動 ([layerSlicing.js](file:///c:/Users/Vogler/Documents/3dprint/Antigravity/BumpMesh_Color/js/layerSlicing.js), [previewMaterial.js](file:///c:/Users/Vogler/Documents/3dprint/Antigravity/BumpMesh_Color/js/previewMaterial.js))
+**「ノズル径から波長と振幅を自動連動 ＆ 曲面でも破綻しない連続周方向サイン波」**
 
-- **アルゴリズム**:
-  - 極座標周回を廃止し、**壁面の水平接線方向（Horizontal Surface Tangent）** に沿って一定周期（波長ピッチ）のサイン波を生成。
-  - 四角い箱の角でも、有機的な彫刻モデルでも、壁面に沿って均一なピッチで波が破綻なく整列。
-  - 層（Layer）ごとに 180° 位相シフト（`layerPhase = (layerIdx % 2) * PI`）を適用し、上下層の波を互い違いに交差編み込み。
-  - プレビューシェーダーにおいて、山（凸）になっている層のツールカラーが手前に現れる **編み重ねインターロックカラー（Weave Interlock Color）** を描画。3Dビュー上で白と黒がニット（編み物）のように編み合わさる質感が鮮明に可視化。
+- **アルゴリズム刷新**:
+  - 各頂点の法線接線投影（曲面で法線差によるミリ単位ジャンプ・ノイズを引き起こす）を廃止し、**モデル中心からの偏角 theta とモデル水平周長に応じた整数周期 waveCount による連続展開** へ刷新。
+  - 周回全周で継ぎ目（シーム）が数学的に完全にゼロとなり、曲面彫刻でもスパイクや破綻が一切生じず、極めて滑らかなサイン波が積層されます。
+  - 層（Layer）ごとに 180° 位相シフト（`layerPhase = (lay % 2) * PI`）を適用し、上下層の波を互い違いに交差編み込み。
+  - **ノズル径入力・プリセット（0.1, 0.2, 0.25, 0.4, 0.6, 0.8, 1.0, 1.2, 2.0mm, 手動入力）**:
+    - ノズル径を変更すると、推奨波長ピッチ（ノズル径 × 4.0）と推奨振幅（ノズル径 × 0.50）を自動更新・提案。
+    - 層間接着強度を保つため、振幅がノズル径の50%を超えた場合は警告アラートを表示。
+  - プレビューシェーダーにおいて、山（凸）になっている層のツールカラーと曲率陰影（凹部=Tool 1、凸部=Tool 0）を統合した **インターロックカラー描画** を実現。
 
-### ③ 標準検証用プリセット「スザンヌ (Suzanne 60mm)」の搭載 ([models/suzanne.stl](file:///c:/Users/Vogler/Documents/3dprint/Antigravity/BumpMesh_Color/models/suzanne.stl))
-- Blender公式マスコットのサル頭部モデル（15,488三角形、約756KB）。
-- 眉弓、目のくぼみ、鼻、耳などの豊かな凹凸を持ち、本機能の検証に最適なモデルをワンクリックで読み込み可能。
+### ③ 100% 水密マニホールドな検証用プリセット「スザンヌ (Suzanne 60mm)」の搭載 ([models/suzanne.stl](file:///c:/Users/Vogler/Documents/3dprint/Antigravity/BumpMesh_Color/models/suzanne.stl))
+- Blender標準スザンヌに存在していた眼球の裏側・眼窩の穴（オープンエッジ168本、非多様体22本）を完全に修復・穴埋め。
+- **オープンエッジ 0本、非多様体 0本、単一閉多様体（15,624三角形、約763KB）** の完全水密STLに刷新。スライサーで中身が消失したりエッジ破損を起こすことなく、完璧にスライス可能。
 
 ---
 

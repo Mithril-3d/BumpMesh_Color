@@ -335,19 +335,16 @@ function computeLayerDisplacementByLayer(
       return isMatch ? convexVal : -concaveVal;
     }
     if (profileMode === 2 && weaveOptions) {
-      const pitch = Math.max(0.2, weaveOptions.pitch ?? 1.5);
-      const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.25);
+      const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.20);
       const cx = weaveOptions.cx ?? 0;
       const cy = weaveOptions.cy ?? 0;
       const px = weaveOptions.x ?? 0;
       const py = weaveOptions.y ?? 0;
       const dx = px - cx, dy = py - cy;
-      const r = Math.hypot(dx, dy);
       const theta = Math.atan2(dy, dx);
-      const arc = r * theta;
-      const k = (2.0 * Math.PI) / pitch;
+      const waveCount = weaveOptions.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions.pitch ?? 1.6)));
       const layerPhase = (lay % 2) * Math.PI;
-      const W = Math.sin(k * arc + layerPhase);
+      const W = Math.sin(waveCount * theta + layerPhase);
       return isMatch ? (convexVal + waveAmp * W) : -concaveVal;
     }
     const zFrac = Math.max(0, Math.min(1, (z - (minZ + lay * t)) / t));
@@ -386,24 +383,16 @@ function computeLayerDisplacementByLayer(
 
   // ProfileMode 2: Sinusoidal Weave (Halftone Interlocking)
   if (profileMode === 2) {
-    const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.5);
-    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.25);
+    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.20);
+    const cx = weaveOptions?.cx ?? 0;
+    const cy = weaveOptions?.cy ?? 0;
     const px = weaveOptions?.x ?? 0;
     const py = weaveOptions?.y ?? 0;
-    const nx = weaveOptions?.nx ?? 0;
-    const ny = weaveOptions?.ny ?? 0;
-    const absNx = Math.abs(nx);
-    const absNy = Math.abs(ny);
-    let sHoriz;
-    if (absNx + absNy > 1e-4) {
-      const len = Math.hypot(nx, ny);
-      sHoriz = (-ny * px + nx * py) / len;
-    } else {
-      sHoriz = px * 0.7071 - py * 0.7071;
-    }
-    const k = (2.0 * Math.PI) / pitch;
+    const dx = px - cx, dy = py - cy;
+    const theta = Math.atan2(dy, dx);
+    const waveCount = weaveOptions?.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions?.pitch ?? 1.6)));
     const layerPhase = (lay % 2) * Math.PI;
-    const W = Math.sin(k * sHoriz + layerPhase);
+    const W = Math.sin(waveCount * theta + layerPhase);
 
     const dcOffset = -concaveVal + (convexVal + concaveVal) * ratio;
     return dcOffset + waveAmp * W * ratio;
