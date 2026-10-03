@@ -35,4 +35,4 @@
 - [x] `js/layerBlending.js`, `js/layerSlicing.js`, `js/displacement.js` へのブロック波変位の反映 <!-- id: 15 -->
 - [x] `js/previewMaterial.js`（WebGLシェーダー）へのブロック波プレビュー描画追加 <!-- id: 16 -->
 - [x] `index.html`, `js/main.js`, 多言語辞書の更新 <!-- id: 17 -->
-- [/] Gitコミットおよび `feature/v1.5.1-halftone-weave` & `vercel` ブランチへのプッシュ・デプロイ <!-- id: 18 -->
+- [x] Gitコミットおよび `feature/v1.5.1-halftone-weave` & `vercel` ブランチへのプッシュ・デプロイ <!-- id: 18 -->
