@@ -200,29 +200,33 @@ const sharedGLSL = /* glsl */`
 
         // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
         if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
-          float waveAmp = max(0.0, interleavedWeaveAmp);
           float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
           float waveCount = max(6.0, interleavedWaveCount);
           float layerPhase = mod(float(layerIdx), 2.0) * PI;
           float phi = waveCount * theta + layerPhase;
           float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
-          float W;
+          float B = 0.0;
           if (interleavedProfileMode == 4) {
             float edge = 0.05;
-            if (u < edge) W = -1.0 + 2.0 * (u / edge);
-            else if (u < 0.5 - edge) W = 1.0;
-            else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
-            else if (u < 1.0 - edge) W = -1.0;
-            else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+            if (u < edge) {
+              B = u / edge;
+            } else if (u < 0.5 - edge) {
+              B = 1.0;
+            } else if (u < 0.5 + edge) {
+              B = 1.0 - (u - (0.5 - edge)) / (2.0 * edge);
+            } else {
+              B = 0.0;
+            }
           } else if (interleavedProfileMode == 3) {
-            W = 1.0 - 4.0 * abs(u - 0.5);
+            B = clamp(1.0 - 2.0 * abs(u - 0.25), 0.0, 1.0);
           } else {
-            W = sin(phi);
+            B = 0.5 + 0.5 * sin(phi);
           }
 
-          float dcOffset = -interleavedConcave + (interleavedConvex + interleavedConcave) * exposure;
-          float modFactor = 0.5 + 0.5 * (2.0 * min(exposure, 1.0 - exposure));
-          return dcOffset + waveAmp * W * modFactor;
+          float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
+          float h_peak = -interleavedConcave + stroke * min(1.0, 2.0 * exposure);
+          float h_trough = -interleavedConcave + stroke * max(0.0, 2.0 * exposure - 1.0);
+          return h_trough + (h_peak - h_trough) * B;
         }
 
         // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
@@ -247,29 +251,38 @@ const sharedGLSL = /* glsl */`
             bestK = k;
           }
         }
-        if (activeK == bestK) {
-          if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
-            float waveAmp = max(0.0, interleavedWeaveAmp);
-            float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
-            float waveCount = max(6.0, interleavedWaveCount);
-            float layerPhase = mod(float(layerIdx), 2.0) * PI;
-            float phi = waveCount * theta + layerPhase;
-            float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
-            float W;
-            if (interleavedProfileMode == 4) {
-              float edge = 0.05;
-              if (u < edge) W = -1.0 + 2.0 * (u / edge);
-              else if (u < 0.5 - edge) W = 1.0;
-              else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
-              else if (u < 1.0 - edge) W = -1.0;
-              else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
-            } else if (interleavedProfileMode == 3) {
-              W = 1.0 - 4.0 * abs(u - 0.5);
+        float exposure = (activeK == bestK) ? 1.0 : 0.0;
+        if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
+          float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
+          float waveCount = max(6.0, interleavedWaveCount);
+          float layerPhase = mod(float(layerIdx), 2.0) * PI;
+          float phi = waveCount * theta + layerPhase;
+          float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
+          float B = 0.0;
+          if (interleavedProfileMode == 4) {
+            float edge = 0.05;
+            if (u < edge) {
+              B = u / edge;
+            } else if (u < 0.5 - edge) {
+              B = 1.0;
+            } else if (u < 0.5 + edge) {
+              B = 1.0 - (u - (0.5 - edge)) / (2.0 * edge);
             } else {
-              W = sin(phi);
+              B = 0.0;
             }
-            return interleavedConvex + waveAmp * W;
+          } else if (interleavedProfileMode == 3) {
+            B = clamp(1.0 - 2.0 * abs(u - 0.25), 0.0, 1.0);
+          } else {
+            B = 0.5 + 0.5 * sin(phi);
           }
+
+          float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
+          float h_peak = -interleavedConcave + stroke * min(1.0, 2.0 * exposure);
+          float h_trough = -interleavedConcave + stroke * max(0.0, 2.0 * exposure - 1.0);
+          return h_trough + (h_peak - h_trough) * B;
+        }
+
+        if (activeK == bestK) {
           if (interleavedProfileMode == 0) {
             return interleavedConvex;
           }
@@ -546,18 +559,22 @@ const sharedGLSL = /* glsl */`
         float layerPhase = mod(float(layerIdx), 2.0) * PI;
         float phi = waveCount * theta + layerPhase;
         float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
-        float W;
+        float B = 0.0;
         if (interleavedProfileMode == 4) {
           float edge = 0.05;
-          if (u < edge) W = -1.0 + 2.0 * (u / edge);
-          else if (u < 0.5 - edge) W = 1.0;
-          else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
-          else if (u < 1.0 - edge) W = -1.0;
-          else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+          if (u < edge) {
+            B = u / edge;
+          } else if (u < 0.5 - edge) {
+            B = 1.0;
+          } else if (u < 0.5 + edge) {
+            B = 1.0 - (u - (0.5 - edge)) / (2.0 * edge);
+          } else {
+            B = 0.0;
+          }
         } else if (interleavedProfileMode == 3) {
-          W = 1.0 - 4.0 * abs(u - 0.5);
+          B = clamp(1.0 - 2.0 * abs(u - 0.25), 0.0, 1.0);
         } else {
-          W = sin(phi);
+          B = 0.5 + 0.5 * sin(phi);
         }
 
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
@@ -565,9 +582,8 @@ const sharedGLSL = /* glsl */`
         if (neighborIdx < 0) neighborIdx = layerIdx + 1;
         int neighborK = int(mod(float(abs(neighborIdx)), float(interleavedToolCount)));
 
-        // Protrusion weight: wave peaks bias towards the protruding tool
-        float waveProtrusion = clamp(0.5 + W * 0.70, 0.0, 1.0);
-        vec3 weaveColor = mix(interleavedPalette[neighborK], interleavedPalette[activeK], waveProtrusion);
+        // Protrusion weight: wave peaks (B=1.0) bias towards the active tool, troughs (B=0.0) towards neighbor
+        vec3 weaveColor = mix(interleavedPalette[neighborK], interleavedPalette[activeK], B);
 
         return mix(baseCol, weaveColor, 0.65);
       }

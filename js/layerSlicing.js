@@ -389,7 +389,6 @@ function computeLayerDisplacementByLayer(
 
   // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
   if (profileMode === 2 || profileMode === 3 || profileMode === 4) {
-    const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.60);
     const cx = weaveOptions?.cx ?? 0;
     const cy = weaveOptions?.cy ?? 0;
     const px = weaveOptions?.x ?? 0;
@@ -401,28 +400,31 @@ function computeLayerDisplacementByLayer(
     const phi = waveCount * theta + layerPhase;
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
 
-    let W;
+    let B = 0.0;
     if (profileMode === 4) {
       // 🧱 Block Pulse (Trapezoidal Rectangular Wave)
       const edge = 0.05;
-      if (u < edge) W = -1.0 + 2.0 * (u / edge);
-      else if (u < 0.5 - edge) W = 1.0;
-      else if (u < 0.5 + edge) W = 1.0 - 2.0 * ((u - (0.5 - edge)) / (2.0 * edge));
-      else if (u < 1.0 - edge) W = -1.0;
-      else W = -1.0 + 2.0 * ((u - (1.0 - edge)) / edge);
+      if (u < edge) {
+        B = u / edge;
+      } else if (u < 0.5 - edge) {
+        B = 1.0;
+      } else if (u < 0.5 + edge) {
+        B = 1.0 - (u - (0.5 - edge)) / (2.0 * edge);
+      } else {
+        B = 0.0;
+      }
     } else if (profileMode === 3) {
-      // Triangle wave (Zigzag) normalized in [-1, 1]
-      W = 1.0 - 4.0 * Math.abs(u - 0.5);
+      // 📐 Triangle wave (Zigzag)
+      B = Math.max(0.0, Math.min(1.0, 1.0 - 2.0 * Math.abs(u - 0.25)));
     } else {
-      // Sinusoidal wave
-      W = Math.sin(phi);
+      // 〰️ Sinusoidal wave
+      B = 0.5 + 0.5 * Math.sin(phi);
     }
 
-    const dcOffset = -concaveVal + (convexVal + concaveVal) * exposure;
-    // Keep healthy weave modulation across all exposure levels (never drop to 0)
-    // so both alternating layers continuously weave together without creating vertical cliff-shelves.
-    const modFactor = 0.5 + 0.5 * (2.0 * Math.min(exposure, 1.0 - exposure));
-    return dcOffset + waveAmp * W * modFactor;
+    const stroke = Math.max(0.01, (convexVal + concaveVal) > 0 ? (convexVal + concaveVal) : (weaveOptions?.amp ?? 0.60));
+    const h_peak = -concaveVal + stroke * Math.min(1.0, 2.0 * exposure);
+    const h_trough = -concaveVal + stroke * Math.max(0.0, 2.0 * exposure - 1.0);
+    return h_trough + (h_peak - h_trough) * B;
   }
 
   // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)

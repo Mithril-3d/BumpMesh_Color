@@ -39,7 +39,7 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20261004_131';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20261004_157';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_123';
@@ -54,7 +54,7 @@ import {
   computeMultiColorBlend,
   generateInterleavedTable
 } from './layerBlending.js?v=20260929_130';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261004_156';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261004_157';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
