@@ -156,9 +156,10 @@ const sharedGLSL = /* glsl */`
       if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
         float exposure = 0.5;
         if (interleavedToolCount == 2) {
-          float d0 = length(cTarget - interleavedPalette[0]);
-          float d1 = length(cTarget - interleavedPalette[1]);
-          float w = (d0 + d1 > 1e-5) ? (d1 / (d0 + d1)) : 0.5;
+          float lum0 = dot(interleavedPalette[0], vec3(0.2126, 0.7152, 0.0722));
+          float lum1 = dot(interleavedPalette[1], vec3(0.2126, 0.7152, 0.0722));
+          float pixLum = dot(cTarget, vec3(0.2126, 0.7152, 0.0722));
+          float w = (lum0 >= lum1) ? pixLum : (1.0 - pixLum);
           if (abs(interleavedGamma - 1.0) > 0.01) {
             w = pow(clamp(w, 0.0, 1.0), max(0.01, interleavedGamma));
           }
@@ -495,9 +496,10 @@ const sharedGLSL = /* glsl */`
         vec3 rawCol = computeRawColorAtPoint(pos, projN, blendN);
         if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
           if (interleavedToolCount == 2) {
-            float d0 = length(rawCol - interleavedPalette[0]);
-            float d1 = length(rawCol - interleavedPalette[1]);
-            float w = (d0 + d1 > 1e-5) ? (d1 / (d0 + d1)) : 0.5;
+            float lum0 = dot(interleavedPalette[0], vec3(0.2126, 0.7152, 0.0722));
+            float lum1 = dot(interleavedPalette[1], vec3(0.2126, 0.7152, 0.0722));
+            float pixLum = dot(rawCol, vec3(0.2126, 0.7152, 0.0722));
+            float w = (lum0 >= lum1) ? pixLum : (1.0 - pixLum);
             if (abs(interleavedGamma - 1.0) > 0.01) {
               w = pow(clamp(w, 0.0, 1.0), max(0.01, interleavedGamma));
             }

@@ -113,16 +113,19 @@ export function computeMultiColorBlend(rgb, palette, gamma = 1.0, invert = false
     return { toolA: palette[0].toolId, toolB: palette[0].toolId, t: 1.0 };
   }
 
-  // 2-color palette: precise normalized linear distance interpolation in [0.0, 1.0]
+  // 2-color palette: full-range continuous luminance projection in [0.0, 1.0]
   if (palette.length === 2) {
     const col0 = palette[0].color || [255, 255, 255];
     const col1 = palette[1].color || [0, 0, 0];
-    const dr0 = rgb[0] - col0[0], dg0 = rgb[1] - col0[1], db0 = rgb[2] - col0[2];
-    const dr1 = rgb[0] - col1[0], dg1 = rgb[1] - col1[1], db1 = rgb[2] - col1[2];
-    const d0 = Math.sqrt(dr0 * dr0 + dg0 * dg0 + db0 * db0);
-    const d1 = Math.sqrt(dr1 * dr1 + dg1 * dg1 + db1 * db1);
-    const sumD = d0 + d1;
-    let w = (sumD > 1e-6) ? (d1 / sumD) : 0.5; // 1.0 = 100% Tool 1 (col0), 0.0 = 100% Tool 2 (col1)
+    const lum0 = 0.2126 * col0[0] + 0.7152 * col0[1] + 0.0722 * col0[2];
+    const lum1 = 0.2126 * col1[0] + 0.7152 * col1[1] + 0.0722 * col1[2];
+
+    // Compute pixel luminance (0.0 = pure black, 1.0 = pure white)
+    const pixLum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255.0;
+
+    // If Tool 1 is lighter than Tool 2, higher luminance maps to Tool 1 (w=1.0)
+    // If Tool 1 is darker than Tool 2, lower luminance maps to Tool 1 (w=1.0)
+    let w = (lum0 >= lum1) ? pixLum : (1.0 - pixLum);
 
     if (gamma !== 1.0 && gamma > 0.01) {
       w = Math.pow(w, gamma);
@@ -135,7 +138,7 @@ export function computeMultiColorBlend(rgb, palette, gamma = 1.0, invert = false
     return {
       toolA: palette[0].toolId,
       toolB: palette[1].toolId,
-      t: w // True continuous exposure for Tool 1 in [0.0, 1.0]
+      t: w // True full-range continuous exposure for Tool 1 in [0.0, 1.0]
     };
   }
 
