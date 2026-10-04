@@ -55,6 +55,7 @@ import {
   generateInterleavedTable
 } from './layerBlending.js?v=20260929_130';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261004_157';
+import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261004_158';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -6324,9 +6325,14 @@ async function handleExport(format = 'stl') {
         const thickness = effectiveSettings.interleavedThickness || settings.interleavedThickness || 0.20;
         const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
 
-        // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm)
+        const isWeaveMode = (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4);
+
+        // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm) for flat/louver modes
         const cutOffset = 0.005;
-        const sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers, result.excludeWeights || null);
+        let sliced = null;
+        if (!isWeaveMode) {
+          sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers, result.excludeWeights || null);
+        }
 
         setProgress(0.78, t('progress.applyingLayerDisplacement'));
         await yieldFrame();
@@ -6441,43 +6447,62 @@ async function handleExport(format = 'stl') {
 
         const exclusionMode = effectiveSettings.interleavedExclusionMode ?? interleavedSettings.exclusionMode ?? 0;
 
-        let weaveParams = null;
-        if (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4) {
+        let finalPositions, finalNormals, triTools;
+
+        if (isWeaveMode) {
+          // 🧶 断面四角の輪ゴム積層チューブ生成（編み重ね専用）
           const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
           const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
           const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;
           const sy = currentBounds ? (currentBounds.max.y - currentBounds.min.y) : 40;
           const rAvg = Math.max(1.0, (sx + sy) * 0.25);
           const pitch = Math.max(0.2, effectiveSettings.interleavedWeavePitch ?? 1.60);
-          const waveCount = Math.max(6, Math.round((2.0 * Math.PI * rAvg) / pitch));
-          weaveParams = {
+          const wallThickness = Math.max(0.10, effectiveSettings.interleavedNozzleDiameter ?? 0.40);
+
+          const tube = generateWeaveRubberBandTube({
+            radius: rAvg,
             cx,
             cy,
+            minZ: groundedMinZ,
+            thickness,
+            wallThickness,
+            totalLayers,
+            toolIds,
+            profileMode: effectiveSettings.interleavedProfileMode,
             pitch,
-            amp: effectiveSettings.interleavedWeaveAmp ?? 0.60,
-            waveCount
-          };
+            convexVal: convexAmp,
+            concaveVal: concaveAmp,
+            sampleFn,
+          });
+
+          finalPositions = tube.positions;
+          finalNormals = tube.normals;
+          triTools = tube.tools;
+        } else {
+          // 通常のフラット段差 (Profile 0) / 45°ルーバー (Profile 1)
+          const aligned = applyLayerAlignedDisplacement(
+            sliced,
+            groundedMinZ + cutOffset,
+            thickness,
+            toolIds,
+            convexAmp,
+            concaveAmp,
+            effectiveSettings.interleavedProfileMode,
+            effectiveSettings.interleavedShadingMode,
+            sampleFn,
+            untexturedTool,
+            exclusionMode,
+            null
+          );
+
+          finalPositions = aligned.positions;
+          finalNormals = aligned.normals;
+          triTools = aligned.triTools;
         }
 
-        const aligned = applyLayerAlignedDisplacement(
-          sliced,
-          groundedMinZ + cutOffset,
-          thickness,
-          toolIds,
-          convexAmp,
-          concaveAmp,
-          effectiveSettings.interleavedProfileMode,
-          effectiveSettings.interleavedShadingMode,
-          sampleFn,
-          untexturedTool,
-          exclusionMode,
-          weaveParams
-        );
-
         finalGeometry = new THREE.BufferGeometry();
-        finalGeometry.setAttribute('position', new THREE.BufferAttribute(aligned.positions, 3));
-        if (aligned.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(aligned.normals, 3));
-        const triTools = aligned.triTools;
+        finalGeometry.setAttribute('position', new THREE.BufferAttribute(finalPositions, 3));
+        if (finalNormals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(finalNormals, 3));
 
         const thumbUrl = generateColorThumbnail(finalGeometry, triTools, exportPalette, 256);
         const subModeLabel = 'interleaved';
