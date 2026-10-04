@@ -35,6 +35,11 @@ function fitDimensions(imgW, imgH, maxSize = SIZE) {
 //           'ff'   = made with Filter Forge.
 
 const IMAGE_PRESETS = [
+  // ── Random Organic Cells & Voronoi (非周期的・ランダム有機凹み・プラトーゼロ・φ80x100 最適化) ──
+  { name: 'Organic Random Cells (φ80x100)',  url: 'textures/organic_orange_random_cells_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_cells_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
+  { name: 'Organic Random Fluid (φ80x100)',  url: 'textures/organic_orange_random_fluid_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_fluid_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
+  { name: 'Organic Random Dense (φ80x100)',  url: 'textures/organic_orange_random_dense_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_dense_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
+
   // ── Organic Waves & Ripples (1周10回凹凸・プラトーゼロ・φ80x100 最適化) ──
   { name: 'Organic Orange 10-Waves (φ80x100)', url: 'textures/organic_orange_waves_10_phi80x100.png', thumb: 'textures/thumbs/organic_orange_waves_10_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
   { name: 'Organic Orange 12-Waves (φ80x100)', url: 'textures/organic_orange_waves_12_phi80x100.png', thumb: 'textures/thumbs/organic_orange_waves_12_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
