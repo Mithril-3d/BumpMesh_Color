@@ -394,6 +394,14 @@ export default {
   "color.mapModalHoverHint": "カーソルを画像に乗せるとピクセル情報が表示されます",
   "color.mapModalLoading": "パレット情報読み込み中...",
   "color.mapModalNoTexture": "先にテクスチャ画像を読み込んでください。",
+  "color.weaveRecTitle": "クリックで推奨値に自動設定",
+  "color.weaveRecBadge": "推奨: {val}mm",
+  "color.weaveAmpWarning": "⚠️ 振幅がノズル径の50%を超えています。層間の接着強度が低下する恐れがあります。",
+  "color.nozzleStandard": "0.4 mm (標準)",
+  "color.mapModalHoverRgb": "元RGB",
+  "color.mapModalHoverAdjWeight": "重み(ガンマ適用後)",
+  "color.mapModalHoverRawLum": "生輝度",
+  "color.mapModalHoverLegacy": "旧方式",
   "imprint.privacyHosting": "このウェブサイトは <strong>GitHub Pages</strong> (GitHub Inc. / Microsoft Corp., 88 Colin P Kelly Jr St, San Francisco, CA 94107, USA) 上でホストされています。本サイトへのアクセス時、GitHub により標準的なサーバーログとして IP アドレスが処理される場合があります。詳細は <a href=\"https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement\" target=\"_blank\" rel=\"noopener\">GitHub のプライバシーに関する声明</a> をご覧ください。",
 
   // ── Texture Gallery & Invert Texture (v1.3.6) ──
@@ -431,6 +439,7 @@ export default {
   "gallery.confirmDeleteAllCustom": "マイテクスチャ（{n} 件）をすべてこのブラウザから削除しますか？元に戻すことはできません。",
   "gallery.credits": "<strong>HP</strong> 付きのパターンは Steve Schoger による <a href=\"https://heropatterns.com/\" target=\"_blank\" rel=\"noopener\">Hero Patterns</a>（<a href=\"https://creativecommons.org/licenses/by/4.0/\" target=\"_blank\" rel=\"noopener\">CC BY 4.0</a> ライセンス）を基に高さマップへ変換したものです。<strong>CC0</strong> 付きのテクスチャは <a href=\"https://ambientcg.com/\" target=\"_blank\" rel=\"noopener\">ambientCG</a> と <a href=\"https://polyhaven.com/\" target=\"_blank\" rel=\"noopener\">Poly Haven</a>（パブリックドメイン）から取得しています。<strong>FF</strong> 付きのテクスチャは <a href=\"https://www.filterforge.com/\" target=\"_blank\" rel=\"noopener\">Filter Forge</a> で作成しました。その他のテクスチャは BumpMesh に同梱されています。",
   "labels.invertTexture": "テクスチャを反転 ⓘ",
+  "tooltips.invertTexture": "ハイトマップの白黒を反転し、明るい領域ではなく暗い領域を突出させます。",
   "gallery.catMulticolor": "マルチカラー / 和柄",
   "ui.openTuring": "3Dメッシュ・チューリングパターン",
   "turing.title": "3Dメッシュ・チューリングパターン",

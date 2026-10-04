@@ -1855,8 +1855,8 @@ function renderInterleavedUI() {
     }
     const recPitch = nDia * 4.0;
     const recAmp = nDia * 1.50; // 0.4mm nozzle -> 0.60mm amplitude for distinct bead formation
-    if (weavePitchRecBadge) weavePitchRecBadge.textContent = `推奨: ${recPitch.toFixed(2)}mm`;
-    if (weaveAmpRecBadge) weaveAmpRecBadge.textContent = `推奨: ${recAmp.toFixed(2)}mm`;
+    if (weavePitchRecBadge) weavePitchRecBadge.textContent = t('color.weaveRecBadge', { val: recPitch.toFixed(2) }) || `Rec: ${recPitch.toFixed(2)}mm`;
+    if (weaveAmpRecBadge) weaveAmpRecBadge.textContent = t('color.weaveRecBadge', { val: recAmp.toFixed(2) }) || `Rec: ${recAmp.toFixed(2)}mm`;
     if (weaveAmpWarning) {
       const isOver = ((interleavedSettings.weaveAmp ?? 0.60) > nDia * 3.0 + 1e-4);
       weaveAmpWarning.classList.toggle('hidden', !isOver);
@@ -8358,7 +8358,11 @@ _updateUndoButtons();
     const gamma = interleavedSettings.gamma ?? 1.0;
     const adjW = Math.pow(rawLum, Math.max(0.1, gamma));
 
-    let statusHtml = `X:${x}, Y:${y} | 元RGB:(${r},${g},${b}) | 重み(ガンマ適用後): <span style="color:#34d399;font-weight:bold;">${adjW.toFixed(2)}</span> (生輝度:${rawLum.toFixed(2)}) | 旧方式:${curW.toFixed(2)}`;
+    const lblRgb = t('color.mapModalHoverRgb', 'Raw RGB');
+    const lblAdjW = t('color.mapModalHoverAdjWeight', 'Weight(Gamma)');
+    const lblRawLum = t('color.mapModalHoverRawLum', 'Luminance');
+    const lblLegacy = t('color.mapModalHoverLegacy', 'Legacy');
+    let statusHtml = `X:${x}, Y:${y} | ${lblRgb}:(${r},${g},${b}) | ${lblAdjW}: <span style="color:#34d399;font-weight:bold;">${adjW.toFixed(2)}</span> (${lblRawLum}:${rawLum.toFixed(2)}) | ${lblLegacy}:${curW.toFixed(2)}`;
     hoverText.innerHTML = statusHtml;
   });
 
