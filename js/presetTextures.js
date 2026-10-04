@@ -35,6 +35,11 @@ function fitDimensions(imgW, imgH, maxSize = SIZE) {
 //           'ff'   = made with Filter Forge.
 
 const IMAGE_PRESETS = [
+  // ── Organic Waves & Ripples (1周10回凹凸・プラトーゼロ・φ80x100 最適化) ──
+  { name: 'Organic Orange 10-Waves (φ80x100)', url: 'textures/organic_orange_waves_10_phi80x100.png', thumb: 'textures/thumbs/organic_orange_waves_10_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+  { name: 'Organic Orange 12-Waves (φ80x100)', url: 'textures/organic_orange_waves_12_phi80x100.png', thumb: 'textures/thumbs/organic_orange_waves_12_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+  { name: 'Organic Orange 8-Waves (φ80x100)',  url: 'textures/organic_orange_waves_8_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_waves_8_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
+
   // ── Organic Flow & Blobs (φ80x100 Cylinder Optimized) ──
   { name: 'Organic Orange Blobs (φ80x100)', url: 'textures/organic_orange_blobs_phi80x100.png', thumb: 'textures/thumbs/organic_orange_blobs_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
   { name: 'Organic Orange Flow (φ80x100)',  url: 'textures/organic_orange_flow_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_flow_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
