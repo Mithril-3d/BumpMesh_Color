@@ -61,6 +61,7 @@ const sharedGLSL = /* glsl */`
   uniform float     interleavedWeaveAmp;
   uniform float     interleavedWaveCount;
   uniform float     interleavedGamma;
+  uniform int       interleavedInvertTools;
   uniform int       shadingSource;
   uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
@@ -153,35 +154,49 @@ const sharedGLSL = /* glsl */`
       int activeK = int(mod(float(layerIdx), float(numTools)));
 
       if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
-        // Find top 2 closest palette colors in RGB space
-        int bestK = 0;
-        float bestDistSq = 1e8;
-        int secondK = 1;
-        float secondDistSq = 1e8;
-
-        for (int k = 0; k < 8; k++) {
-          if (k >= interleavedToolCount) break;
-          vec3 diff = cTarget - interleavedPalette[k];
-          float dSq = dot(diff, diff);
-          if (dSq < bestDistSq) {
-            secondDistSq = bestDistSq;
-            secondK = bestK;
-            bestDistSq = dSq;
-            bestK = k;
-          } else if (dSq < secondDistSq) {
-            secondDistSq = dSq;
-            secondK = k;
+        float exposure = 0.5;
+        if (interleavedToolCount == 2) {
+          float d0 = length(cTarget - interleavedPalette[0]);
+          float d1 = length(cTarget - interleavedPalette[1]);
+          float w = (d0 + d1 > 1e-5) ? (d1 / (d0 + d1)) : 0.5;
+          if (abs(interleavedGamma - 1.0) > 0.01) {
+            w = pow(clamp(w, 0.0, 1.0), max(0.01, interleavedGamma));
           }
-        }
+          if (interleavedInvertTools == 1) {
+            w = 1.0 - w;
+          }
+          exposure = (activeK == 0) ? w : (1.0 - w);
+        } else {
+          int bestK = 0;
+          float bestDistSq = 1e8;
+          int secondK = 1;
+          float secondDistSq = 1e8;
 
-        float dA = sqrt(bestDistSq);
-        float dB = sqrt(secondDistSq);
-        float sumD = dA + dB;
-        float tAffinity = (sumD > 1e-5) ? (dB / sumD) : 1.0;
+          for (int k = 0; k < 8; k++) {
+            if (k >= interleavedToolCount) break;
+            vec3 diff = cTarget - interleavedPalette[k];
+            float dSq = dot(diff, diff);
+            if (dSq < bestDistSq) {
+              secondDistSq = bestDistSq;
+              secondK = bestK;
+              bestDistSq = dSq;
+              bestK = k;
+            } else if (dSq < secondDistSq) {
+              secondDistSq = dSq;
+              secondK = k;
+            }
+          }
 
-        if (abs(interleavedGamma - 1.0) > 0.01) {
-          tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
+          float dA = sqrt(bestDistSq);
+          float dB = sqrt(secondDistSq);
+          float sumD = dA + dB;
+          float tAffinity = (sumD > 1e-5) ? (dB / sumD) : 1.0;
+          if (abs(interleavedGamma - 1.0) > 0.01) {
+            tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
+          }
+          exposure = (activeK == bestK) ? tAffinity : ((activeK == secondK) ? (1.0 - tAffinity) : 0.0);
         }
+        exposure = clamp(exposure, 0.0, 1.0);
 
         // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
         if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
@@ -205,31 +220,19 @@ const sharedGLSL = /* glsl */`
             W = sin(phi);
           }
 
-          float exposure = (activeK == bestK) ? tAffinity : ((activeK == secondK) ? (1.0 - tAffinity) : 0.0);
-          exposure = clamp(exposure, 0.0, 1.0);
           float dcOffset = -interleavedConcave + (interleavedConvex + interleavedConcave) * exposure;
           float modFactor = 0.5 + 0.5 * (2.0 * min(exposure, 1.0 - exposure));
           return dcOffset + waveAmp * W * modFactor;
         }
 
-        float ratio = 0.0;
-        if (activeK == bestK) {
-          ratio = (tAffinity >= 0.5) ? (tAffinity - 0.5) * 2.0 : 0.0;
-        } else if (activeK == secondK) {
-          ratio = (tAffinity < 0.5) ? (0.5 - tAffinity) * 2.0 : 0.0;
-        } else {
-          ratio = 0.0;
-        }
-
-        if (ratio <= 0.0) {
-          return -interleavedConcave;
-        }
-        float targetPeak = interleavedConvex * ratio;
+        // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
+        float disp = -interleavedConcave + (interleavedConvex + interleavedConcave) * exposure;
         if (interleavedProfileMode == 0) {
-          return targetPeak;
+          return disp;
         }
-        float slope = min(targetPeak, t);
-        float base = max(0.0, targetPeak - slope);
+        float effAmp = max(0.0, disp);
+        float slope = min(effAmp, t);
+        float base = max(0.0, effAmp - slope);
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
         return base + zFrac * slope;
       } else {
@@ -878,6 +881,9 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedGamma) u.interleavedGamma = { value: 1.0 };
   u.interleavedGamma.value = settings.interleavedGamma ?? 1.0;
 
+  if (!u.interleavedInvertTools) u.interleavedInvertTools = { value: 0 };
+  u.interleavedInvertTools.value = settings.interleavedInvertTools ? 1 : 0;
+
   if (!u.interleavedExclusionMode) u.interleavedExclusionMode = { value: 0 };
   u.interleavedExclusionMode.value = settings.interleavedExclusionMode ?? 0;
 
@@ -952,6 +958,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedWeaveAmp:      { value: settings.interleavedWeaveAmp ?? 0.20 },
     interleavedWaveCount:     { value: Math.max(6, Math.round((2.0 * Math.PI * Math.max(1.0, (b.size.x + b.size.y) * 0.25)) / Math.max(0.2, settings.interleavedWeavePitch ?? 1.6))) },
     interleavedGamma:         { value: settings.interleavedGamma ?? 1.0 },
+    interleavedInvertTools:   { value: settings.interleavedInvertTools ? 1 : 0 },
     interleavedExclusionMode: { value: settings.interleavedExclusionMode ?? 0 },
     shadingSource:            { value: (settings.shadingSource === 'curvature') ? 1 : 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },

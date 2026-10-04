@@ -363,6 +363,8 @@ export default {
   "color.shadingGradient": "グラデーション (連続階調)",
   "color.interleavedGamma": "階調調整 (ガンマ)",
   "color.interleavedGammaTitle": "グラデーションの明暗カーブ（ガンマ補正）。1.0が標準フルレンジ、値が大きいほど黒が引き締まり、小さいほど暗部が明るくなります。",
+  "color.interleavedInvertTools": "色/ツール反転 (Tool 1 ↔ Tool 2)",
+  "color.interleavedInvertToolsTitle": "Tool 1とTool 2の突出/階調の割り当てを反転します。白黒や明暗が逆に印刷される場合にONにしてください。",
   "color.interleavedExclusionMode": "除外領域の処理",
   "color.interleavedExclusionModeTitle": "除外ペイントで指定した領域の処理方法（凹凸・ペイント・指定ツールの組み合わせ）",
   "color.exclMode1": "1. 凹凸OFF / ペイントOFF (指定ツール塗りつぶし)",

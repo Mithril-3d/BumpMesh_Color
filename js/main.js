@@ -524,6 +524,7 @@ const interleavedShadingModeSelect    = document.getElementById('interleaved-sha
 const interleavedGammaRow             = document.getElementById('interleaved-gamma-row');
 const interleavedGammaSlider          = document.getElementById('interleaved-gamma');
 const interleavedGammaVal             = document.getElementById('interleaved-gamma-val');
+const interleavedInvertToolsChk       = document.getElementById('interleaved-invert-tools');
 const interleavedExclusionModeSelect  = document.getElementById('interleaved-exclusion-mode');
 const interleavedToolList             = document.getElementById('interleaved-tool-list');
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
@@ -544,6 +545,7 @@ let interleavedSettings          = {
   weaveAmp: 0.60,   // mm (rec: nozzle * 1.5 for distinct beads)
   shadingMode: 1, // 0 = Step (discrete), 1 = Gradient (continuous)
   gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
+  invertTools: false, // Invert Tool 1 <-> Tool 2 exposure mapping
   exclusionMode: 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
   shadingSource: 'texture', // 'texture' or 'curvature'
   curvatureRadius: 3.5, // mm
@@ -1813,6 +1815,7 @@ function renderInterleavedUI() {
   settings.interleavedWeaveAmp    = interleavedSettings.weaveAmp ?? 0.60;
   settings.interleavedShadingMode = interleavedSettings.shadingMode;
   settings.interleavedGamma       = interleavedSettings.gamma ?? 1.0;
+  settings.interleavedInvertTools = !!interleavedSettings.invertTools;
   settings.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
   settings.interleavedToolIds     = toolIds;
   settings.colorSubMode           = currentColorSubMode;
@@ -1869,6 +1872,10 @@ function renderInterleavedUI() {
 
   if (interleavedGammaRow) {
     interleavedGammaRow.style.display = (interleavedSettings.shadingMode === 1) ? 'flex' : 'none';
+  }
+
+  if (interleavedInvertToolsChk) {
+    interleavedInvertToolsChk.checked = !!interleavedSettings.invertTools;
   }
 
   // Make sure shared palette UI is rendered
@@ -2129,6 +2136,14 @@ function initInterleavedEvents() {
       const g = parseFloat(e.target.value) || 1.0;
       interleavedSettings.gamma = g;
       if (interleavedGammaVal) interleavedGammaVal.textContent = g.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedInvertToolsChk) {
+    interleavedInvertToolsChk.addEventListener('change', () => {
+      interleavedSettings.invertTools = !!interleavedInvertToolsChk.checked;
       renderInterleavedUI();
       updatePreview();
     });
@@ -6231,9 +6246,10 @@ async function handleExport(format = 'stl') {
       interleavedProfileMode: interleavedSettings.profileMode ?? 0,
       interleavedNozzleDiameter: interleavedSettings.nozzleDiameter ?? 0.40,
       interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.60,
-      interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.20,
+      interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.60,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedGamma: interleavedSettings.gamma ?? 1.0,
+      interleavedInvertTools: !!interleavedSettings.invertTools,
       interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
       shadingSource: interleavedSettings.shadingSource ?? 'texture',
       curvatureScale: interleavedSettings.curvatureScale ?? 1.0,
@@ -6410,8 +6426,10 @@ async function handleExport(format = 'stl') {
 
           if (exportPalette.length > 0 && effectiveSettings.interleavedShadingMode === 1) {
             const rgb = sampleRGBBilinear(exportEntry.imageData.data, exportEntry.width, exportEntry.height, u, v);
-            multiColorInfo = computeMultiColorBlend(rgb, exportPalette);
-            targetTool = multiColorInfo.toolA;
+            const gamma = effectiveSettings.interleavedGamma ?? 1.0;
+            const invert = !!effectiveSettings.interleavedInvertTools;
+            multiColorInfo = computeMultiColorBlend(rgb, exportPalette, gamma, invert);
+            targetTool = (multiColorInfo.t >= 0.5) ? multiColorInfo.toolA : multiColorInfo.toolB;
             blendWeight = multiColorInfo.t;
           }
 
@@ -6437,7 +6455,7 @@ async function handleExport(format = 'stl') {
             cx,
             cy,
             pitch,
-            amp: effectiveSettings.interleavedWeaveAmp ?? 0.20,
+            amp: effectiveSettings.interleavedWeaveAmp ?? 0.60,
             waveCount
           };
         }

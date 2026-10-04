@@ -361,6 +361,8 @@ export default {
   "color.shadingGradient": "Gradient (Continuous)",
   "color.interleavedGamma": "Tonal Gamma",
   "color.interleavedGammaTitle": "Tonal curve mapping (gamma correction). 1.0 is linear full range, higher deepens blacks, lower brightens shadows.",
+  "color.interleavedInvertTools": "Invert Colors / Tools (Tool 1 ↔ Tool 2)",
+  "color.interleavedInvertToolsTitle": "Inverts exposure mapping between Tool 1 and Tool 2. Enable if light and dark colors appear inverted in the slicer.",
   "color.interleavedExclusionMode": "Exclusion Area Mode",
   "color.interleavedExclusionModeTitle": "How exclusion painted regions are treated (height displacement, interleaved painting, and tool assignment)",
   "color.exclMode1": "1. Height OFF / Paint OFF (Fill with Untextured Tool)",

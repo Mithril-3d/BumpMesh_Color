@@ -529,7 +529,9 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
         blendWeight = settings.curvatureLuminance[vid] ?? 0.5;
       } else if (shadingMode === 1 && palette.length >= 2) {
         const rgb = sampleRGBBilinear(imageData.data, imgWidth, imgHeight, u, v);
-        multiColorInfo = computeMultiColorBlend(rgb, palette);
+        const gamma = settings.interleavedGamma ?? 1.0;
+        const invert = !!settings.interleavedInvertTools;
+        multiColorInfo = computeMultiColorBlend(rgb, palette, gamma, invert);
         blendWeight = multiColorInfo.t;
       }
 

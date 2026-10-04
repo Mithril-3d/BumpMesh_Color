@@ -105,12 +105,38 @@ export function computeColorBlendWeight(rgb, colorA = [255, 255, 255], colorB = 
  * @param {Array<object>} palette - [{ toolId, color: [r, g, b] }, ...]
  * @returns {{ toolA: number, toolB: number, t: number }}
  */
-export function computeMultiColorBlend(rgb, palette) {
+export function computeMultiColorBlend(rgb, palette, gamma = 1.0, invert = false) {
   if (!palette || palette.length === 0) {
     return { toolA: 1, toolB: 1, t: 1.0 };
   }
   if (palette.length === 1) {
     return { toolA: palette[0].toolId, toolB: palette[0].toolId, t: 1.0 };
+  }
+
+  // 2-color palette: precise normalized linear distance interpolation in [0.0, 1.0]
+  if (palette.length === 2) {
+    const col0 = palette[0].color || [255, 255, 255];
+    const col1 = palette[1].color || [0, 0, 0];
+    const dr0 = rgb[0] - col0[0], dg0 = rgb[1] - col0[1], db0 = rgb[2] - col0[2];
+    const dr1 = rgb[0] - col1[0], dg1 = rgb[1] - col1[1], db1 = rgb[2] - col1[2];
+    const d0 = Math.sqrt(dr0 * dr0 + dg0 * dg0 + db0 * db0);
+    const d1 = Math.sqrt(dr1 * dr1 + dg1 * dg1 + db1 * db1);
+    const sumD = d0 + d1;
+    let w = (sumD > 1e-6) ? (d1 / sumD) : 0.5; // 1.0 = 100% Tool 1 (col0), 0.0 = 100% Tool 2 (col1)
+
+    if (gamma !== 1.0 && gamma > 0.01) {
+      w = Math.pow(w, gamma);
+    }
+    if (invert) {
+      w = 1.0 - w;
+    }
+    w = Math.max(0.0, Math.min(1.0, w));
+
+    return {
+      toolA: palette[0].toolId,
+      toolB: palette[1].toolId,
+      t: w // True continuous exposure for Tool 1 in [0.0, 1.0]
+    };
   }
 
   let bestK = 0;
@@ -139,7 +165,10 @@ export function computeMultiColorBlend(rgb, palette) {
   const dA = Math.sqrt(bestDistSq);
   const dB = Math.sqrt(secondDistSq);
   const sumD = dA + dB;
-  const t = (sumD > 1e-6) ? (dB / sumD) : 1.0;
+  let t = (sumD > 1e-6) ? (dB / sumD) : 1.0;
+  if (gamma !== 1.0 && gamma > 0.01) {
+    t = Math.pow(t, gamma);
+  }
 
   return {
     toolA: palette[bestK].toolId,
@@ -183,6 +212,25 @@ export function computeLouverDisplacement(
   const zRel = Math.max(0, z - minZ);
   const layerIdx = Math.floor(zRel / t);
   const activeTool = getInterleavedToolAtLayer(layerIdx, toolIds);
+
+  // Determine continuous exposure ratio for activeTool in [0.0, 1.0]
+  let exposure = 0.5;
+  if (multiColorInfo) {
+    const { toolA, toolB, t: tAffinity } = multiColorInfo;
+    if (activeTool === toolA) {
+      exposure = tAffinity;
+    } else if (activeTool === toolB) {
+      exposure = 1.0 - tAffinity;
+    } else {
+      exposure = 0.0;
+    }
+  } else if (toolIds.length >= 2) {
+    const isTool0 = (activeTool === toolIds[0]);
+    exposure = isTool0 ? blendWeight : (1.0 - blendWeight);
+  } else {
+    exposure = (activeTool === targetToolId) ? 1.0 : 0.0;
+  }
+  exposure = Math.max(0, Math.min(1, exposure));
 
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
@@ -273,25 +321,6 @@ export function computeLouverDisplacement(
       W = Math.sin(phi);
     }
 
-    // Determine exposure ratio for the active tool
-    let exposure = 0.5;
-    if (multiColorInfo) {
-      const { toolA, toolB, t: tAffinity } = multiColorInfo;
-      if (activeTool === toolA) {
-        exposure = tAffinity;
-      } else if (activeTool === toolB) {
-        exposure = 1.0 - tAffinity;
-      } else {
-        exposure = 0.0;
-      }
-    } else if (toolIds.length >= 2) {
-      const isTool0 = (activeTool === toolIds[0]);
-      exposure = isTool0 ? blendWeight : (1.0 - blendWeight);
-    } else {
-      exposure = (activeTool === targetToolId) ? 1.0 : 0.0;
-    }
-    exposure = Math.max(0, Math.min(1, exposure));
-
     const dcOffset = -concaveAmp + (convexAmp + concaveAmp) * exposure;
     // Keep healthy weave modulation across all exposure levels (never drop to 0)
     // so both alternating layers continuously weave together without creating vertical cliff-drops.
@@ -300,39 +329,14 @@ export function computeLouverDisplacement(
   }
 
   // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
-  let ratio = 0.0;
-  if (multiColorInfo) {
-    const { toolA, toolB, t: tAffinity } = multiColorInfo;
-    if (activeTool === toolA) {
-      ratio = (tAffinity >= 0.5) ? (tAffinity - 0.5) * 2.0 : 0.0;
-    } else if (activeTool === toolB) {
-      ratio = (tAffinity < 0.5) ? (0.5 - tAffinity) * 2.0 : 0.0;
-    } else {
-      ratio = 0.0;
-    }
-  } else if (toolIds.length >= 2) {
-    const isTool0 = (activeTool === toolIds[0]);
-    if (blendWeight >= 0.5) {
-      ratio = isTool0 ? (blendWeight - 0.5) * 2.0 : 0.0;
-    } else {
-      ratio = !isTool0 ? (0.5 - blendWeight) * 2.0 : 0.0;
-    }
-  } else {
-    ratio = (activeTool === targetToolId) ? 1.0 : 0.0;
-  }
-  ratio = Math.max(0, Math.min(1, ratio));
-
-  if (ratio <= 0.0) {
-    return -concaveAmp;
-  }
-
-  const effAmp = convexAmp * ratio;
+  const disp = -concaveAmp + (convexAmp + concaveAmp) * exposure;
 
   if (profileMode === 0) {
-    return effAmp;
+    return disp;
   }
 
   // ProfileMode 1: 45° Louver (eaves shield with scaled protrusion)
+  const effAmp = Math.max(0, disp);
   const zFrac = Math.max(0, Math.min(1, (zRel - layerIdx * t) / t));
   const slope = Math.min(effAmp, t);
   const base = Math.max(0, effAmp - slope);

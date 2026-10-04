@@ -368,6 +368,25 @@ function computeLayerDisplacementByLayer(
     return base + zFrac * slope;
   }
 
+  // Determine exposure ratio for the active tool in [0.0, 1.0]
+  let exposure = 0.5;
+  if (multiColorInfo) {
+    const { toolA, toolB, t: tAffinity } = multiColorInfo;
+    if (activeTool === toolA) {
+      exposure = tAffinity;
+    } else if (activeTool === toolB) {
+      exposure = 1.0 - tAffinity;
+    } else {
+      exposure = 0.0;
+    }
+  } else if (toolIds.length >= 2) {
+    const isTool0 = (activeTool === toolIds[0]);
+    exposure = isTool0 ? blendWeight : (1.0 - blendWeight);
+  } else {
+    exposure = (activeTool === targetToolId) ? 1.0 : 0.0;
+  }
+  exposure = Math.max(0, Math.min(1, exposure));
+
   // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
   if (profileMode === 2 || profileMode === 3 || profileMode === 4) {
     const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.60);
@@ -399,25 +418,6 @@ function computeLayerDisplacementByLayer(
       W = Math.sin(phi);
     }
 
-    // Determine exposure ratio for the active tool
-    let exposure = 0.5;
-    if (multiColorInfo) {
-      const { toolA, toolB, t: tAffinity } = multiColorInfo;
-      if (activeTool === toolA) {
-        exposure = tAffinity;
-      } else if (activeTool === toolB) {
-        exposure = 1.0 - tAffinity;
-      } else {
-        exposure = 0.0;
-      }
-    } else if (toolIds.length >= 2) {
-      const isTool0 = (activeTool === toolIds[0]);
-      exposure = isTool0 ? blendWeight : (1.0 - blendWeight);
-    } else {
-      exposure = (activeTool === targetToolId) ? 1.0 : 0.0;
-    }
-    exposure = Math.max(0, Math.min(1, exposure));
-
     const dcOffset = -concaveVal + (convexVal + concaveVal) * exposure;
     // Keep healthy weave modulation across all exposure levels (never drop to 0)
     // so both alternating layers continuously weave together without creating vertical cliff-shelves.
@@ -426,40 +426,14 @@ function computeLayerDisplacementByLayer(
   }
 
   // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
-  let ratio = 0.0;
-  if (multiColorInfo) {
-    const { toolA, toolB, t: tAffinity } = multiColorInfo;
-    if (activeTool === toolA) {
-      ratio = (tAffinity >= 0.5) ? (tAffinity - 0.5) * 2.0 : 0.0;
-    } else if (activeTool === toolB) {
-      ratio = (tAffinity < 0.5) ? (0.5 - tAffinity) * 2.0 : 0.0;
-    } else {
-      ratio = 0.0;
-    }
-  } else if (toolIds.length >= 2) {
-    const isTool0 = (activeTool === toolIds[0]);
-    if (blendWeight >= 0.5) {
-      ratio = isTool0 ? (blendWeight - 0.5) * 2.0 : 0.0;
-    } else {
-      ratio = !isTool0 ? (0.5 - blendWeight) * 2.0 : 0.0;
-    }
-  } else {
-    ratio = (activeTool === targetToolId) ? 1.0 : 0.0;
-  }
-  ratio = Math.max(0, Math.min(1, ratio));
+  const disp = -concaveVal + (convexVal + concaveVal) * exposure;
 
-  if (ratio <= 0.0) {
-    return -concaveVal;
-  }
-
-  let effAmp = convexVal * ratio;
-  if (effAmp < 0.001) {
-    return 0.0;
-  }
   if (profileMode === 0) {
-    return effAmp;
+    return disp;
   }
 
+  // ProfileMode 1: 45° Louver
+  const effAmp = Math.max(0.0, disp);
   const zFrac = Math.max(0, Math.min(1, (z - (minZ + lay * t)) / t));
   let slope = Math.min(effAmp, t);
   let base = Math.max(0, effAmp - slope);
