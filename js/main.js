@@ -413,6 +413,11 @@ function applyModelScale(scaleXPct, scaleYPct, scaleZPct, refitCamera = false) {
     dispPreviewToggle.checked = false;
   }
 
+  // Update curvature shading if active
+  if (interleavedSettings && interleavedSettings.shadingSource === 'curvature') {
+    triggerCurvatureUpdate();
+  }
+
   updatePreview();
 }
 
@@ -6341,11 +6346,15 @@ async function handleExport(format = 'stl') {
         // 4. Sample texture and apply layer-aligned displacement:
         // Build 3D spatial hash grid for instantaneous, 100% exact curvature lookup
         let curvatureGrid = null;
+        if (effectiveSettings.shadingSource === 'curvature') {
+          triggerCurvatureUpdate();
+        }
         if (effectiveSettings.shadingSource === 'curvature' && currentCurvatureResult) {
           const uPos = currentCurvatureResult.uniquePositions;
           const uLum = currentCurvatureResult.uniqueLuminance;
           const uCount = currentCurvatureResult.uniqueCount;
-          const CELL = 2.0;
+          const diag = currentBounds ? currentBounds.size.length() : 100;
+          const CELL = Math.max(2.0, diag / 60);
           const gMap = new Map();
           for (let i = 0; i < uCount; i++) {
             const gx = Math.floor(uPos[i * 3] / CELL);
@@ -6383,10 +6392,10 @@ async function handleExport(format = 'stl') {
             const gz = Math.floor(wz / CELL);
 
             let bestDistSq = 1e9;
-            let bestIdx = 0;
-            for (let dx = -1; dx <= 1; dx++) {
-              for (let dy = -1; dy <= 1; dy++) {
-                for (let dz = -1; dz <= 1; dz++) {
+            let bestIdx = -1;
+            for (let dx = -2; dx <= 2; dx++) {
+              for (let dy = -2; dy <= 2; dy++) {
+                for (let dz = -2; dz <= 2; dz++) {
                   const list = gMap.get(`${gx + dx},${gy + dy},${gz + dz}`);
                   if (!list) continue;
                   for (let k = 0; k < list.length; k++) {
@@ -6403,7 +6412,13 @@ async function handleExport(format = 'stl') {
                 }
               }
             }
-            const lum = uLum[bestIdx] ?? 0.5;
+            let lum = (bestIdx >= 0 && uLum[bestIdx] !== undefined) ? uLum[bestIdx] : (interleavedSettings.curvatureBias ?? 0.5);
+            if (interleavedSettings.gamma && Math.abs(interleavedSettings.gamma - 1.0) > 0.01) {
+              lum = Math.pow(Math.max(0.0, Math.min(1.0, lum)), Math.max(0.01, interleavedSettings.gamma));
+            }
+            if (interleavedSettings.invertTools) {
+              lum = 1.0 - lum;
+            }
             const targetTool = (lum >= 0.5) ? toolIds[0] : (toolIds[1] ?? toolIds[0]);
             return { targetTool, blendWeight: lum, multiColorInfo: null };
           }
