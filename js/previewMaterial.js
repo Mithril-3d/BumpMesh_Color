@@ -208,7 +208,7 @@ const sharedGLSL = /* glsl */`
           float exposure = (activeK == bestK) ? tAffinity : ((activeK == secondK) ? (1.0 - tAffinity) : 0.0);
           exposure = clamp(exposure, 0.0, 1.0);
           float dcOffset = -interleavedConcave + (interleavedConvex + interleavedConcave) * exposure;
-          float modFactor = 2.0 * min(exposure, 1.0 - exposure);
+          float modFactor = 0.5 + 0.5 * (2.0 * min(exposure, 1.0 - exposure));
           return dcOffset + waveAmp * W * modFactor;
         }
 

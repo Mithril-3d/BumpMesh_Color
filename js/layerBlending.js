@@ -293,8 +293,9 @@ export function computeLouverDisplacement(
     exposure = Math.max(0, Math.min(1, exposure));
 
     const dcOffset = -concaveAmp + (convexAmp + concaveAmp) * exposure;
-    // Modulation envelope: maximum at exposure=0.5, smoothly tapering to 0 at extremes (100% / 0%)
-    const modFactor = 2.0 * Math.min(exposure, 1.0 - exposure);
+    // Keep healthy weave modulation across all exposure levels (never drop to 0)
+    // so both alternating layers continuously weave together without creating vertical cliff-drops.
+    const modFactor = 0.5 + 0.5 * (2.0 * Math.min(exposure, 1.0 - exposure));
     return dcOffset + waveAmp * W * modFactor;
   }
 

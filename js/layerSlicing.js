@@ -419,8 +419,9 @@ function computeLayerDisplacementByLayer(
     exposure = Math.max(0, Math.min(1, exposure));
 
     const dcOffset = -concaveVal + (convexVal + concaveVal) * exposure;
-    // Modulation envelope: maximum at exposure=0.5, smoothly tapering to 0 at extremes (100% / 0%)
-    const modFactor = 2.0 * Math.min(exposure, 1.0 - exposure);
+    // Keep healthy weave modulation across all exposure levels (never drop to 0)
+    // so both alternating layers continuously weave together without creating vertical cliff-shelves.
+    const modFactor = 0.5 + 0.5 * (2.0 * Math.min(exposure, 1.0 - exposure));
     return dcOffset + waveAmp * W * modFactor;
   }
 
@@ -634,16 +635,11 @@ export function applyLayerAlignedDisplacement(
 
     let assignedTool;
     if (isHorizontalCap) {
+      // Horizontal flat cap surfaces (bottom or top of model) use untexturedTool
       assignedTool = untexturedTool;
-    } else if (isExcluded) {
-      if (exclusionMode === 1 || exclusionMode === 3) {
-        // Mode 2 & Mode 4: 交互積層維持 (activeTool)
-        assignedTool = activeTool;
-      } else {
-        // Mode 1 & Mode 3: 指定ツール塗りつぶし (untexturedTool)
-        assignedTool = untexturedTool;
-      }
     } else {
+      // Vertical sidewalls in interleaved mode MUST be 100% strictly activeTool.
+      // Zero exceptions: never bleed untexturedTool onto vertical layers to guarantee 1-layer-1-color!
       assignedTool = activeTool;
     }
     triTools[i] = assignedTool;
@@ -803,14 +799,13 @@ export function applyLayerAlignedDisplacement(
         const p1_top_y = Math.fround(p1[1] + dispTop1 * uny1);
         const p1_top_z = p1[2];
 
-        // Assign tool:
-        // In interleaved slicing, layer boundary shelf (Z = zCut) represents the top surface of the lower layer (botLay).
-        // Assigning botTool guarantees 100% strict single-color per slice layer with ZERO intra-layer tool mixing/speckles.
-        let shelfTool = botTool;
-        if (isExcl0 && isExcl1 && (exclusionMode === 0 || exclusionMode === 2)) {
-          shelfTool = untexturedTool;
-        }
         const shelfNz = ((dispBot0 + dispBot1) >= (dispTop0 + dispTop1)) ? 1 : -1;
+
+        // Assign tool strictly aligned to the layer containing this surface:
+        // - If shelf faces upward (shelfNz > 0), it is the top ceiling of botLay -> botTool.
+        // - If shelf faces downward (shelfNz < 0), it is the bottom floor of topLay -> topTool.
+        // This guarantees 100% strict single-color per slice layer with zero cross-layer tool bleed!
+        const shelfTool = (shelfNz > 0) ? botTool : topTool;
 
         // Output non-degenerate shelf geometry with correct manifold winding order:
         // Lower triangle edge is p1_bot -> p0_bot, so shelf must have opposite directed edge p0_bot -> p1_bot.
