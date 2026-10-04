@@ -782,26 +782,15 @@ export function applyLayerAlignedDisplacement(
         const shelfTool = (shelfNz > 0) ? botTool : topTool;
 
         // Output non-degenerate shelf geometry with mathematically correct manifold winding order:
-        // - Upward shelf (shelfNz > 0): +Z normal, CCW when viewed from above (+Z).
-        // - Downward shelf (shelfNz < 0): -Z normal, CCW when viewed from below (-Z).
-        if (shelfNz > 0) {
-          if (!hasStep0) {
-            emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p1_top_x, p1_top_y, p1_top_z, 1, shelfTool);
-          } else if (!hasStep1) {
-            emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p0_top_x, p0_top_y, p0_top_z, p1_bot_x, p1_bot_y, p1_bot_z, 1, shelfTool);
-          } else {
-            emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p0_top_x, p0_top_y, p0_top_z, p1_bot_x, p1_bot_y, p1_bot_z, 1, shelfTool);
-            emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p1_top_x, p1_top_y, p1_top_z, 1, shelfTool);
-          }
+        // Lower triangle edge is p1_bot -> p0_bot, so shelf must have opposite directed edge p0_bot -> p1_bot.
+        // Upper triangle edge is p0_top -> p1_top, so shelf must have opposite directed edge p1_top -> p0_top.
+        if (!hasStep0) {
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
+        } else if (!hasStep1) {
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
         } else {
-          if (!hasStep0) {
-            emitShelfTriangle(p1_top_x, p1_top_y, p1_top_z, p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, -1, shelfTool);
-          } else if (!hasStep1) {
-            emitShelfTriangle(p0_top_x, p0_top_y, p0_top_z, p1_top_x, p1_top_y, p1_top_z, p0_bot_x, p0_bot_y, p0_bot_z, -1, shelfTool);
-          } else {
-            emitShelfTriangle(p0_top_x, p0_top_y, p0_top_z, p1_top_x, p1_top_y, p1_top_z, p0_bot_x, p0_bot_y, p0_bot_z, -1, shelfTool);
-            emitShelfTriangle(p1_top_x, p1_top_y, p1_top_z, p1_bot_x, p1_bot_y, p1_bot_z, p0_bot_x, p0_bot_y, p0_bot_z, -1, shelfTool);
-          }
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
+          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
         }
       }
     }

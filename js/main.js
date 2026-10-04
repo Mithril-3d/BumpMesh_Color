@@ -54,7 +54,7 @@ import {
   computeMultiColorBlend,
   generateInterleavedTable
 } from './layerBlending.js?v=20260929_130';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20260929_130';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261004_156';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
