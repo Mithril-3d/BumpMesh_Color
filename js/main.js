@@ -4401,6 +4401,7 @@ async function handleModelFile(file, stepSettings = null) {
 
     currentGeometry = geometry;
     document.querySelectorAll('.model-preset-btn').forEach(btn => btn.classList.remove('active'));
+    currentPresetKey = null;
     currentBounds   = bounds;
     currentPoseRot   = new THREE.Quaternion();
     currentPoseTrans = originOffset ? originOffset.clone().negate() : new THREE.Vector3(); // mem = orig − centre
@@ -6331,11 +6332,12 @@ async function handleExport(format = 'stl') {
         const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
 
         const isWeaveMode = (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4);
+        const isCylinderTubeMode = isWeaveMode && (currentPresetKey === 'cylinder');
 
-        // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm) for flat/louver modes
+        // 3. Slice all triangles at exact layer boundaries with micro-offset (+0.005mm)
         const cutOffset = 0.005;
         let sliced = null;
-        if (!isWeaveMode) {
+        if (!isCylinderTubeMode) {
           sliced = sliceMeshWatertight(pos, result.normals, groundedMinZ + cutOffset, thickness, totalLayers, result.excludeWeights || null);
         }
 
@@ -6464,8 +6466,8 @@ async function handleExport(format = 'stl') {
 
         let finalPositions, finalNormals, triTools;
 
-        if (isWeaveMode) {
-          // 🧶 断面四角の輪ゴム積層チューブ生成（編み重ね専用）
+        if (isCylinderTubeMode) {
+          // 🧶 断面四角の輪ゴム積層チューブ生成（円柱プリセット専用の花瓶・チューブ生成）
           const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
           const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
           const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;
@@ -6494,7 +6496,24 @@ async function handleExport(format = 'stl') {
           finalNormals = tube.normals;
           triTools = tube.tools;
         } else {
-          // 通常のフラット段差 (Profile 0) / 45°ルーバー (Profile 1)
+          // 任意形状メッシュ（頭部モデル、彫刻、カスタムSTL等）
+          // フラット段差、45°ルーバー、および任意メッシュ上の編み重ね (Profile 2, 3, 4)
+          const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
+          const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
+          const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;
+          const sy = currentBounds ? (currentBounds.max.y - currentBounds.min.y) : 40;
+          const rAvg = Math.max(1.0, (sx + sy) * 0.25);
+          const pitch = Math.max(0.2, effectiveSettings.interleavedWeavePitch ?? 1.60);
+          const waveCount = Math.max(6, Math.round((2.0 * Math.PI * rAvg) / pitch));
+
+          const weaveParams = isWeaveMode ? {
+            amp: effectiveSettings.interleavedWeaveAmp ?? 0.60,
+            pitch: pitch,
+            waveCount: waveCount,
+            cx: cx,
+            cy: cy
+          } : null;
+
           const aligned = applyLayerAlignedDisplacement(
             sliced,
             groundedMinZ + cutOffset,
@@ -6507,7 +6526,7 @@ async function handleExport(format = 'stl') {
             sampleFn,
             untexturedTool,
             exclusionMode,
-            null
+            weaveParams
           );
 
           finalPositions = aligned.positions;
