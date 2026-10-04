@@ -560,6 +560,13 @@
               <span class="val" id="interleaved-concave-amp-val">0.00</span>
             </div>
 
+            <div class="form-row" id="interleaved-base-displacement-row" style="margin-bottom:10px;padding:6px 8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:6px;display:flex;align-items:center;justify-content:space-between;">
+              <label for="interleaved-enable-base-displacement" style="cursor:pointer;display:flex;align-items:center;gap:6px;" data-i18n-title="color.enableBaseDisplacementTitle" title="BumpMesh本来の大きな凹凸変位（Amplitude）をベースメッシュに適用した上で、各層の振り重ねを行います。デフォルトは無効（フラットベースに微小段差のみ適用）。">
+                <input type="checkbox" id="interleaved-enable-base-displacement" style="cursor:pointer;">
+                <span data-i18n="color.enableBaseDisplacement" style="font-size:11px;font-weight:600;color:var(--accent,#38bdf8);">ベースの凹凸変位 (Amplitude) を併用</span>
+              </label>
+            </div>
+
             <div class="form-row" style="margin-bottom:8px;">
               <label for="interleaved-profile-mode" data-i18n="color.profileMode" data-i18n-title="color.profileModeTitle" title="層ごとの断面形状。フラット段差は直線が美しく、他作品のような綺麗な仕上がりになる標準方式です。">断面形状 (遮蔽)</label>
               <select id="interleaved-profile-mode" class="interleaved-select">
@@ -1722,6 +1729,6 @@
     </div>
   </aside>
 
-  <script type="module" src="js/main.js?v=20261004_1517"></script>
+  <script type="module" src="js/main.js?v=20261004_1518"></script>
 </body>
 </html>

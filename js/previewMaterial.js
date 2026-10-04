@@ -67,6 +67,7 @@ const sharedGLSL = /* glsl */`
   uniform vec3      untexturedColor;
   uniform vec2      textureAspect;
   uniform int       interleavedExclusionMode;
+  uniform int       interleavedEnableBaseDisplacement;
 
 
   const float PI     = 3.14159265358979;
@@ -74,6 +75,7 @@ const sharedGLSL = /* glsl */`
   const float CUBIC_AXIS_EPSILON = 1e-4;
 
   // Forward declarations
+  float computeBaseTextureHeight(vec3 pos, vec3 projN, vec3 blendN);
   float computeHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum);
   vec3 computeRawColorAtPoint(vec3 pos, vec3 projN, vec3 blendN);
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum);
@@ -293,6 +295,11 @@ const sharedGLSL = /* glsl */`
       }
     }
 
+    return computeBaseTextureHeight(pos, projN, blendN);
+  }
+
+  // Compute base BumpMesh texture displacement height (normalized 0..1)
+  float computeBaseTextureHeight(vec3 pos, vec3 projN, vec3 blendN) {
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
@@ -651,6 +658,11 @@ const vertexShader = /* glsl */`
       // arrive at the same point (watertight, no cracks).
       vec3 sN = length(smoothNormal) > 1e-6 ? normalize(smoothNormal) : safeN;
       float dispVal = (colorSubMode == 1) ? h : (h * amplitude);
+      if (colorSubMode == 1 && interleavedEnableBaseDisplacement == 1) {
+        float baseH = computeBaseTextureHeight(position, safeN, safeN);
+        if (symmetricDisplacement == 1) baseH = baseH - 0.5;
+        dispVal += baseH * amplitude * totalMask;
+      }
       pos = position + sN * dispVal;
       // Overhang protection: never move a vertex below its original Z.
       if (noDownwardZ == 1 && pos.z < position.z) pos.z = position.z;
@@ -952,6 +964,9 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedExclusionMode) u.interleavedExclusionMode = { value: 0 };
   u.interleavedExclusionMode.value = settings.interleavedExclusionMode ?? 0;
 
+  if (!u.interleavedEnableBaseDisplacement) u.interleavedEnableBaseDisplacement = { value: 0 };
+  u.interleavedEnableBaseDisplacement.value = settings.interleavedEnableBaseDisplacement ? 1 : 0;
+
   if (!u.shadingSource) u.shadingSource = { value: 0 };
   u.shadingSource.value = (settings.shadingSource === 'curvature') ? 1 : 0;
 
@@ -1025,6 +1040,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedGamma:         { value: settings.interleavedGamma ?? 1.0 },
     interleavedInvertTools:   { value: settings.interleavedInvertTools ? 1 : 0 },
     interleavedExclusionMode: { value: settings.interleavedExclusionMode ?? 0 },
+    interleavedEnableBaseDisplacement: { value: settings.interleavedEnableBaseDisplacement ? 1 : 0 },
     shadingSource:            { value: (settings.shadingSource === 'curvature') ? 1 : 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },

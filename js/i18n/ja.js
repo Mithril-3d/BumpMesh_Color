@@ -336,6 +336,8 @@ export default {
   "color.convexAmpTitle": "目的色と一致する層の突出量（凸量）",
   "color.concaveAmp": "凹量 / 引込 (mm)",
   "color.concaveAmpTitle": "目的色と一致しない層の引っ込み量（凹量）",
+  "color.enableBaseDisplacement": "ベースの凹凸変位 (Amplitude) を併用",
+  "color.enableBaseDisplacementTitle": "BumpMesh本来の大きな凹凸変位（Amplitude）をベースメッシュに適用した上で、各層の振り重ねを行います。デフォルトは無効（フラットベースに微小段差のみ適用）。",
   "color.profileMode": "断面形状 (遮蔽)",
   "color.profileModeTitle": "層ごとの断面形状。フラット段差は直線が美しく、他作品のような綺麗な仕上がりになる標準方式です。",
   "color.profileStep": "フラット段差（標準ステップ・推奨）",

@@ -504,6 +504,7 @@ const interleavedConvexAmpSlider      = document.getElementById('interleaved-con
 const interleavedConvexAmpVal         = document.getElementById('interleaved-convex-amp-val');
 const interleavedConcaveAmpSlider     = document.getElementById('interleaved-concave-amp');
 const interleavedConcaveAmpVal        = document.getElementById('interleaved-concave-amp-val');
+const interleavedEnableBaseDispChk    = document.getElementById('interleaved-enable-base-displacement');
 const interleavedProfileModeSelect    = document.getElementById('interleaved-profile-mode');
 const interleavedWeaveContainer       = document.getElementById('interleaved-weave-container');
 const interleavedNozzlePresetSelect   = document.getElementById('interleaved-nozzle-preset');
@@ -545,6 +546,7 @@ let interleavedSettings          = {
   layerThickness: 0.20,
   convexAmp: 0.80,
   concaveAmp: 0.00,
+  enableBaseDisplacement: false, // false = flat base mesh with step relief; true = apply original BumpMesh Amplitude displacement first
   profileMode: 0, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave, 3 = Zigzag Weave, 4 = Block Pulse
   nozzleDiameter: 0.40, // mm
   weavePitch: 1.60, // mm (rec: nozzle * 4)
@@ -1816,6 +1818,7 @@ function renderInterleavedUI() {
   settings.interleavedThickness   = thickness;
   settings.interleavedConvex      = interleavedSettings.convexAmp;
   settings.interleavedConcave     = interleavedSettings.concaveAmp;
+  settings.interleavedEnableBaseDisplacement = !!interleavedSettings.enableBaseDisplacement;
   settings.interleavedProfileMode = interleavedSettings.profileMode;
   settings.interleavedWeavePitch  = interleavedSettings.weavePitch ?? 1.50;
   settings.interleavedWeaveAmp    = interleavedSettings.weaveAmp ?? 0.60;
@@ -1882,6 +1885,10 @@ function renderInterleavedUI() {
 
   if (interleavedInvertToolsChk) {
     interleavedInvertToolsChk.checked = !!interleavedSettings.invertTools;
+  }
+
+  if (interleavedEnableBaseDispChk) {
+    interleavedEnableBaseDispChk.checked = !!interleavedSettings.enableBaseDisplacement;
   }
 
   // Make sure shared palette UI is rendered
@@ -1968,6 +1975,14 @@ function initInterleavedEvents() {
       const v = isNaN(parsed) ? 0.00 : parsed;
       interleavedSettings.concaveAmp = v;
       if (interleavedConcaveAmpVal) interleavedConcaveAmpVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedEnableBaseDispChk) {
+    interleavedEnableBaseDispChk.addEventListener('change', (e) => {
+      interleavedSettings.enableBaseDisplacement = !!e.target.checked;
       renderInterleavedUI();
       updatePreview();
     });
@@ -6265,8 +6280,9 @@ async function handleExport(format = 'stl') {
       curvatureLuminance: (currentCurvatureResult && interleavedSettings.shadingSource === 'curvature') ? currentCurvatureResult.uniqueLuminance : null,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
       // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
-      // so we receive a pristine subdivided base mesh, then slice & displace strictly per layer.
-      ...(isLayerBlendMode ? {
+      // only when enableBaseDisplacement is false (default) so we receive a pristine flat subdivided base mesh.
+      // If enableBaseDisplacement is true, keep original BumpMesh amplitude displacement on the base mesh.
+      ...(isLayerBlendMode && !interleavedSettings.enableBaseDisplacement ? {
         amplitude: 0,
         harvestFlatFaces: false,
         regularizeEnabled: false,

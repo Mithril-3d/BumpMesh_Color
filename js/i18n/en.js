@@ -334,6 +334,8 @@ export default {
   "color.convexAmpTitle": "Extrusion height for layers matching the target color",
   "color.concaveAmp": "Concave Offset (mm)",
   "color.concaveAmpTitle": "Recess depth for layers not matching the target color",
+  "color.enableBaseDisplacement": "Enable Base Mesh Displacement (Amplitude)",
+  "color.enableBaseDisplacementTitle": "Apply original BumpMesh macro displacement (Amplitude) to the base mesh before interleaved layers. Default is disabled (flat base with step relief).",
   "color.profileMode": "Layer Profile",
   "color.profileModeTitle": "Cross-section geometry per layer. Flat step creates clean, crisp edges (standard / recommended).",
   "color.profileStep": "Flat Step (Standard / Recommended)",
