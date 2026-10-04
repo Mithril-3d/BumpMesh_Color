@@ -478,6 +478,68 @@ const sharedGLSL = /* glsl */`
       int layerIdx = int(floor(zRel / t));
       int activeK = int(mod(float(abs(layerIdx)), float(max(1, interleavedToolCount))));
 
+      vec3 baseCol;
+      if (shadingSource == 1) {
+        float lum = clamp(curvLum, 0.0, 1.0);
+        baseCol = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
+      } else {
+        vec3 rawCol = computeRawColorAtPoint(pos, projN, blendN);
+        if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
+          if (interleavedToolCount == 2) {
+            float d0 = length(rawCol - interleavedPalette[0]);
+            float d1 = length(rawCol - interleavedPalette[1]);
+            float w = (d0 + d1 > 1e-5) ? (d1 / (d0 + d1)) : 0.5;
+            if (abs(interleavedGamma - 1.0) > 0.01) {
+              w = pow(clamp(w, 0.0, 1.0), max(0.01, interleavedGamma));
+            }
+            if (interleavedInvertTools == 1) {
+              w = 1.0 - w;
+            }
+            baseCol = mix(interleavedPalette[1], interleavedPalette[0], clamp(w, 0.0, 1.0));
+          } else {
+            int bestK = 0;
+            float bestDistSq = 1e8;
+            int secondK = 1;
+            float secondDistSq = 1e8;
+            for (int k = 0; k < 8; k++) {
+              if (k >= interleavedToolCount) break;
+              vec3 diff = rawCol - interleavedPalette[k];
+              float dSq = dot(diff, diff);
+              if (dSq < bestDistSq) {
+                secondDistSq = bestDistSq;
+                secondK = bestK;
+                bestDistSq = dSq;
+                bestK = k;
+              } else if (dSq < secondDistSq) {
+                secondDistSq = dSq;
+                secondK = k;
+              }
+            }
+            float dA = sqrt(bestDistSq);
+            float dB = sqrt(secondDistSq);
+            float sumD = dA + dB;
+            float tAffinity = (sumD > 1e-5) ? (dB / sumD) : 1.0;
+            if (abs(interleavedGamma - 1.0) > 0.01) {
+              tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
+            }
+            baseCol = mix(interleavedPalette[secondK], interleavedPalette[bestK], clamp(tAffinity, 0.0, 1.0));
+          }
+        } else {
+          int bestK = 0;
+          float bestDist = 1e6;
+          for (int k = 0; k < 8; k++) {
+            if (k >= interleavedToolCount) break;
+            vec3 diff = rawCol - interleavedPalette[k];
+            float d = dot(diff, diff);
+            if (d < bestDist) {
+              bestDist = d;
+              bestK = k;
+            }
+          }
+          baseCol = interleavedPalette[bestK];
+        }
+      }
+
       if ((interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) && interleavedToolCount >= 2) {
         float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
         float waveCount = max(6.0, interleavedWaveCount);
@@ -507,21 +569,10 @@ const sharedGLSL = /* glsl */`
         float waveProtrusion = clamp(0.5 + W * 0.70, 0.0, 1.0);
         vec3 weaveColor = mix(interleavedPalette[neighborK], interleavedPalette[activeK], waveProtrusion);
 
-        if (shadingSource == 1) {
-          float lum = clamp(curvLum, 0.0, 1.0);
-          vec3 baseCurv = mix(interleavedPalette[1], interleavedPalette[0], lum);
-          return mix(baseCurv, weaveColor, 0.65);
-        } else {
-          vec3 rawCol = computeRawColorAtPoint(pos, projN, blendN);
-          return mix(rawCol, weaveColor, 0.50);
-        }
+        return mix(baseCol, weaveColor, 0.65);
       }
 
-      if (shadingSource == 1) {
-        float lum = clamp(curvLum, 0.0, 1.0);
-        vec3 baseCurv = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
-        return mix(baseCurv, interleavedPalette[activeK], 0.35);
-      }
+      return mix(baseCol, interleavedPalette[activeK], 0.35);
     }
     return computeRawColorAtPoint(pos, projN, blendN);
   }

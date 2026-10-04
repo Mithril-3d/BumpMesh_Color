@@ -340,7 +340,7 @@ export default {
   "color.profileModeTitle": "層ごとの断面形状。フラット段差は直線が美しく、他作品のような綺麗な仕上がりになる標準方式です。",
   "color.profileStep": "フラット段差（標準ステップ・推奨）",
   "color.profileLouver": "45° ルーバー庇（他色シールド・実験的）",
-  "color.profileBlock": "🧱 矩形ブロック編み重ね（ひぃちゃん方式・推奨）",
+  "color.profileBlock": "🧱 矩形ブロック編み重ね",
   "color.profileZigzag": "📐 三角波編み重ね（ジグザグ・軽量高速）",
   "color.profileWeave": "✨ 正弦波編み重ね（サイン波ハーフトーン）",
   "color.weaveSettings": "編み重ねハーフトーン設定",

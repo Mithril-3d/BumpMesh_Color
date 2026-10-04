@@ -39,7 +39,7 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20260929_130';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20261004_131';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20260926_123';
@@ -539,7 +539,7 @@ let interleavedSettings          = {
   layerThickness: 0.20,
   convexAmp: 0.80,
   concaveAmp: 0.00,
-  profileMode: 4, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave, 3 = Zigzag Weave, 4 = Block Pulse
+  profileMode: 0, // 0 = Flat step, 1 = 45° Louver, 2 = Sinusoidal Weave, 3 = Zigzag Weave, 4 = Block Pulse
   nozzleDiameter: 0.40, // mm
   weavePitch: 1.60, // mm (rec: nozzle * 4)
   weaveAmp: 0.60,   // mm (rec: nozzle * 1.5 for distinct beads)
@@ -1835,7 +1835,7 @@ function renderInterleavedUI() {
   }
 
   if (interleavedProfileModeSelect) {
-    interleavedProfileModeSelect.value = String(interleavedSettings.profileMode ?? 4);
+    interleavedProfileModeSelect.value = String(interleavedSettings.profileMode ?? 0);
   }
 
   if (interleavedWeaveContainer) {
@@ -5425,12 +5425,11 @@ function getPreviewColorTexture() {
     return null;
   }
 
-  // Interleaved (振り重ね) mode with continuous gradient shading:
-  // Bypass quantized color display so the smooth, original continuous gradation
-  // is rendered on the 3D model surface while keeping tool count minimal.
+  // Interleaved (振り重ね) mode:
+  // Bypass quantized color display so shader can render palette-based gradients/steps
+  // on the 3D model surface while keeping tool count minimal.
   const isInterleaved = (currentColorSubMode === 1 || settings.colorSubMode === 1);
-  const isGradient = (interleavedSettings.shadingMode === 1 || settings.interleavedShadingMode === 1);
-  if (isInterleaved && isGradient) {
+  if (isInterleaved) {
     const effective = getEffectiveMapEntry();
     if (effective?.texture) {
       return effective.texture;

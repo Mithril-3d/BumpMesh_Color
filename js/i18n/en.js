@@ -338,7 +338,7 @@ export default {
   "color.profileModeTitle": "Cross-section geometry per layer. Flat step creates clean, crisp edges (standard / recommended).",
   "color.profileStep": "Flat Step (Standard / Recommended)",
   "color.profileLouver": "45° Louver Overhang (Color Shielding / Experimental)",
-  "color.profileBlock": "🧱 Block Pulse Weave (Rectangular / Recommended)",
+  "color.profileBlock": "🧱 Block Pulse Weave (Rectangular)",
   "color.profileZigzag": "📐 Zigzag Weave (Triangle Wave / Fast & Lightweight)",
   "color.profileWeave": "✨ Sinusoidal Weave (Halftone Interlocking)",
   "color.weaveSettings": "Weave Halftone Settings",
