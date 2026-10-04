@@ -40,16 +40,6 @@ const IMAGE_PRESETS = [
   { name: 'Organic Random Fluid (φ80x100)',  url: 'textures/organic_orange_random_fluid_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_fluid_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
   { name: 'Organic Random Dense (φ80x100)',  url: 'textures/organic_orange_random_dense_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_dense_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
 
-  // ── Organic Waves & Ripples (1周10回凹凸・プラトーゼロ・φ80x100 最適化) ──
-  { name: 'Organic Orange 10-Waves (φ80x100)', url: 'textures/organic_orange_waves_10_phi80x100.png', thumb: 'textures/thumbs/organic_orange_waves_10_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
-  { name: 'Organic Orange 12-Waves (φ80x100)', url: 'textures/organic_orange_waves_12_phi80x100.png', thumb: 'textures/thumbs/organic_orange_waves_12_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
-  { name: 'Organic Orange 8-Waves (φ80x100)',  url: 'textures/organic_orange_waves_8_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_waves_8_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
-
-  // ── Organic Flow & Blobs (φ80x100 Cylinder Optimized) ──
-  { name: 'Organic Orange Blobs (φ80x100)', url: 'textures/organic_orange_blobs_phi80x100.png', thumb: 'textures/thumbs/organic_orange_blobs_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
-  { name: 'Organic Orange Flow (φ80x100)',  url: 'textures/organic_orange_flow_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_flow_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
-  { name: 'Organic Orange Spots (φ80x100)', url: 'textures/organic_orange_spots_phi80x100.png', thumb: 'textures/thumbs/organic_orange_spots_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
-
   // ── BumpMesh_Color Japanese Traditional & Multicolor Presets ──
   { name: 'Blue Porcelain',           url: 'textures/porcelain_blue_gradient.jpg', thumb: 'textures/thumbs/porcelain_blue_gradient.webp', defaultScale: 1.0, category: 'multicolor' },
   { name: 'Japanese Modern',          url: 'textures/japanese_modern.jpg',        thumb: 'textures/thumbs/japanese_modern.webp',        defaultScale: 0.5, category: 'multicolor' },
