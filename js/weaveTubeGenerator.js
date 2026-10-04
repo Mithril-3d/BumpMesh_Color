@@ -165,9 +165,9 @@ export function generateWeaveRubberBandTube({
       }
       exposure = Math.max(0.0, Math.min(1.0, exposure));
 
-      const h_peak = -concaveVal + stroke * Math.min(1.0, 2.0 * exposure);
-      const h_trough = -concaveVal + stroke * Math.max(0.0, 2.0 * exposure - 1.0);
-      const disp = h_trough + (h_peak - h_trough) * B;
+      // フラット段差と同等のアルゴリズム: 各層の露出率 exposure に応じてシンプルに波打ち出っ張る
+      // 相手の色が強調される領域では exposure = 0 となり、振幅ゼロ（平坦）で奥に引っ込む
+      const disp = -concaveVal + stroke * exposure * B;
 
       const r_out = Math.fround(radius + disp);
       const r_in  = Math.fround(r_out - wall);
@@ -184,40 +184,69 @@ export function generateWeaveRubberBandTube({
       inTop[idx]  = ibX; inTop[idx + 1]  = ibY; inTop[idx + 2]  = z_top;
     }
 
-    // 輪ゴム1本の完全水密ソリッド三角形を生成
-    for (let i = 0; i < N; i++) {
-      const next = (i + 1) % N;
-      const i0 = i * 3;
-      const i1 = next * 3;
+    const isSolidBottom = (lay < 3);
 
-      const ob0_x = outBot[i0], ob0_y = outBot[i0 + 1], ob0_z = outBot[i0 + 2];
-      const ob1_x = outBot[i1], ob1_y = outBot[i1 + 1], ob1_z = outBot[i1 + 2];
-      const ot0_x = outTop[i0], ot0_y = outTop[i0 + 1], ot0_z = outTop[i0 + 2];
-      const ot1_x = outTop[i1], ot1_y = outTop[i1 + 1], ot1_z = outTop[i1 + 2];
+    if (isSolidBottom) {
+      // 🧱 最初の3層は中身の詰まったソリッド円盤ディスク（ベッド定着・底面用）
+      for (let i = 0; i < N; i++) {
+        const next = (i + 1) % N;
+        const i0 = i * 3;
+        const i1 = next * 3;
 
-      const ib0_x = inBot[i0], ib0_y = inBot[i0 + 1], ib0_z = inBot[i0 + 2];
-      const ib1_x = inBot[i1], ib1_y = inBot[i1 + 1], ib1_z = inBot[i1 + 2];
-      const it0_x = inTop[i0], it0_y = inTop[i0 + 1], it0_z = inTop[i0 + 2];
-      const it1_x = inTop[i1], it1_y = inTop[i1 + 1], it1_z = inTop[i1 + 2];
+        const ob0_x = outBot[i0], ob0_y = outBot[i0 + 1], ob0_z = outBot[i0 + 2];
+        const ob1_x = outBot[i1], ob1_y = outBot[i1 + 1], ob1_z = outBot[i1 + 2];
+        const ot0_x = outTop[i0], ot0_y = outTop[i0 + 1], ot0_z = outTop[i0 + 2];
+        const ot1_x = outTop[i1], ot1_y = outTop[i1 + 1], ot1_z = outTop[i1 + 2];
 
-      const nx = Math.cos(angles[i]);
-      const ny = Math.sin(angles[i]);
+        const nx = Math.cos(angles[i]);
+        const ny = Math.sin(angles[i]);
 
-      // 1. 外壁 (Outer Wall: CCW from outside)
-      addTri(ob0_x, ob0_y, ob0_z, ob1_x, ob1_y, ob1_z, ot1_x, ot1_y, ot1_z, nx, ny, 0, activeTool);
-      addTri(ob0_x, ob0_y, ob0_z, ot1_x, ot1_y, ot1_z, ot0_x, ot0_y, ot0_z, nx, ny, 0, activeTool);
+        // 1. 外壁 (Outer Wall: CCW from outside)
+        addTri(ob0_x, ob0_y, ob0_z, ob1_x, ob1_y, ob1_z, ot1_x, ot1_y, ot1_z, nx, ny, 0, activeTool);
+        addTri(ob0_x, ob0_y, ob0_z, ot1_x, ot1_y, ot1_z, ot0_x, ot0_y, ot0_z, nx, ny, 0, activeTool);
 
-      // 2. 内壁 (Inner Wall: CCW from inside)
-      addTri(ib1_x, ib1_y, ib1_z, ib0_x, ib0_y, ib0_z, it0_x, it0_y, it0_z, -nx, -ny, 0, activeTool);
-      addTri(ib1_x, ib1_y, ib1_z, it0_x, it0_y, it0_z, it1_x, it1_y, it1_z, -nx, -ny, 0, activeTool);
+        // 2. 底面 (Bottom Face: CCW looking from below)
+        addTri(ob1_x, ob1_y, ob1_z, ob0_x, ob0_y, ob0_z, cx, cy, z_bot, 0, 0, -1, activeTool);
 
-      // 3. 上面 (Top Ring Face: +Z)
-      addTri(it0_x, it0_y, it0_z, ot0_x, ot0_y, ot0_z, ot1_x, ot1_y, ot1_z, 0, 0, 1, activeTool);
-      addTri(it0_x, it0_y, it0_z, ot1_x, ot1_y, ot1_z, it1_x, it1_y, it1_z, 0, 0, 1, activeTool);
+        // 3. 上面 (Top Face: CCW looking from above)
+        addTri(ot0_x, ot0_y, ot0_z, ot1_x, ot1_y, ot1_z, cx, cy, z_top, 0, 0, 1, activeTool);
+      }
+    } else {
+      // 🧶 4層目以降は中空の輪ゴム（帯状リング）
+      for (let i = 0; i < N; i++) {
+        const next = (i + 1) % N;
+        const i0 = i * 3;
+        const i1 = next * 3;
 
-      // 4. 下面 (Bottom Ring Face: -Z)
-      addTri(ob0_x, ob0_y, ob0_z, ib0_x, ib0_y, ib0_z, ib1_x, ib1_y, ib1_z, 0, 0, -1, activeTool);
-      addTri(ob0_x, ob0_y, ob0_z, ib1_x, ib1_y, ib1_z, ob1_x, ob1_y, ob1_z, 0, 0, -1, activeTool);
+        const ob0_x = outBot[i0], ob0_y = outBot[i0 + 1], ob0_z = outBot[i0 + 2];
+        const ob1_x = outBot[i1], ob1_y = outBot[i1 + 1], ob1_z = outBot[i1 + 2];
+        const ot0_x = outTop[i0], ot0_y = outTop[i0 + 1], ot0_z = outTop[i0 + 2];
+        const ot1_x = outTop[i1], ot1_y = outTop[i1 + 1], ot1_z = outTop[i1 + 2];
+
+        const ib0_x = inBot[i0], ib0_y = inBot[i0 + 1], ib0_z = inBot[i0 + 2];
+        const ib1_x = inBot[i1], ib1_y = inBot[i1 + 1], ib1_z = inBot[i1 + 2];
+        const it0_x = inTop[i0], it0_y = inTop[i0 + 1], it0_z = inTop[i0 + 2];
+        const it1_x = inTop[i1], it1_y = inTop[i1 + 1], it1_z = inTop[i1 + 2];
+
+        const nx = Math.cos(angles[i]);
+        const ny = Math.sin(angles[i]);
+
+        // 1. 外壁 (Outer Wall: CCW from outside)
+        addTri(ob0_x, ob0_y, ob0_z, ob1_x, ob1_y, ob1_z, ot1_x, ot1_y, ot1_z, nx, ny, 0, activeTool);
+        addTri(ob0_x, ob0_y, ob0_z, ot1_x, ot1_y, ot1_z, ot0_x, ot0_y, ot0_z, nx, ny, 0, activeTool);
+
+        // 2. 内壁 (Inner Wall: CCW from inside)
+        addTri(ib1_x, ib1_y, ib1_z, ib0_x, ib0_y, ib0_z, it0_x, it0_y, it0_z, -nx, -ny, 0, activeTool);
+        addTri(ib1_x, ib1_y, ib1_z, it0_x, it0_y, it0_z, it1_x, it1_y, it1_z, -nx, -ny, 0, activeTool);
+
+        // 3. 上面 (Top Ring Face: +Z)
+        addTri(it0_x, it0_y, it0_z, ot0_x, ot0_y, ot0_z, ot1_x, ot1_y, ot1_z, 0, 0, 1, activeTool);
+        addTri(it0_x, it0_y, it0_z, ot1_x, ot1_y, ot1_z, it1_x, it1_y, it1_z, 0, 0, 1, activeTool);
+
+        // 4. 下面 (Bottom Ring Face: -Z)
+        addTri(ob0_x, ob0_y, ob0_z, ib0_x, ib0_y, ib0_z, ib1_x, ib1_y, ib1_z, 0, 0, -1, activeTool);
+        addTri(ob0_x, ob0_y, ob0_z, ib1_x, ib1_y, ib1_z, ob1_x, ob1_y, ob1_z, 0, 0, -1, activeTool);
+      }
     }
   }
 

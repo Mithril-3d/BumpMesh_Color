@@ -224,9 +224,7 @@ const sharedGLSL = /* glsl */`
           }
 
           float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
-          float h_peak = -interleavedConcave + stroke * min(1.0, 2.0 * exposure);
-          float h_trough = -interleavedConcave + stroke * max(0.0, 2.0 * exposure - 1.0);
-          return h_trough + (h_peak - h_trough) * B;
+          return -interleavedConcave + stroke * exposure * B;
         }
 
         // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
@@ -277,9 +275,7 @@ const sharedGLSL = /* glsl */`
           }
 
           float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
-          float h_peak = -interleavedConcave + stroke * min(1.0, 2.0 * exposure);
-          float h_trough = -interleavedConcave + stroke * max(0.0, 2.0 * exposure - 1.0);
-          return h_trough + (h_peak - h_trough) * B;
+          return -interleavedConcave + stroke * exposure * B;
         }
 
         if (activeK == bestK) {
