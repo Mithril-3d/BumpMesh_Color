@@ -35,6 +35,11 @@ function fitDimensions(imgW, imgH, maxSize = SIZE) {
 //           'ff'   = made with Filter Forge.
 
 const IMAGE_PRESETS = [
+  // ── Organic Flow & Blobs (φ80x100 Cylinder Optimized) ──
+  { name: 'Organic Orange Blobs (φ80x100)', url: 'textures/organic_orange_blobs_phi80x100.png', thumb: 'textures/thumbs/organic_orange_blobs_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+  { name: 'Organic Orange Flow (φ80x100)',  url: 'textures/organic_orange_flow_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_flow_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
+  { name: 'Organic Orange Spots (φ80x100)', url: 'textures/organic_orange_spots_phi80x100.png', thumb: 'textures/thumbs/organic_orange_spots_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+
   // ── BumpMesh_Color Japanese Traditional & Multicolor Presets ──
   { name: 'Blue Porcelain',           url: 'textures/porcelain_blue_gradient.jpg', thumb: 'textures/thumbs/porcelain_blue_gradient.webp', defaultScale: 1.0, category: 'multicolor' },
   { name: 'Japanese Modern',          url: 'textures/japanese_modern.jpg',        thumb: 'textures/thumbs/japanese_modern.webp',        defaultScale: 0.5, category: 'multicolor' },
