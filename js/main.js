@@ -55,7 +55,7 @@ import {
   generateInterleavedTable
 } from './layerBlending.js?v=20260929_130';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261004_157';
-import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261004_1515';
+import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261004_1517';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -6493,9 +6493,16 @@ async function handleExport(format = 'stl') {
             sampleFn,
           });
 
-          finalPositions = tube.positions;
-          finalNormals = tube.normals;
-          triTools = tube.tools;
+          const triCount = tube.triCount || Math.floor(tube.positions.length / 9);
+          finalPositions = (tube.positions.length > triCount * 9)
+            ? tube.positions.subarray(0, triCount * 9)
+            : tube.positions;
+          finalNormals = (tube.normals && tube.normals.length > triCount * 9)
+            ? tube.normals.subarray(0, triCount * 9)
+            : tube.normals;
+          triTools = (tube.tools && tube.tools.length > triCount)
+            ? tube.tools.subarray(0, triCount)
+            : tube.tools;
         } else {
           // 通常のフラット段差 (Profile 0) / 45°ルーバー (Profile 1)
           const aligned = applyLayerAlignedDisplacement(
@@ -6521,6 +6528,8 @@ async function handleExport(format = 'stl') {
         finalGeometry = new THREE.BufferGeometry();
         finalGeometry.setAttribute('position', new THREE.BufferAttribute(finalPositions, 3));
         if (finalNormals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(finalNormals, 3));
+        finalGeometry.computeBoundingBox();
+        finalGeometry.computeBoundingSphere();
 
         const thumbUrl = generateColorThumbnail(finalGeometry, triTools, exportPalette, 256);
         const subModeLabel = 'interleaved';

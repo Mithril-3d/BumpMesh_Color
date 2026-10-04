@@ -389,10 +389,15 @@ export function generateWeaveRubberBandTube({
     }
   }
 
+  const actualPositions = (triIdx < totalTris) ? positions.subarray(0, triIdx * 9) : positions;
+  const actualNormals   = (triIdx < totalTris) ? normals.subarray(0, triIdx * 9) : normals;
+  const actualTools     = (triIdx < totalTris) ? tools.subarray(0, triIdx) : tools;
+
   return {
-    positions,
-    normals,
-    tools,
+    positions: actualPositions,
+    normals: actualNormals,
+    tools: actualTools,
     triCount: triIdx,
   };
 }
+
