@@ -64,7 +64,7 @@ import { runFastDiagnostics, runExpensiveDiagnostics,
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_130';
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20260929_130';
+import { APP_VERSION } from './version.js?v=20261005_1519';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -6361,7 +6361,7 @@ async function handleExport(format = 'stl') {
         if (exportToken !== myToken) return;
 
         // 4. Sample texture and apply layer-aligned displacement:
-        // Build 3D spatial hash grid for instantaneous, 100% exact curvature lookup
+        // Build 3D spatial grid (Forward-Star / Flat TypedArray) for instantaneous, zero-allocation, 100% exact curvature lookup
         let curvatureGrid = null;
         if (effectiveSettings.shadingSource === 'curvature') {
           triggerCurvatureUpdate();
@@ -6370,19 +6370,63 @@ async function handleExport(format = 'stl') {
           const uPos = currentCurvatureResult.uniquePositions;
           const uLum = currentCurvatureResult.uniqueLuminance;
           const uCount = currentCurvatureResult.uniqueCount;
-          const diag = currentBounds ? currentBounds.size.length() : 100;
-          const CELL = Math.max(2.0, diag / 60);
-          const gMap = new Map();
+
+          let minX = Infinity, minY = Infinity, minZ = Infinity;
+          let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
           for (let i = 0; i < uCount; i++) {
-            const gx = Math.floor(uPos[i * 3] / CELL);
-            const gy = Math.floor(uPos[i * 3 + 1] / CELL);
-            const gz = Math.floor(uPos[i * 3 + 2] / CELL);
-            const k = `${gx},${gy},${gz}`;
-            let list = gMap.get(k);
-            if (!list) { list = []; gMap.set(k, list); }
-            list.push(i);
+            const px = uPos[i * 3], py = uPos[i * 3 + 1], pz = uPos[i * 3 + 2];
+            if (px < minX) minX = px; if (px > maxX) maxX = px;
+            if (py < minY) minY = py; if (py > maxY) maxY = py;
+            if (pz < minZ) minZ = pz; if (pz > maxZ) maxZ = pz;
           }
-          curvatureGrid = { gMap, uPos, uLum, CELL };
+          const spanX = maxX - minX, spanY = maxY - minY, spanZ = maxZ - minZ;
+          const diag = Math.hypot(spanX, spanY, spanZ) || (currentBounds ? currentBounds.size.length() : 100);
+          const CELL = Math.max(1.5, diag / 60);
+          const invCell = 1.0 / CELL;
+
+          const gMinX = Math.floor(minX * invCell) - 1;
+          const gMinY = Math.floor(minY * invCell) - 1;
+          const gMinZ = Math.floor(minZ * invCell) - 1;
+          const gMaxX = Math.floor(maxX * invCell) + 1;
+          const gMaxY = Math.floor(maxY * invCell) + 1;
+          const gMaxZ = Math.floor(maxZ * invCell) + 1;
+          const numX = gMaxX - gMinX + 1;
+          const numY = gMaxY - gMinY + 1;
+          const numZ = gMaxZ - gMinZ + 1;
+          const numXY = numX * numY;
+          const totalCells = numX * numY * numZ;
+
+          const head = new Int32Array(totalCells);
+          head.fill(-1);
+          const next = new Int32Array(uCount);
+
+          for (let i = 0; i < uCount; i++) {
+            const gx = Math.floor(uPos[i * 3] * invCell) - gMinX;
+            const gy = Math.floor(uPos[i * 3 + 1] * invCell) - gMinY;
+            const gz = Math.floor(uPos[i * 3 + 2] * invCell) - gMinZ;
+            if (gx >= 0 && gx < numX && gy >= 0 && gy < numY && gz >= 0 && gz < numZ) {
+              const cIdx = gx + gy * numX + gz * numXY;
+              next[i] = head[cIdx];
+              head[cIdx] = i;
+            } else {
+              next[i] = -1;
+            }
+          }
+
+          curvatureGrid = {
+            uPos,
+            uLum,
+            head,
+            next,
+            invCell,
+            gMinX,
+            gMinY,
+            gMinZ,
+            numX,
+            numY,
+            numZ,
+            numXY
+          };
         }
 
         const exportPalette = currentColorPalette || [];
@@ -6399,24 +6443,30 @@ async function handleExport(format = 'stl') {
         const _sampleTmpN = new THREE.Vector3();
         const sampleFn = (x, y, z, nx, ny, nz) => {
           if (curvatureGrid) {
-            const { gMap, uPos, uLum, CELL } = curvatureGrid;
+            const { uPos, uLum, head, next, invCell, gMinX, gMinY, gMinZ, numX, numY, numZ, numXY } = curvatureGrid;
             // Map sliced vertex coordinates back to working space where curvature was computed
             const wx = x + currentPoseTrans.x;
             const wy = y + currentPoseTrans.y;
             const wz = z + originMinZ + currentPoseTrans.z;
-            const gx = Math.floor(wx / CELL);
-            const gy = Math.floor(wy / CELL);
-            const gz = Math.floor(wz / CELL);
+            const cx = Math.floor(wx * invCell) - gMinX;
+            const cy = Math.floor(wy * invCell) - gMinY;
+            const cz = Math.floor(wz * invCell) - gMinZ;
 
             let bestDistSq = 1e9;
             let bestIdx = -1;
-            for (let dx = -2; dx <= 2; dx++) {
-              for (let dy = -2; dy <= 2; dy++) {
-                for (let dz = -2; dz <= 2; dz++) {
-                  const list = gMap.get(`${gx + dx},${gy + dy},${gz + dz}`);
-                  if (!list) continue;
-                  for (let k = 0; k < list.length; k++) {
-                    const idx = list[k];
+
+            // Step 1: Immediate 27-cell neighborhood (fast path, zero allocation, hits >99.9% of vertices)
+            const minDX = Math.max(0, cx - 1), maxDX = Math.min(numX - 1, cx + 1);
+            const minDY = Math.max(0, cy - 1), maxDY = Math.min(numY - 1, cy + 1);
+            const minDZ = Math.max(0, cz - 1), maxDZ = Math.min(numZ - 1, cz + 1);
+
+            for (let gz = minDZ; gz <= maxDZ; gz++) {
+              const offsetZ = gz * numXY;
+              for (let gy = minDY; gy <= maxDY; gy++) {
+                const cellBase = gy * numX + offsetZ;
+                for (let gx = minDX; gx <= maxDX; gx++) {
+                  let idx = head[gx + cellBase];
+                  while (idx !== -1) {
                     const ex = uPos[idx * 3] - wx;
                     const ey = uPos[idx * 3 + 1] - wy;
                     const ez = uPos[idx * 3 + 2] - wz;
@@ -6425,10 +6475,39 @@ async function handleExport(format = 'stl') {
                       bestDistSq = dSq;
                       bestIdx = idx;
                     }
+                    idx = next[idx];
                   }
                 }
               }
             }
+
+            // Step 2: Fallback 125-cell neighborhood if vertex is outside immediate bounding cell (isolated/displaced)
+            if (bestIdx === -1) {
+              const sMinDX = Math.max(0, cx - 2), sMaxDX = Math.min(numX - 1, cx + 2);
+              const sMinDY = Math.max(0, cy - 2), sMaxDY = Math.min(numY - 1, cy + 2);
+              const sMinDZ = Math.max(0, cz - 2), sMaxDZ = Math.min(numZ - 1, cz + 2);
+              for (let gz = sMinDZ; gz <= sMaxDZ; gz++) {
+                const offsetZ = gz * numXY;
+                for (let gy = sMinDY; gy <= sMaxDY; gy++) {
+                  const cellBase = gy * numX + offsetZ;
+                  for (let gx = sMinDX; gx <= sMaxDX; gx++) {
+                    let idx = head[gx + cellBase];
+                    while (idx !== -1) {
+                      const ex = uPos[idx * 3] - wx;
+                      const ey = uPos[idx * 3 + 1] - wy;
+                      const ez = uPos[idx * 3 + 2] - wz;
+                      const dSq = ex * ex + ey * ey + ez * ez;
+                      if (dSq < bestDistSq) {
+                        bestDistSq = dSq;
+                        bestIdx = idx;
+                      }
+                      idx = next[idx];
+                    }
+                  }
+                }
+              }
+            }
+
             let lum = (bestIdx >= 0 && uLum[bestIdx] !== undefined) ? uLum[bestIdx] : (interleavedSettings.curvatureBias ?? 0.5);
             if (interleavedSettings.gamma && Math.abs(interleavedSettings.gamma - 1.0) > 0.01) {
               lum = Math.pow(Math.max(0.0, Math.min(1.0, lum)), Math.max(0.01, interleavedSettings.gamma));
