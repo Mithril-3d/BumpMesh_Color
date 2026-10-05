@@ -14,16 +14,25 @@ import { QuantizedPointMap, TolerantPointMap } from './meshIndex.js';
  */
 function triggerDownload(buffer, filename, mime = 'application/octet-stream') {
   if (typeof document === 'undefined') return buffer;
-  const blob = new Blob([buffer], { type: mime });
+  // Safari compatibility: Force application/octet-stream if mime includes '+xml' (e.g. 3MF specification mime).
+  // Safari treats '+xml' as a displayable document and attempts to navigate the active tab to the blob URL,
+  // triggering "WebKitBlobResource error 1" on large binary archives.
+  const safeMime = (mime && mime.includes('+xml')) ? 'application/octet-stream' : (mime || 'application/octet-stream');
+  const blob = new Blob([buffer], { type: safeMime });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
   a.download = filename;
+  a.rel      = 'noopener';
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  setTimeout(() => {
+    try {
+      if (a.parentNode) document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (_) {}
+  }, 60000);
   return buffer;
 }
 
@@ -307,7 +316,7 @@ export async function export3MF(geometry, filename = 'textured.3mf', thumbnailDa
   triggerDownload(
     zipped,
     filename,
-    'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
+    'application/octet-stream'
   );
 }
 
@@ -594,7 +603,7 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
   return triggerDownload(
     zipped,
     filename,
-    'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'
+    'application/octet-stream'
   );
 }
 

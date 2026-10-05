@@ -19,9 +19,17 @@
 - 万が一孤立した頂点があった場合の安全策として 125 セルフォールバックも維持。
 - 計算回数を従来の約 20% に激減。
 
-#### 3. バージョン更新と CHANGELOG 追記
-- [js/version.js](file:///Users/phaizmithriln/Desktop/BumpMesh_color/js/version.js): `1.5.18` → `1.5.19`
-- [CHANGELOG.md](file:///Users/phaizmithriln/Desktop/BumpMesh_color/CHANGELOG.md): v1.5.19 の変更内容を追記。
+#### 3. Safari 3MF 保存エラー（WebKitBlobResourceエラー1）の解消
+- **ファイル**: [js/exporter.js](file:///Users/phaizmithriln/Desktop/BumpMesh_color/js/exporter.js)
+- **変更前**:
+  - MIME タイプに `+xml` が含まれており、Safari が「開くべき XML ドキュメント」と誤認して画面遷移し、巨大 ZIP を開けず `WebKitBlobResourceエラー1` で画面が真っ暗に。
+- **変更後**:
+  - `application/octet-stream` にサニタイズし、Safari の画面遷移を完全に抑止。通常のダウンロードとしてダウンロードフォルダに確実に保存されるよう修正。
+  - `a.rel = 'noopener'` を付与し、`revokeObjectURL` の保持時間を 60 秒へ延長。
+
+#### 4. バージョン更新と CHANGELOG 追記
+- [js/version.js](file:///Users/phaizmithriln/Desktop/BumpMesh_color/js/version.js): `1.5.19` → `1.5.20`
+- [CHANGELOG.md](file:///Users/phaizmithriln/Desktop/BumpMesh_color/CHANGELOG.md): v1.5.20 の変更内容を追記。
 
 ---
 

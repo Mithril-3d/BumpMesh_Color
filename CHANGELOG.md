@@ -2,6 +2,19 @@
 
 `BumpMesh_Color` の各バージョンにおける機能追加・変更・不具合修正の記録です。
 
+## [v1.5.20] - 2026-10-05 (🍏 Safariにおける3MFダウンロード保存エラー「WebKitBlobResourceエラー1」の完全修正)
+### Fixed
+- **Safari で 3MF 保存時に「ページを開けません（WebKitBlobResourceエラー1）」が発生する不具合を解消**:
+  - **発生原因**:
+    - 3MF の仕様 MIME タイプ `application/vnd.ms-package.3dmanufacturing-3dmodel+xml` に `+xml` が含まれているため、Safari（WebKit）が `<a download>` を無視して「ブラウザ内で開くべき XML ページ」と誤判定。
+    - 現在のタブをそのまま Blob URL（`blob:https://...`）へ画面遷移（ナビゲーション）させようとし、巨大な ZIP アーカイブを XML として開けず `WebKitBlobResourceエラー1` で画面が真っ暗なエラーページになっていた。
+  - **根本解決策**:
+    - `exporter.js` 内の `triggerDownload` において、`+xml` を含む MIME タイプを確実に `application/octet-stream` へ強制サニタイズ。
+    - Safari に「未知のバイナリファイル」として認識させ、画面遷移（タブ移動）を 100% 抑止して通常の「ダウンロード」動作として処理するよう修正。
+    - ダウンロードリンク要素のクリーンアップと `revokeObjectURL` に 60 秒の安全マージンを設定し、Safari のファイル保存処理が確実に完了するまで Blob を保持。
+
+---
+
 ## [v1.5.19] - 2026-10-05 (⚡ 陰影ソース「モデルの凹凸」3MFエクスポート時の78%フリーズ解消・空間グリッド超高速化)
 ### Performance & Fixed
 - **進捗78%（レイヤー整合テクスチャを変形適用中）におけるフリーズ・無応答の完全解消**:
