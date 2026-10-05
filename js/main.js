@@ -6329,20 +6329,24 @@ async function handleExport(format = 'stl') {
         await yieldFrame();
         if (exportToken !== myToken) return;
 
-        // 1. Restore original model pose so Z cuts strictly align with the print build plate
-        _restoreOriginalPose(result.positions, result.normals);
-
-        // 2. Align base minZ strictly with the original model bottom and ground to Z=0.
-        const originMinZ = currentBounds ? (currentBounds.min.z - currentPoseTrans.z) : 0;
-        const originMaxZ = currentBounds ? (currentBounds.max.z - currentPoseTrans.z) : 50;
-
+        // 1. Keep working space orientation so Z cuts strictly match the print build plate orientation the user sees.
+        // Do NOT restore original file pose: in interleaved layer mode, the user's rotated/leveled orientation IS the print orientation!
+        let workingMinZ = Infinity;
+        let workingMaxZ = -Infinity;
         const pos = result.positions;
         for (let i = 2; i < pos.length; i += 3) {
-          pos[i] -= originMinZ;
+          const z = pos[i];
+          if (z < workingMinZ) workingMinZ = z;
+          if (z > workingMaxZ) workingMaxZ = z;
+        }
+        if (!isFinite(workingMinZ)) { workingMinZ = 0; workingMaxZ = 50; }
+
+        for (let i = 2; i < pos.length; i += 3) {
+          pos[i] -= workingMinZ;
         }
 
         const groundedMinZ = 0.0;
-        const groundedMaxZ = originMaxZ - originMinZ;
+        const groundedMaxZ = workingMaxZ - workingMinZ;
 
         const thickness = effectiveSettings.interleavedThickness || settings.interleavedThickness || 0.20;
         const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
@@ -6445,9 +6449,9 @@ async function handleExport(format = 'stl') {
           if (curvatureGrid) {
             const { uPos, uLum, head, next, invCell, gMinX, gMinY, gMinZ, numX, numY, numZ, numXY } = curvatureGrid;
             // Map sliced vertex coordinates back to working space where curvature was computed
-            const wx = x + currentPoseTrans.x;
-            const wy = y + currentPoseTrans.y;
-            const wz = z + originMinZ + currentPoseTrans.z;
+            const wx = x;
+            const wy = y;
+            const wz = z + workingMinZ;
             const cx = Math.floor(wx * invCell) - gMinX;
             const cy = Math.floor(wy * invCell) - gMinY;
             const cz = Math.floor(wz * invCell) - gMinZ;
@@ -6519,7 +6523,7 @@ async function handleExport(format = 'stl') {
             return { targetTool, blendWeight: lum, multiColorInfo: null };
           }
 
-          _sampleTmpP.set(x + currentPoseTrans.x, y + currentPoseTrans.y, z + originMinZ + currentPoseTrans.z);
+          _sampleTmpP.set(x, y, z + workingMinZ);
           _sampleTmpN.set(nx, ny, nz);
           const uvResult = computeUV(_sampleTmpP, _sampleTmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds);
           let u = 0, v = 0;
@@ -6563,8 +6567,8 @@ async function handleExport(format = 'stl') {
         if (isWeaveMode) {
           // 🧶 断面四角の輪ゴム積層チューブ生成エンジン（全モデル・任意STL対応！）
           // 円柱プリセットは幾何学的真円、頭部モデル等の任意STLは各層の水平断面輪郭 R(theta, z) を自動追従！
-          const cx = currentBounds ? (currentBounds.center.x - currentPoseTrans.x) : 0;
-          const cy = currentBounds ? (currentBounds.center.y - currentPoseTrans.y) : 0;
+          const cx = currentBounds ? currentBounds.center.x : 0;
+          const cy = currentBounds ? currentBounds.center.y : 0;
           const sx = currentBounds ? (currentBounds.max.x - currentBounds.min.x) : 40;
           const sy = currentBounds ? (currentBounds.max.y - currentBounds.min.y) : 40;
           const rAvg = Math.max(1.0, (sx + sy) * 0.25);
