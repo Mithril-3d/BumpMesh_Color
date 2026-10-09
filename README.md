@@ -36,25 +36,25 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Untextured Area Tool**: Dedicate a specific extruder/tool for bottom surfaces, untextured sides, or masked areas.
 - **3D Color Preview**: Real-time GPU viewport rendering of the quantized tool assignments across model surfaces.
 
-### 2. 🔄 Interleaved Layer Slicing & Weave Modes (交互積層・編み重ね)
+### 2. 🔄 Interleaved Layer Slicing & Weave Deposition
 - **Layer-by-Layer Tool Alternation**: Slices texture depth into alternating layers based on slicer layer height (0.08 mm – 1.00 mm).
 - **Convex & Concave Displacement**:
   - Layers matching the target color extrude outward (Convex offset).
   - Layers of other colors recess inward (Concave offset).
 
-#### 📐 Profile Modes & Weave Additions (断面プロファイルと編み重ね)
+#### 📐 Profile Modes & Weave Additions
 In addition to conventional step offsets, BumpMesh_Color features procedural **Profile Modes** that define the cross-sectional geometry between alternating tool layers, including **newly added Weave modes**:
 
-![Profile Modes and Weave Additions](docs/images/profile_weave_modes.svg)
+![Profile Modes and Weave Additions](docs/images/profile_weave_modes_en.svg)
 
 - **Flat Step (Standard / Recommended)**: Crisp, perpendicular step edges between color bands for maximum graphic clarity.
 - **45° Louver Overhang (Experimental)**: Angled overhangs that shield non-target layers from direct top-down view.
-- **Sinusoidal Weave (正弦波 - Weave Addition)**: Smooth, undulating harmonic wave profile creating fabric-like knitwear textures and soft color halftones.
-- **Triangle Weave (三角波 - Weave Addition)**: Sharp, diamond-faceted zig-zag relief with crisp geometric highlights.
-- **Rectangular Block Weave (矩形ブロック - Weave Addition)**: Checkerboard alternating interlocking blocks for bold structural patterns.
+- **Sinusoidal Weave (Sinusoidal Wave Addition)**: Smooth, undulating harmonic wave profile creating fabric-like knitwear textures and soft color halftones.
+- **Triangle Weave (Triangle Wave Addition)**: Sharp, diamond-faceted zig-zag relief with crisp geometric highlights.
+- **Rectangular Block Weave (Checkerboard Blocks Addition)**: Interlocking alternating block structure for bold geometric patterns.
 - **Universal Arbitrary Mesh Weave Engine**: Automatically extracts horizontal contour cross-sections for any 3D model (cylinders, organic sculptures, custom STLs) and synthesizes single-perimeter hollow bands (100% outer perimeter, 0% infill, 0 top/bottom layers) with zero sampling aliasing.
 
-#### 💡 Dual Shading Sources (2系統の陰影ソース選択)
+#### 💡 Dual Shading Sources (Texture Image vs. Geometric Curvature)
 You can drive layer thickness modulation using either 2D texture graphics or the 3D model's own organic relief:
 
 ![Mesh Curvature Shading on Suzanne](docs/images/curvature_shading_suzanne.png)
@@ -66,7 +66,8 @@ You can drive layer thickness modulation using either 2D texture graphics or the
 *Slicer comparison: Left shows standard single-color slicing with uniform layer beads. Right demonstrates BumpMesh_Color curvature-driven interleaved slicing—ridges (brows, nose, ears) and deep valleys are automatically extruded and recessed as alternating white/black tool layers to form vivid physical self-shading.*
 
 - **Texture Image**: Derives layer extrusion depth from 2D pixel colors or procedural graphics.
-- **Surface Curvature (幾何曲率陰影)**: Computes local mean curvature directly from the 3D triangle mesh. Convex peaks (highlights) extrude while concave valleys (shadows) recess, turning 3D sculptures into tangible self-shading multi-color reliefs without any texture image.
+- **Surface Curvature (Geometric Curvature Shading)**: Computes local mean curvature directly from the 3D triangle mesh. Convex peaks (highlights) extrude while concave valleys (shadows) recess, turning 3D sculptures into tangible self-shading multi-color reliefs without any texture image.
+
 
 
 #### 🎛️ Tonal Shading, Gamma & Base Displacement
@@ -192,8 +193,9 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 - **v1.5.22 (Latest Release - 2026-10-09)**:
   - **Upstream Texture Catalog Synchronization (Molded & Tires Categories)**:
     - Integrated CNCKitchen upstream updates with **13 new high-quality procedural presets**:
-      - **Molded (金型シボ - 8 presets)**: `Brushed`, `Concrete` (MT-11120), `Fine Leather`, `Fine Stipple`, `Haircell`, `Hammered`, `Sand Matte` (MT-11010/20/30), `Spark Erosion` (VDI 3400).
-      - **Tires (タイヤ - 5 presets)**: `Loader Tire`, `Mud-Terrain Tire`, `Touring Tire`, `Tractor Tire`, `Truck Rib Tire`.
+      - **Molded (Mold Grains - 8 presets)**: `Brushed`, `Concrete` (MT-11120), `Fine Leather`, `Fine Stipple`, `Haircell`, `Hammered`, `Sand Matte` (MT-11010/20/30), `Spark Erosion` (VDI 3400).
+      - **Tires (Tire Treads - 5 presets)**: `Loader Tire`, `Mud-Terrain Tire`, `Touring Tire`, `Tractor Tire`, `Truck Rib Tire`.
+
     - Total catalog expanded to **125 built-in presets** (12 multi-color + 113 grayscale/displacement).
     - Added category filters and localized names across all **16 languages**.
   - **Documentation & UI Asset Overhaul**:
@@ -290,7 +292,7 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 #### 📐 断面プロファイルに編み重ね（正弦波、三角波、矩形ブロック）を追加
 従来のフラット段差や庇形状に加え、積層断面の境界形状を数学的に定義する**断面プロファイル（Profile Modes）**に、織物のような立体表現を可能にする**編み重ねモード（Weave Modes）**を追加しました：
 
-![断面プロファイルと編み重ね構造](docs/images/profile_weave_modes.svg)
+![断面プロファイルと編み重ね立体構造](docs/images/profile_weave_modes_ja.svg)
 
 - **フラット段差（標準ステップ・推奨）**: 色の境界が直角で美しい、くっきりとした標準仕上げ。
 - **45° ルーバー庇（実験的）**: 上からの視線に対して他色層を隠す庇（ひさし）形状。
