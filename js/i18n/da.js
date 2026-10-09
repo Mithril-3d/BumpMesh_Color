@@ -348,6 +348,8 @@ export default {
   "gallery.catFabric": "Stof",
   "gallery.catNatural": "Natur",
   "gallery.catGrip": "Greb",
+  "gallery.catMold": "Formstøbt",
+  "gallery.catTires": "Dæk",
   "gallery.hint": "Klik på en tekstur for at prøve den på din model; piletasterne bladrer igennem. Stjernemarkér dine favoritter for at fastgøre dem i panelet.",
   "gallery.done": "Færdig",
   "gallery.turntable": "Drejeskive",

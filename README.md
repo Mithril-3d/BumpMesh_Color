@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.5.17-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.5.22-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -30,40 +30,38 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.5.17 (Latest Release - 2026-10-04)**:
+- **v1.5.22 (Latest Release - 2026-10-09)**:
+  - **Upstream Texture Catalog Synchronization (Molded & Tires Categories)**:
+    - Integrated CNCKitchen upstream updates with **13 new high-quality procedural presets**:
+      - **Molded (金型シボ - 8 presets)**: `Brushed`, `Concrete` (MT-11120), `Fine Leather`, `Fine Stipple`, `Haircell`, `Hammered`, `Sand Matte` (MT-11010/20/30), `Spark Erosion` (VDI 3400).
+      - **Tires (タイヤ - 5 presets)**: `Loader Tire`, `Mud-Terrain Tire`, `Touring Tire`, `Tractor Tire`, `Truck Rib Tire`.
+    - Total catalog expanded to **125 built-in presets** (12 multi-color + 113 grayscale/displacement).
+    - Added category filters and localized names across all **16 languages**.
+  - **Documentation & UI Asset Overhaul**:
+    - Complete review and rewrite of feature documentation, synchronization of latest version tags, and fresh non-copyrighted original screenshots captured directly from the live engine.
+- **v1.5.21 (2026-10-05)**:
+  - **Preserve User Rotated Model Orientation in Interleaved 3MF Export**:
+    - Fixed a bug where rotating a model in the viewport reverted to the original lying posture in slicers.
+    - Slicing and sampling now strictly align with the user-defined build plate orientation and grounding.
+- **v1.5.20 (2026-10-05)**:
+  - **Safari 3MF Download Fix (WebKitBlobResource Error 1)**:
+    - Sanitized 3MF MIME types from `+xml` to `application/octet-stream` so Safari reliably triggers binary file downloads instead of failing to navigate.
+- **v1.5.19 (2026-10-05)**:
+  - **Zero-Allocation TypedArray Spatial Grid (30–50x Faster 3MF Export)**:
+    - Replaced GC-heavy string map lookups with contiguous typed arrays, eliminating the 78% progress freeze during surface curvature export.
+- **v1.5.18 (2026-10-04)**:
+  - **Base Mesh Displacement (Amplitude) Bypass Toggle**:
+    - Added an optional toggle to combine macro surface displacement relief with micro interleaved layer alternating bands.
+- **v1.5.17 (2026-10-04)**:
   - **3MF Thumbnail Centering & Clean Buffer Trim**:
     - Eliminated zero-padded trailing vertices in procedural weave generation to guarantee exact model bounding box centering.
-    - Exported 3MF thumbnails in Windows File Explorer and slicers now render tightly centered at maximum frame resolution.
 - **v1.5.15〜v1.5.16 (2026-10-04)**:
   - **Universal Arbitrary 3D Mesh Contour Weave Tube Engine**:
-    - Extended the procedural "Rubber Band Weave Tube" engine from simple cylinders to **any arbitrary 3D geometry** (sculptures, custom STLs, organic forms).
-    - Raycasts each layer's horizontal cross-section contour radius R(theta, z) mathematically, synthesizing watertight manifold rings at nozzle-diameter wall thickness (0.40 mm) and layer thickness (0.20 mm).
-    - Guarantees 100% outer perimeter slicing with **zero infill and zero solid top/bottom layers**.
-    - Fully eliminates aliasing, roughness, and mosaic noise artifacts by placing vertices precisely at wave transition angles.
-- **v1.5.8〜v1.5.12 (2026-10-04)**:
-  - **Weave Profile Modes (Sinusoidal, Triangle, Rectangular Block)**:
-    - Introduced sinusoidal weaves, triangle waves, and checkerboard rectangular block profiles for fabric-like woven reliefs and interleaved multi-color halftone effects.
-    - Configurable circumferential pitch (e.g. 1.6 mm) and convex/concave stroke amplitudes.
-- **v1.5.13 (2026-10-04)**:
-  - **Curvature-Based Geometric Shading & Scale Tracking**:
-    - Optional shading source driven by the 3D model's own surface curvature (convex/concave relief) in addition to 2D texture images.
-    - Synchronized 3D spatial hash grid dynamically adapts when scaling models (e.g. 200%) for seamless shading lookup.
-- **v1.5.7 (2026-10-04)**:
-  - **Extended Layer Thickness & Nozzle Support**:
-    - Expanded layer thickness ceiling up to 1.0 mm to accommodate large-format nozzles up to 1.2 mm diameter.
+    - Extended procedural weave slicing to **any arbitrary 3D geometry** (sculptures, custom STLs, organic forms) with zero infill and zero solid top/bottom layers.
 - **v1.4.0 (2026-10-01)**:
   - **3D Mesh Turing Pattern Reaction-Diffusion Simulator (Secret Mode 2)**:
     - Activated via the `🧬` icon in the Displacement Map header or `?turing=1` URL query.
-    - Self-organizing Gray-Scott reaction-diffusion directly on any 3D triangle mesh surface graph without UV unwrapping or distortion.
-    - **Strictly Isotropic Discrete Geometric Laplacian**: Eliminates right-angle triangle grid degeneracy, ensuring 100% isotropic pattern propagation in all directions (X, Y, Z).
-    - **5 Organic Morphogenetic Presets**: Maze / Brain, Coral / Fingerprint, Spots / Leopard, Waves / Solitons, and Organic Spirals.
-    - **Dynamic Interactive Seeding**: Click anywhere on the 3D model surface to plant organic spore clusters, or seed uniformly at random.
-    - **Smoothstep Ridge Isolation**: Cleanly separates pattern ridges from baseline concentrations, eliminating plateau artifacts.
-    - **Exclusion Paint Protection**: Respects user-painted exclusion zones—patterns automatically stop and reflect at protected boundaries.
-- **v1.3.0 (2026-09-29)**:
-  - **Texture Gallery & Preset Overhaul**:
-    - Integrated upstream texture catalog for a total of **112 curated presets**.
-    - Non-modal side panel with category filters, instant search, favourites pinning (★), and IndexedDB custom texture library.
+    - Strictly isotropic discrete geometric Laplacian on arbitrary triangle meshes.
 
 ---
 
@@ -80,6 +78,8 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Convex & Concave Displacement**:
   - Layers matching the target color extrude outward (Convex offset).
   - Layers of other colors recess inward (Concave offset).
+- **Base Mesh Displacement Bypass Option**:
+  - Optional toggle to preserve underlying macro displacement (`amplitude`) while simultaneously modulating micro interleaved steps.
 - **Comprehensive Profile Modes**:
   - **Flat Step (Standard / Recommended)**: Crisp, perpendicular step edges between color bands.
   - **45° Louver Overhang**: Angled overhangs that shield non-target layers from direct top-down view.
@@ -98,21 +98,13 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
   - **Tonal Gamma Control (`0.40`–`2.20`)**: Fine-tune shadow contrast and midtone balance in real time.
 - **2D Modulation Map Inspector Modal**:
   - Click **"🖼️ View Interleaved Modulation Map (2D)"** to examine the exact grayscale weight map used for layer thickness modulation.
-  - Compare algorithms side-by-side (Centroid Clipping vs. Tone-Preserving Full-Range) and hover over any pixel to inspect RGB, luminance, and blend weights.
+  - Hover over any pixel to inspect RGB, luminance, and blend weights.
 
 ![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
-*Fig. 1: Updated Interleaved Layers configuration panel with Extruder Count, palette mapping, and real-time 3D preview.*
+*Fig. 1: Interleaved Layers configuration panel with Extruder Count, palette mapping, base displacement toggle, and real-time 3D preview.*
 
 ![BumpMesh_Color Interleaved Modulation Map Preview Modal](docs/images/interleaved_modulation_modal.png)
 *Fig. 2: 2D Interleaved Modulation Map Inspector modal with live gamma tuning and pixel inspection.*
-
-| Actual Printed Result (White & Black Filament) | Sliced Preview (Infill 0%, Perimeters 2) |
-| :---: | :---: |
-| ![Actual Printed Result](docs/images/interleaved_print_sample.jpg) | ![Sliced Preview (Perimeters 2)](docs/images/interleaved_slicer_perimeter2.png) |
-
-| Slicer Result (Infill 0%, Top 0, Perimeters 1) | Alternating Layer Detail (Close-up) |
-| :---: | :---: |
-| ![Slicer Sliced Result](docs/images/interleaved_slicer_sliced.jpg) | ![Interleaved Detail](docs/images/interleaved_slicer_detail.jpg) |
 
 > [!TIP]
 > **Recommended Slicer Print Settings for Interleaved Layers (振り重ね):**  
@@ -124,24 +116,40 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 > 📖 **Deep Dive Article:** For a detailed breakdown of the background, theory, and printing mechanics behind the "振り重ね" (Interleaved Layer) technique, see the author's article:  
 > [振り重ねプリント手法の解説 (note.com)](https://note.com/mithril_mex/n/nf6866893448c)
 
-### 3. 📦 Seamless Multi-Tool 3MF Export
-- **Full Slicer Compatibility**: Generates standard 3MF archives with multi-part objects directly recognized by **PrusaSlicer**, **OrcaSlicer**, and **Bambu Studio** without configuration hassles.
-- **Windows Explorer Thumbnail**: Automatically embeds compliant PNG thumbnails so files display high-res preview icons in Windows File Explorer.
-- **Non-blocking Progress**: Asynchronous export pipeline with realistic 0%–100% progress reporting that never freezes the browser.
+### 3. 🖼️ Texture Gallery & Rich Preset Library
+- **125 Built-in Presets**:
+  - 12 curated multi-color patterns (Porcelain, Ichimatsu, Tartan, Stained Glass, Honeycomb, etc.).
+  - 113 upstream procedural displacement textures organized into 9 categories:
+    `Multicolor`, `Geometric`, `Patterns`, `Organic`, `Fabric`, `Natural`, `Grip`, `Molded` (8 mold grains), and `Tires` (5 tire treads).
+- **Interactive Browsing & Search**:
+  - Instant text filter and category chips.
+  - Star pinning (★) to dock frequently used textures to the main sidebar.
+  - Turntable mode for 360° dynamic model review.
+  - Client-side IndexedDB storage for saving user custom textures locally.
 
-### 4. 💾 Full Project Save & Auto-Save (.bumpmesh)
+![Texture Gallery Tires & Molded](docs/images/gallery_tires_molded.png)
+*Fig. 3: Built-in Texture Gallery featuring the newly added Tires and Molded texture categories.*
+
+### 4. 📦 Seamless Multi-Tool 3MF Export
+- **Full Slicer Compatibility**: Generates standard 3MF archives with multi-part objects directly recognized by **PrusaSlicer**, **OrcaSlicer**, and **Bambu Studio** without configuration hassles.
+- **Rotation & Orientation Preservation**: User-rotated model orientations and Z-grounding are 100% preserved in the exported 3MF.
+- **High-Performance Pipeline**: Zero-allocation typed-array spatial hashing and asynchronous chunking ensure export never freezes the browser.
+- **Safari & macOS Ready**: Automatic MIME sanitization prevents download corruption across WebKit browsers.
+- **Embedded PNG Thumbnails**: Embeds high-resolution, centered thumbnails for seamless display in Windows File Explorer and slicer plate previews.
+
+### 5. 💾 Full Project Save & Auto-Save (.bumpmesh)
 - **All-in-One Portable Archives**: Save loaded 3D models, textures, parameter adjustments, and multi-color tool assignments in a single `.bumpmesh` project file.
 - **Auto-Save Switch**: Choose between **Session** (`sessionStorage`) and **Persistent** (`localStorage`) modes directly from the header.
-- **Tool Memory Retention**: Custom tool mappings (e.g. Tool 7, Tool 8) persist across texture replacements.
+- **Tool Memory Retention**: Custom tool mappings persist across texture replacements.
 
-### 5. 📐 Interactive Real-Time Model Scaling
+### 6. 📐 Interactive Real-Time Model Scaling
 - **Live Percent Scaling**: Resize X / Y / Z with instantaneous viewport rendering and bounding box millimeter updates.
 - **Uniform Aspect Ratio Lock (🔒)**: Lock proportions or unlock for anisotropic scaling.
 - **1-Click Reset & Fit**: One-click 100% restore and camera frame fitting (⛶).
 
-### 6. 🌐 Comprehensive 14-Language Localization
+### 7. 🌐 Comprehensive 16-Language Localization
 Fully localized UI with instant language switching:
-- English, Japanese (日本語), German (Deutsch), French (Français), Spanish (Español), Italian (Italiano), Portuguese (Português), Chinese (中文), Korean (한국어), Russian (Русский), Ukrainian (Українська), Polish (Polski), Danish (Dansk), Turkish (Türkçe).
+- English, Japanese (日本語), German (Deutsch), French (Français), Spanish (Español), Italian (Italiano), Portuguese (Português), Chinese (中文), Korean (한국어), Russian (Русский), Ukrainian (Українська), Polish (Polski), Danish (Dansk), Turkish (Türkçe), Finnish (Suomi), Dutch (Nederlands).
 
 ---
 
@@ -206,7 +214,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.5.17--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.5.22--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
@@ -236,40 +244,36 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
-- **v1.5.17 (最新安定版 - 2026-10-04)**:
+- **v1.5.22 (最新安定版 - 2026-10-09)**:
+  - **本家 CNC Kitchen 最新テクスチャカタログの完全同期（金型シボ＆タイヤカテゴリ）**:
+    - 本家 stlTexturizer で追加されたプロシージャル・テクスチャ **計13種類** を完全取り込み：
+      - **金型シボ (Molded - 8種)**: `Brushed`（ヘアライン）、`Concrete`（コンクリート MT-11120）、`Fine Leather`（微細革シボ）、`Fine Stipple`（梨地）、`Haircell`（ヘアセル）、`Hammered`（槌目）、`Sand Matte`（サンドブラスト MT-11010/20/30）、`Spark Erosion`（放電加工 VDI 3400）。
+      - **タイヤ (Tires - 5種)**: `Loader Tire`（ホイールローダー）、`Mud-Terrain Tire`（マッドテレーン）、`Touring Tire`（乗用車ツーリング）、`Tractor Tire`（トラクター）、`Truck Rib Tire`（トラックリブ）。
+    - プリセット総数は **計125種**（マルチカラー12種＋モノクロ・変位113種）へと大幅拡充。
+    - カテゴリフィルター「金型シボ」「タイヤ」を新設し、**全16言語** で翻訳同期。
+  - **ドキュメント・UIアセットの全面刷新**:
+    - 機能説明の精査、最新仕様への同期、著作権に配慮した完全新規の実機スクリーンショットへの差し替え。
+- **v1.5.21 (2026-10-05)**:
+  - **モデル回転後の振り重ね3MFエクスポートにおける姿勢反転＆座標ズレの完全修正**:
+    - ビューポート上でユーザーが回転させたモデルが、3MF出力時に元の横倒し姿勢に戻ってしまう不具合を解消。作業空間の向き・接地高さを100%保持してスライス。
+- **v1.5.20 (2026-10-05)**:
+  - **Safariにおける3MFダウンロード保存エラー「WebKitBlobResourceエラー1」の解消**:
+    - MIMEタイプのサニタイズ（`application/octet-stream` 強制）により、SafariがZIPをXMLページと誤認して画面遷移・エラー終了する現象を根絶。
+- **v1.5.19 (2026-10-05)**:
+  - **ゼロ・アロケーション TypedArray 空間グリッド刷新（3MF出力 30〜50倍高速化）**:
+    - 陰影ソース「モデルの凹凸」使用時に発生していた進捗78%でのフリーズを解消。大量の文字列生成によるGC負荷をゼロに。
+- **v1.5.18 (2026-10-04)**:
+  - **ベースの凹凸変位 (Amplitude) 併用切り替えオプション**:
+    - 振り重ねモード時に、ベースモデル本来のマクロな凹凸変形（Amplitude）とミクロな層別段差（振り重ね）を同時に重ねがけできるトグルを追加。
+- **v1.5.17 (2026-10-04)**:
   - **3MFサムネイル生成の自動センタリング＆ゼロ頂点完全トリミング**:
-    - 輪ゴム積層エンジンのバッファ末尾に残存していた未使用ゼロ頂点 `(0, 0, 0)` を厳密にトリミングし、バウンディングボックスの歪みを根本解消。
-    - Windowsエクスプローラーやスライサーのサムネイル枠の中央いっぱいにモデルが大きく鮮明にプレビュー表示されるよう修正。
+    - 輪ゴム積層エンジンのバッファ末尾に残存していた未使用ゼロ頂点 `(0, 0, 0)` を厳密にトリミングし、エクスプローラーやスライサーで中央いっぱいに大きく綺麗に表示。
 - **v1.5.15〜v1.5.16 (2026-10-04)**:
   - **全3Dモデル対応・任意メッシュ外周輪郭追従の輪ゴム積層（Weave Tube）エンジン**:
-    - 円柱プリセット限定だった輪ゴム積層エンジンを、彫刻・有機的形状・カスタムSTLなど「任意の3Dメッシュ」へ完全拡張。
-    - 各レイヤーの水平断面から外周輪郭半径 R(theta, z) を数学的に自動抽出し、ノズル径相当（幅 0.40mm）の連続した帯状リングとしてプロシージャル生成。
-    - スライサー上でインフィルゼロ・天井ゼロの単一ペリメータビードとして100%外周スライス。
-    - 波の角（立ち上がり・立ち下がり）の正確な角度に頂点を打つことで、サンプリング破綻（モザイク砂嵐・毛羽立ち・ガタガタ）を100%物理的に根絶。
-- **v1.5.8〜v1.5.12 (2026-10-04)**:
-  - **編み重ね（Weave: 矩形ブロック・三角波・正弦波）プロファイル＆ハーフトーン表現**:
-    - 従来の「フラット段差」「45°ルーバー」に加え、正弦波（Sinusoidal）、三角波（Triangle）、矩形ブロック（Rectangular Block / 市松模様）の編み重ねモードを新設。
-    - 周方向ピッチ（1.6mm等）と振幅で、織物やニットのような立体うねりと交互積層カラーハーフトーンを実現。
-- **v1.5.13 (2026-10-04)**:
-  - **モデル表面曲率（幾何陰影）シェーディング＆スケール自動追従**:
-    - 2D画像テクスチャだけでなく、モデル自身の表面凹凸（曲率）から陰影を自動計算して編み重ねや交互積層に反映可能。
-    - モデル拡大縮小（200%等）時にも対角長連動の3D空間ハッシュ検索により探索漏れを根絶。
-- **v1.5.7 (2026-10-04)**:
-  - **ノズル径・積層厚みの設定上限拡張**:
-    - ノズル径1.2mmに対応し、最大積層厚みを余裕をもった1.0mmまで拡張。
+    - 彫刻や有機的形状など任意の3Dメッシュ外周輪郭を数学的に抽出し、インフィルゼロ・天井ゼロの単一外周リングとしてプロシージャル生成。
 - **v1.4.0 (2026-10-01)**:
   - **3Dメッシュ・チューリングパターン表面反応拡散シミュレーター（隠し機能 Secret Mode 2）**:
-    - Displacement Map 見出しの秘密の `🧬` アイコンクリック、または URLパラメータ `?turing=1` で直接起動。
-    - UV展開やテクスチャ画像一切不要。3Dメッシュ表面の幾何グラフ上で直接 Gray-Scott 方程式を解き、有機的な自己組織化パターンを自律形成。
-    - **完全等方的幾何学ラプラシアン**: 直角三角形やCADメッシュで生じていた異方性を解消し、全方位へ均等に美しく拡散。
-    - **5種類の有機的形態形成プリセット**: 迷路 / 脳皺、サンゴ / 指紋、ヒョウ柄 / 水玉、波紋 / パルス、有機渦巻。
-    - **直感的なインタラクティブ・シード注入**: 3Dモデル表面をクリックした地点から胞子状クラスタを注入し、リアルタイムに成長。
-    - **Smoothstep 変位カーブによるクレーター化排除**: 背景の残留濃度をカットオフし、シャープで美しい立体の筋・水玉リブだけを隆起。
-    - **テクスチャ除外ペイント領域への侵入防止**: ユーザーが塗った除外領域境界で自動停止・反射。
-- **v1.3.0 (2026-09-29)**:
-  - **Texture Gallery ＆ テクスチャプリセット大幅拡充**:
-    - CNC Kitchen 本家の最新プリセットを取り込み、計112種のカタログを構築。
-    - 非モーダルな Texture Gallery サイドパネル、カテゴリ＋お気に入り検索、マイテクスチャ保管。
+    - Displacement Map 見出しの `🧬` アイコンまたは URL `?turing=1` で起動。3D表面幾何グラフ上で Gray-Scott 方程式を有機的に解く。
 
 ---
 
@@ -286,6 +290,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **凸量（突出）と凹量（引込）の個別制御**:
   - 目的色と一致する層は外側に突出（凸量オフセット）。
   - 目的色と一致しない他色の層は内側に引込（凹量オフセット）。
+- **ベース凹凸変位 (Amplitude) 併用オプション**:
+  - 「ベースの凹凸変位 (Amplitude) を併用」トグルにより、モデル表面のダイナミックな隆起・変形を生かしたまま、各層の振り重ねハーフトーンを同時に刻み込むことが可能。
 - **多彩な断面プロファイル選択**:
   - **フラット段差（標準ステップ・推奨）**: 色の境界が直角で美しい、くっきりとした標準仕上げ。
   - **45° ルーバー庇（実験的）**: 上からの視線に対して他色層を隠す庇（ひさし）形状。
@@ -304,21 +310,13 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
   - **階調調整 (ガンマ) スライダー（`0.40`〜`2.20`）**: 暗部の引き締めや明暗バランスをリアルタイム調整。
 - **振り重ね変調画像（2Dマップ）確認プレビューモーダル**:
   - **「🖼️ 振り重ね変調画像（2Dマップ）を確認」** ボタンから、実際にスライス変調に用いられるモノクロ重みマップを全画面モーダルで検査可能。
-  - 表示モード切替やピクセルごとのRGB・輝度・ブレンド重みのリアルタイムインスペクター、PNG画像保存を搭載。
+  - ピクセルごとのRGB・輝度・ブレンド重みのリアルタイムインスペクター、PNG画像保存を搭載。
 
 ![BumpMesh_Color 振り重ねプレビュー画面](docs/images/interleaved_app_screen.png)
-*図1: 最新の振り重ね設定パネル（最上部Extruder数、共通パレット、3Dプレビュー連動）*
+*図1: 最新の振り重ね設定パネル（Extruder数、共通パレット、ベース変位併用トグル、3Dプレビュー連動）*
 
 ![BumpMesh_Color 振り重ね変調画像プレビューモーダル](docs/images/interleaved_modulation_modal.png)
 *図2: 2D変調画像インスペクターモーダル（表示モード切替・リアルタイムガンマ調整・ピクセル情報インスペクター）*
-
-| 実際のプリント出力例 (白・黒 2色フィラメント) | スライサーでのスライス結果 (インフィル0%, ペリメータ2) |
-| :---: | :---: |
-| ![実際のプリント出力例](docs/images/interleaved_print_sample.jpg) | ![スライス結果 (ペリメータ2)](docs/images/interleaved_slicer_perimeter2.png) |
-
-| スライサーでのスライス結果 (インフィル0%, トップ層0, ペリメータ1) | 振り重ね積層断面の拡大 (交互積層ディテール) |
-| :---: | :---: |
-| ![スライス結果全体](docs/images/interleaved_slicer_sliced.jpg) | ![積層ディテール拡大](docs/images/interleaved_slicer_detail.jpg) |
 
 > [!TIP]
 > **振り重ね（交互積層）出力時のスライサー推奨設定:**  
@@ -330,23 +328,38 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 > 📖 **詳細解説記事 (note):** 振り重ねプリント手法の着想・原理・スライスノウハウについての詳しい解説は、以下のnote記事をご参照ください：  
 > [振り重ねプリント手法の解説｜note (@Mithril_MEX)](https://note.com/mithril_mex/n/nf6866893448c)
 
-### 3. 📦 スライサー完全互換のマルチツール 3MF エクスポート
-- **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを **PrusaSlicer**、**OrcaSlicer**、**Bambu Studio** にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
-- **Windows エクスプローラーのサムネイル表示**: 標準的な3MFサムネイル仕様に準拠しており、Windowsのエクスプローラー上で高解像度プレビューアイコンが表示されます。
-- **フリーズしない非同期進捗バー**: 大規模なメッシュでもブラウザが固まらず、0%〜100%の進捗がスムーズに表示されます。
+### 3. 🖼️ テクスチャギャラリー ＆ 豊富なプリセット
+- **125種類の充実した内蔵プリセット**:
+  - 12種類のマルチカラー専用パターン（青白陶器、市松模様、タータンチェック、ステンドグラス、ハニカム等）。
+  - 113種類のプロシージャル凹凸テクスチャ（`マルチカラー`, `幾何学`, `パターン`, `オーガニック`, `ファブリック`, `自然素材`, `グリップ`, `金型シボ` 8種, `タイヤ` 5種）。
+- **快適な検索・お気に入り固定**:
+  - インスタント検索ボックスとカテゴリチップ絞り込み。
+  - お気に入り（★）登録でメインパネルへ即座にピン留め。
+  - 360°自動回転するターンテーブルモード。
+  - ブラウザ内IndexedDBによるマイテクスチャのローカル保存。
 
-### 4. 💾 プロジェクト保存・復元 & 自動保存 (.bumpmesh)
+![Texture Gallery Tires & Molded](docs/images/gallery_tires_molded.png)
+*図3: 新たに金型シボ（8種）とタイヤ（5種）が追加された内蔵テクスチャギャラリー*
+
+### 4. 📦 スライサー完全互換のマルチツール 3MF エクスポート
+- **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを **PrusaSlicer**、**OrcaSlicer**、**Bambu Studio** にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
+- **モデル回転・接地姿勢の完全維持**: アプリ上で回転・配置した姿勢を作業空間座標としてそのまま保持してスライス出力。
+- **超高速エクスポートパイプライン**: ゼロ・アロケーションTypedArray空間グリッドと非同期処理により、ブラウザをフリーズさせずに大容量メッシュを安定出力。
+- **Safari＆macOS完全対応**: MIMEサニタイズにより、Safari環境でもエラーなく確実に3MFファイルを保存可能。
+- **Windows エクスプローラーのサムネイル表示**: 標準的な3MFサムネイル仕様に準拠しており、Windowsのエクスプローラー上で高解像度プレビューアイコンが表示されます。
+
+### 5. 💾 プロジェクト保存・復元 & 自動保存 (.bumpmesh)
 - **オールインワンのプロジェクト保存**: 読み込んだ3Dモデル、テクスチャ画像、調整パラメータ、マルチカラーのツール割り当てをすべて1つの `.bumpmesh` ファイル（ZIP形式）として保存・復元可能。
 - **自動保存モード切替**: ヘッダーから短期保存（`sessionStorage`）と長期保存（`localStorage`）をワンクリックで切り替え可能。
 - **ツール番号設定の記憶保持**: テクスチャを別の画像に差し替えても、ユーザーが設定した各色のツール番号（Tool 1〜8）をセッション中に自動保持。
 
-### 5. 📐 リアルタイムモデル拡大縮小（スケーリング）
+### 6. 📐 リアルタイムモデル拡大縮小（スケーリング）
 - **パーセント即時入力**: X / Y / Z の%数値を入力すると即座に3Dビューポートと寸法線に反映。
 - **縦横比固定ロック（🔒）**: ロック時はプロポーションを維持したまま一括スケーリング。解除で各軸個別変倍に対応。
 - **1クリック復元＆カメラフィット**: 100%リセットや、モデル全体を収めるカメラフィット（⛶）に対応。
 
-### 6. 🌐 14言語の完全ローカライズ
-日本語および英語をはじめ、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、中国語、韓国語、ロシア語、ウクライナ語、ポーランド語、デンマーク語、トルコ語の計14言語に完全対応。右上の言語セレクターからいつでも即座に切り替え可能です。
+### 7. 🌐 16言語の完全ローカライズ
+日本語および英語をはじめ、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、中国語、韓国語、ロシア語、ウクライナ語、ポーランド語、デンマーク語、トルコ語、フィンランド語、オランダ語の計16言語に完全対応。右上の言語セレクターからいつでも即座に切り替え可能です。
 
 ---
 

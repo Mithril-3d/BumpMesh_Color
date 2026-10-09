@@ -348,6 +348,8 @@ export default {
   "gallery.catFabric": "Ткань",
   "gallery.catNatural": "Природа",
   "gallery.catGrip": "Сцепление",
+  "gallery.catMold": "Пресс-формы",
+  "gallery.catTires": "Шины",
   "gallery.hint": "Нажмите на текстуру, чтобы примерить её на модели; стрелки клавиатуры переключают текстуры. Отметьте звёздочкой избранные текстуры, чтобы закрепить их на панели.",
   "gallery.done": "Готово",
   "gallery.turntable": "Вращение",
