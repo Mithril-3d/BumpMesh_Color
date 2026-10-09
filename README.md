@@ -3,7 +3,7 @@
 [![Latest Release](https://img.shields.io/badge/version-v1.5.22-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-> 🚀 **Live Web App:** **https://mithril-3d.github.io/BumpMesh_Color/**  
+> 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
 > *(No installation required — runs 100% locally in your browser)*  
 > 📜 *See [CHANGELOG.md](./CHANGELOG.md) for full version history.*
 
@@ -263,7 +263,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 [![最新安定版](https://img.shields.io/badge/バージョン-v1.5.22--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
-> 🚀 **ブラウザで今すぐ使う (Web App):** **https://mithril-3d.github.io/BumpMesh_Color/**  
+> 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
 > *(インストール不要・完全ローカル処理で安心)*  
 > 📜 *詳細な更新履歴は [CHANGELOG.md](./CHANGELOG.md) をご覧ください。*
 
@@ -280,9 +280,10 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ---
 
-**BumpMesh_Color** は、3Dメッシュの表面にテクスチャ画像を貼り付けて凹凸（ディスプレイスメント）を形成し、さらに**マルチカラー・マルチツール3Dプリント用のパーツ分割・スライス割り当て**をブラウザ上だけで完結できるWebツールです。インストール不要で、すべての処理はお使いのPCのブラウザ内（ローカル）で安全に動作します。
+**BumpMesh_Color** は、3Dメッシュの表面にテクスチャ画像を貼り付けて凹凸（ディスプレイスメント）を形成し、さらに <b>マルチカラー・マルチツール3Dプリント用のパーツ分割・スライス割り当て</b> をブラウザ上だけで完結できるWebツールです。インストール不要で、すべての処理はお使いのPCのブラウザ内（ローカル）で安全に動作します。
 
-STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチャや和柄を選択し、各パラメータを調整するだけで、**PrusaSlicer、OrcaSlicer、Bambu Studio** に完全対応したマルチツール3MFファイルを直接出力できます。
+STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチャや和柄を選択し、各パラメータを調整するだけで、<b>PrusaSlicer、OrcaSlicer、Bambu Studio</b> に完全対応したマルチツール3MFファイルを直接出力できます。
+
 
 ![BumpMesh_Color 全体画面](docs/images/overview_hero.png)
 
@@ -303,7 +304,7 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
   - 目的色と一致しない他色の層は内側に引込（凹量オフセット）。
 
 #### 📐 断面プロファイルに編み重ね（正弦波、三角波、矩形ブロック）を追加
-従来のフラット段差や庇形状に加え、積層断面の境界形状を数学的に定義する**断面プロファイル（Profile Modes）**に、織物のような立体表現を可能にする**編み重ねモード（Weave Modes）**を追加しました：
+従来のフラット段差や庇形状に加え、積層断面の境界形状を数学的に定義する <b>断面プロファイル（Profile Modes）</b> に、織物のような立体表現を可能にする <b>編み重ねモード（Weave Modes）</b> を追加しました：
 
 ![断面プロファイルと編み重ね立体構造](docs/images/profile_weave_modes_ja.svg)
 
@@ -315,7 +316,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **任意3Dメッシュ対応 輪ゴム積層エンジン (Weave Tube Generator)**: 円柱だけでなく、彫刻・有機的形状・カスタムSTLなど任意の3Dモデルの外周輪郭をレイヤーごとに自動抽出し、中空の単一外周リングとしてプロシージャル生成。スライサー上でインフィル0・天井0の単一ペリメータビードとして100%外周スライスされ、波の角に頂点を打つことでサンプリング破綻（モザイク状の毛羽立ち）を完全に排除。
 
 #### 💡 2系統の陰影ソース選択（テクスチャ画像 vs 表面曲率・幾何陰影）
-層ごとの押し出し変調を駆動する陰影データソースとして、従来の2D画像に加えて**モデル自身の表面曲率（幾何陰影）**を選択可能です：
+層ごとの押し出し変調を駆動する陰影データソースとして、従来の2D画像に加えて <b>モデル自身の表面曲率（幾何陰影）</b> を選択可能です：
+
 
 ![スザンヌ（Suzanne）による表面曲率（幾何陰影）プレビュー](docs/images/curvature_shading_suzanne.png)
 *スザンヌ（Suzanne / Blender Monkey）による表面曲率（幾何陰影）の適用例: 眉弓や鼻先、耳などの凸部（ハイライト）と、溝や窪みなどの凹部（シャドウ）から直接陰影を抽出し、2Dテクスチャ画像なしでモデル自身の立体形状から自然なマルチカラー・レリーフを自動生成。*
@@ -343,7 +345,7 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 
 #### 🎛️ 階調表現・ガンマ調整・ベース凹凸併用
-- **階調表現の選択**: コントラストが明瞭な**シャープ（二値 / 0-1）**と、フルレンジ輝度（ITU-R BT.709）により暗部クリッピングなしで滑らかに変調する**グラデーション（連続階調）**を選択可能。
+- **階調表現の選択**: コントラストが明瞭な <b>シャープ（二値 / 0-1）</b> と、フルレンジ輝度（ITU-R BT.709）により暗部クリッピングなしで滑らかに変調する <b>グラデーション（連続階調）</b> を選択可能。
 - **階調調整 (ガンマ) スライダー（`0.40`〜`2.20`）**: 暗部の引き締めや明暗バランスをリアルタイム調整。
 - **ベース凹凸変位 (Amplitude) 併用オプション**: モデル表面本来のマクロな隆起・凹凸形状を残したまま、ミクロな層別段差（振り重ね）を同時に重ねがけ可能。
 - **振り重ね変調画像（2Dマップ）確認プレビューモーダル**: 実際にスライス変調に用いられるモノクロ重みマップを全画面モーダルで検査・PNG保存可能。
@@ -367,7 +369,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 > - **インフィル (Infill):** 0%  
 > - **トップ層 (Top solid layers):** 0  
 > - **ペリメータ (Perimeters / 外周壁ループ数):** 1 または 2 *(肉厚やモデル形状に応じて調整。円筒やカップ等の薄肉モデルではペリメータ2でも美しく出力可能)*  
-> - **垂直シェルの厚みを確保する (Ensure vertical shell thickness):** **無効 (Off)**
+> - **垂直シェルの厚みを確保する (Ensure vertical shell thickness):** <b>無効 (Off)</b>
+
 >
 > 📖 **詳細解説記事 (note):** 振り重ねプリント手法の着想・原理・スライスノウハウについての詳しい解説は、以下のnote記事をご参照ください：  
 > [振り重ねプリント手法の解説｜note (@Mithril_MEX)](https://note.com/mithril_mex/n/nf6866893448c)
@@ -386,7 +389,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 *図3: 新たに金型シボ（8種）とタイヤ（5種）が追加された内蔵テクスチャギャラリー*
 
 ### 4. 📦 スライサー完全互換のマルチツール 3MF エクスポート
-- **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを **PrusaSlicer**、**OrcaSlicer**、**Bambu Studio** にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
+- **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを <b>PrusaSlicer、OrcaSlicer、Bambu Studio</b> にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
+
 - **モデル回転・接地姿勢の完全維持**: アプリ上で回転・配置した姿勢を作業空間座標としてそのまま保持してスライス出力。
 - **超高速エクスポートパイプライン**: ゼロ・アロケーションTypedArray空間グリッドと非同期処理により、ブラウザをフリーズさせずに大容量メッシュを安定出力。
 - **Safari＆macOS完全対応**: MIMEサニタイズにより、Safari環境でもエラーなく確実に3MFファイルを保存可能。
@@ -432,7 +436,8 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
    - **ツール割り当て**: 各色を3Dプリンターの各ツールやAMS/MMUのスロット番号に割り当て。
    - **モード**: 「カラー量子化」または「交互積層 (振り重ね)」を選択。
 5. 画面右下の **🎨 Export Multi-Tool 3MF** をクリックしてダウンロードします。
-6. ダウンロードした `.3mf` ファイルを **PrusaSlicer**、**OrcaSlicer**、または **Bambu Studio** にドラッグ＆ドロップします（「複数パーツを持つ単一オブジェクトとしてロードしますか？」と表示されたら「はい」を選択）。
+6. ダウンロードした `.3mf` ファイルを <b>PrusaSlicer、OrcaSlicer、または Bambu Studio</b> にドラッグ＆ドロップします（「複数パーツを持つ単一オブジェクトとしてロードしますか？」と表示されたら「はい」を選択）。
+
 7. スライスして印刷します！
 
 ---
