@@ -121,10 +121,10 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
   - Compare algorithms side-by-side (Centroid Clipping vs. Tone-Preserving Full-Range) and hover over any pixel to inspect RGB, luminance, and blend weights.
 
 ![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
-*Fig. 1: Interleaved Layers configuration panel with Extruder Count, palette mapping, base displacement toggle, and real-time 3D preview.*
+*Fig. 1: Interleaved Layers configuration panel with Blue Porcelain gradient, Extruder Count, palette mapping, base displacement toggle, and real-time 3D preview.*
 
 ![BumpMesh_Color Interleaved Modulation Map Preview Modal](docs/images/interleaved_modulation_modal.png)
-*Fig. 2: 2D Interleaved Modulation Map Inspector modal with live gamma tuning and pixel inspection.*
+*Fig. 2: 2D Interleaved Modulation Map Inspector modal with Blue Porcelain luminance modulation map, live gamma tuning, and pixel inspection.*
 
 | Actual Printed Result (White & Black Filament) | Sliced Preview (Infill 0%, Perimeters 2) |
 | :---: | :---: |
@@ -362,10 +362,10 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
   - ピクセルごとのRGB・輝度・ブレンド重みのリアルタイムインスペクター、PNG画像保存を搭載。
 
 ![BumpMesh_Color 振り重ねプレビュー画面](docs/images/interleaved_app_screen.png)
-*図1: 最新の振り重ね設定パネル（Extruder数、共通パレット、ベース変位併用トグル、3Dプレビュー連動）*
+*図1: 最新の振り重ね設定パネル（青白陶器「Blue Porcelain」の階調グラデーション、Extruder数、共通パレット、ベース変位併用トグル、3Dプレビュー連動）*
 
 ![BumpMesh_Color 振り重ね変調画像プレビューモーダル](docs/images/interleaved_modulation_modal.png)
-*図2: 2D変調画像インスペクターモーダル（表示モード切替・リアルタイムガンマ調整・ピクセル情報インスペクター）*
+*図2: 2D変調画像インスペクターモーダル（Blue Porcelainの階調変調マップ、表示モード切替・リアルタイムガンマ調整・ピクセル情報インスペクター）*
 
 | 実際のプリント出力例 (白・黒 2色フィラメント) | スライサーでのスライス結果 (インフィル0%, ペリメータ2) |
 | :---: | :---: |
