@@ -60,8 +60,14 @@ You can drive layer thickness modulation using either 2D texture graphics or the
 ![Mesh Curvature Shading on Suzanne](docs/images/curvature_shading_suzanne.png)
 *Curvature-based geometric shading demonstrated on Suzanne (Blender Monkey): High-convexity ridges (brows, nose, ears) and deep crevices automatically modulate extrusion thickness without requiring any 2D texture map.*
 
+| Standard Monolithic Slicing (Single Tool) | Interleaved Geometric Curvature Slicing (Dual Tools) |
+| :---: | :---: |
+| ![Standard Sliced Suzanne](docs/images/suzanne_sliced_standard.png) | ![Interleaved Curvature Sliced Suzanne](docs/images/suzanne_sliced_curvature_interleaved.png) |
+*Slicer comparison: Left shows standard single-color slicing with uniform layer beads. Right demonstrates BumpMesh_Color curvature-driven interleaved slicing—ridges (brows, nose, ears) and deep valleys are automatically extruded and recessed as alternating white/black tool layers to form vivid physical self-shading.*
+
 - **Texture Image**: Derives layer extrusion depth from 2D pixel colors or procedural graphics.
 - **Surface Curvature (幾何曲率陰影)**: Computes local mean curvature directly from the 3D triangle mesh. Convex peaks (highlights) extrude while concave valleys (shadows) recess, turning 3D sculptures into tangible self-shading multi-color reliefs without any texture image.
+
 
 #### 🎛️ Tonal Shading, Gamma & Base Displacement
 - **Tonal Shading Options**: Choose between **Sharp** (binary solid color levels) and **Gradient** (continuous ITU-R BT.709 full-range luminance modulation without shadow clipping).
@@ -299,8 +305,14 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 ![スザンヌ（Suzanne）による表面曲率（幾何陰影）プレビュー](docs/images/curvature_shading_suzanne.png)
 *スザンヌ（Suzanne / Blender Monkey）による表面曲率（幾何陰影）の適用例: 眉弓や鼻先、耳などの凸部（ハイライト）と、溝や窪みなどの凹部（シャドウ）から直接陰影を抽出し、2Dテクスチャ画像なしでモデル自身の立体形状から自然なマルチカラー・レリーフを自動生成。*
 
+| 通常のスライサー結果 (単色・均一スライス) | 振り重ね 幾何曲率凹凸陰影スライス (白・黒 交互積層) |
+| :---: | :---: |
+| ![通常のスライスされたスザンヌ](docs/images/suzanne_sliced_standard.png) | ![幾何曲率凹凸陰影をつけてスライスしたスザンヌ](docs/images/suzanne_sliced_curvature_interleaved.png) |
+*スライサーでのスライス結果比較: 左は起伏に関わらず均一にペリメータが積層される通常スライス。右はBumpMesh_Colorで表面曲率（幾何陰影）を適用した振り重ねスライス（眉・鼻先・耳などの凸部が白、凹部が黒として交互に突出・引込制御され、物理的な陰影と明暗が鮮明に形成される）。*
+
 - **テクスチャ画像**: 2D画像や幾何学パターンの明暗・色相から階調をマッピング。
 - **表面曲率（幾何陰影）**: 3Dメッシュの平均曲率を数学的に計算。突出部をハイライト、窪みをシャドウとして抽出し、彫刻や有機モデルを画像不要で自己陰影付きマルチカラー立体へと変換。
+
 
 #### 🎛️ 階調表現・ガンマ調整・ベース凹凸併用
 - **階調表現の選択**: コントラストが明瞭な**シャープ（二値 / 0-1）**と、フルレンジ輝度（ITU-R BT.709）により暗部クリッピングなしで滑らかに変調する**グラデーション（連続階調）**を選択可能。
