@@ -55,13 +55,33 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **v1.5.17 (2026-10-04)**:
   - **3MF Thumbnail Centering & Clean Buffer Trim**:
     - Eliminated zero-padded trailing vertices in procedural weave generation to guarantee exact model bounding box centering.
+    - Exported 3MF thumbnails in Windows File Explorer and slicers now render tightly centered at maximum frame resolution.
 - **v1.5.15〜v1.5.16 (2026-10-04)**:
   - **Universal Arbitrary 3D Mesh Contour Weave Tube Engine**:
-    - Extended procedural weave slicing to **any arbitrary 3D geometry** (sculptures, custom STLs, organic forms) with zero infill and zero solid top/bottom layers.
+    - Extended the procedural "Rubber Band Weave Tube" engine from simple cylinders to **any arbitrary 3D geometry** (sculptures, custom STLs, organic forms).
+    - Raycasts each layer's horizontal cross-section contour radius R(theta, z) mathematically, synthesizing watertight manifold rings at nozzle-diameter wall thickness (0.40 mm) and layer thickness (0.20 mm).
+    - Guarantees 100% outer perimeter slicing with **zero infill and zero solid top/bottom layers**.
+    - Fully eliminates aliasing, roughness, and mosaic noise artifacts by placing vertices precisely at wave transition angles.
+- **v1.5.8〜v1.5.12 (2026-10-04)**:
+  - **Weave Profile Modes (Sinusoidal, Triangle, Rectangular Block)**:
+    - Introduced sinusoidal weaves, triangle waves, and checkerboard rectangular block profiles for fabric-like woven reliefs and interleaved multi-color halftone effects.
+    - Configurable circumferential pitch (e.g. 1.6 mm) and convex/concave stroke amplitudes.
+- **v1.5.13 (2026-10-04)**:
+  - **Curvature-Based Geometric Shading & Scale Tracking**:
+    - Optional shading source driven by the 3D model's own surface curvature (convex/concave relief) in addition to 2D texture images.
+    - Synchronized 3D spatial hash grid dynamically adapts when scaling models (e.g. 200%) for seamless shading lookup.
+- **v1.5.7 (2026-10-04)**:
+  - **Extended Layer Thickness & Nozzle Support**:
+    - Expanded layer thickness ceiling up to 1.0 mm to accommodate large-format nozzles up to 1.2 mm diameter.
 - **v1.4.0 (2026-10-01)**:
   - **3D Mesh Turing Pattern Reaction-Diffusion Simulator (Secret Mode 2)**:
     - Activated via the `🧬` icon in the Displacement Map header or `?turing=1` URL query.
-    - Strictly isotropic discrete geometric Laplacian on arbitrary triangle meshes.
+    - Self-organizing Gray-Scott reaction-diffusion directly on any 3D triangle mesh surface graph without UV unwrapping or distortion.
+    - **Strictly Isotropic Discrete Geometric Laplacian**: Eliminates right-angle triangle grid degeneracy, ensuring 100% isotropic pattern propagation in all directions (X, Y, Z).
+    - **5 Organic Morphogenetic Presets**: Maze / Brain, Coral / Fingerprint, Spots / Leopard, Waves / Solitons, and Organic Spirals.
+    - **Dynamic Interactive Seeding**: Click anywhere on the 3D model surface to plant organic spore clusters, or seed uniformly at random.
+    - **Smoothstep Ridge Isolation**: Cleanly separates pattern ridges from baseline concentrations, eliminating plateau artifacts.
+    - **Exclusion Paint Protection**: Respects user-painted exclusion zones—patterns automatically stop and reflect at protected boundaries.
 
 ---
 
@@ -98,13 +118,21 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
   - **Tonal Gamma Control (`0.40`–`2.20`)**: Fine-tune shadow contrast and midtone balance in real time.
 - **2D Modulation Map Inspector Modal**:
   - Click **"🖼️ View Interleaved Modulation Map (2D)"** to examine the exact grayscale weight map used for layer thickness modulation.
-  - Hover over any pixel to inspect RGB, luminance, and blend weights.
+  - Compare algorithms side-by-side (Centroid Clipping vs. Tone-Preserving Full-Range) and hover over any pixel to inspect RGB, luminance, and blend weights.
 
 ![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
 *Fig. 1: Interleaved Layers configuration panel with Extruder Count, palette mapping, base displacement toggle, and real-time 3D preview.*
 
 ![BumpMesh_Color Interleaved Modulation Map Preview Modal](docs/images/interleaved_modulation_modal.png)
 *Fig. 2: 2D Interleaved Modulation Map Inspector modal with live gamma tuning and pixel inspection.*
+
+| Actual Printed Result (White & Black Filament) | Sliced Preview (Infill 0%, Perimeters 2) |
+| :---: | :---: |
+| ![Actual Printed Result](docs/images/interleaved_print_sample.jpg) | ![Sliced Preview (Perimeters 2)](docs/images/interleaved_slicer_perimeter2.png) |
+
+| Slicer Result (Infill 0%, Top 0, Perimeters 1) | Alternating Layer Detail (Close-up) |
+| :---: | :---: |
+| ![Slicer Sliced Result](docs/images/interleaved_slicer_sliced.jpg) | ![Interleaved Detail](docs/images/interleaved_slicer_detail.jpg) |
 
 > [!TIP]
 > **Recommended Slicer Print Settings for Interleaved Layers (振り重ね):**  
@@ -267,13 +295,34 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
     - 振り重ねモード時に、ベースモデル本来のマクロな凹凸変形（Amplitude）とミクロな層別段差（振り重ね）を同時に重ねがけできるトグルを追加。
 - **v1.5.17 (2026-10-04)**:
   - **3MFサムネイル生成の自動センタリング＆ゼロ頂点完全トリミング**:
-    - 輪ゴム積層エンジンのバッファ末尾に残存していた未使用ゼロ頂点 `(0, 0, 0)` を厳密にトリミングし、エクスプローラーやスライサーで中央いっぱいに大きく綺麗に表示。
+    - 輪ゴム積層エンジンのバッファ末尾に残存していた未使用ゼロ頂点 `(0, 0, 0)` を厳密にトリミングし、バウンディングボックスの歪みを根本解消。
+    - Windowsエクスプローラーやスライサーのサムネイル枠の中央いっぱいにモデルが大きく鮮明にプレビュー表示されるよう修正。
 - **v1.5.15〜v1.5.16 (2026-10-04)**:
   - **全3Dモデル対応・任意メッシュ外周輪郭追従の輪ゴム積層（Weave Tube）エンジン**:
-    - 彫刻や有機的形状など任意の3Dメッシュ外周輪郭を数学的に抽出し、インフィルゼロ・天井ゼロの単一外周リングとしてプロシージャル生成。
+    - 円柱プリセット限定だった輪ゴム積層エンジンを、彫刻・有機的形状・カスタムSTLなど「任意の3Dメッシュ」へ完全拡張。
+    - 各レイヤーの水平断面から外周輪郭半径 R(theta, z) を数学的に自動抽出し、ノズル径相当（幅 0.40mm）の連続した帯状リングとしてプロシージャル生成。
+    - スライサー上でインフィルゼロ・天井ゼロの単一ペリメータビードとして100%外周スライス。
+    - 波の角（立ち上がり・立ち下がり）の正確な角度に頂点を打つことで、サンプリング破綻（モザイク砂嵐・毛羽立ち・ガタガタ）を100%物理的に根絶。
+- **v1.5.8〜v1.5.12 (2026-10-04)**:
+  - **編み重ね（Weave: 矩形ブロック・三角波・正弦波）プロファイル＆ハーフトーン表現**:
+    - 従来の「フラット段差」「45°ルーバー」に加え、正弦波（Sinusoidal）、三角波（Triangle）、矩形ブロック（Rectangular Block / 市松模様）の編み重ねモードを新設。
+    - 周方向ピッチ（1.6mm等）と振幅で、織物やニットのような立体うねりと交互積層カラーハーフトーンを実現。
+- **v1.5.13 (2026-10-04)**:
+  - **モデル表面曲率（幾何陰影）シェーディング＆スケール自動追従**:
+    - 2D画像テクスチャだけでなく、モデル自身の表面凹凸（曲率）から陰影を自動計算して編み重ねや交互積層に反映可能。
+    - モデル拡大縮小（200%等）時にも対角長連動の3D空間ハッシュ検索により探索漏れを根絶。
+- **v1.5.7 (2026-10-04)**:
+  - **ノズル径・積層厚みの設定上限拡張**:
+    - ノズル径1.2mmに対応し、最大積層厚みを余裕をもった1.0mmまで拡張。
 - **v1.4.0 (2026-10-01)**:
   - **3Dメッシュ・チューリングパターン表面反応拡散シミュレーター（隠し機能 Secret Mode 2）**:
-    - Displacement Map 見出しの `🧬` アイコンまたは URL `?turing=1` で起動。3D表面幾何グラフ上で Gray-Scott 方程式を有機的に解く。
+    - Displacement Map 見出しの秘密の `🧬` アイコンクリック、または URLパラメータ `?turing=1` で直接起動。
+    - UV展開やテクスチャ画像一切不要。3Dメッシュ表面の幾何グラフ上で直接 Gray-Scott 方程式を解き、有機的な自己組織化パターンを自律形成。
+    - **完全等方的幾何学ラプラシアン**: 直角三角形やCADメッシュで生じていた異方性を解消し、全方位へ均等に美しく拡散。
+    - **5種類の有機的形態形成プリセット**: 迷路 / 脳皺、サンゴ / 指紋、ヒョウ柄 / 水玉、波紋 / パルス、有機渦巻。
+    - **直感的なインタラクティブ・シード注入**: 3Dモデル表面をクリックした地点から胞子状クラスタを注入し、リアルタイムに成長。
+    - **Smoothstep 変位カーブによるクレーター化排除**: 背景の残留濃度をカットオフし、シャープで美しい立体の筋・水玉リブだけを隆起。
+    - **テクスチャ除外ペイント領域への侵入防止**: ユーザーが塗った除外領域境界で自動停止・反射。
 
 ---
 
@@ -317,6 +366,14 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ![BumpMesh_Color 振り重ね変調画像プレビューモーダル](docs/images/interleaved_modulation_modal.png)
 *図2: 2D変調画像インスペクターモーダル（表示モード切替・リアルタイムガンマ調整・ピクセル情報インスペクター）*
+
+| 実際のプリント出力例 (白・黒 2色フィラメント) | スライサーでのスライス結果 (インフィル0%, ペリメータ2) |
+| :---: | :---: |
+| ![実際のプリント出力例](docs/images/interleaved_print_sample.jpg) | ![スライス結果 (ペリメータ2)](docs/images/interleaved_slicer_perimeter2.png) |
+
+| スライサーでのスライス結果 (インフィル0%, トップ層0, ペリメータ1) | 振り重ね積層断面の拡大 (交互積層ディテール) |
+| :---: | :---: |
+| ![スライス結果全体](docs/images/interleaved_slicer_sliced.jpg) | ![積層ディテール拡大](docs/images/interleaved_slicer_detail.jpg) |
 
 > [!TIP]
 > **振り重ね（交互積層）出力時のスライサー推奨設定:**  
