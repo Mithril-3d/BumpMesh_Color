@@ -28,63 +28,6 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 
 ---
 
-## 🌟 What's New in Recent Updates
-
-- **v1.5.22 (Latest Release - 2026-10-09)**:
-  - **Upstream Texture Catalog Synchronization (Molded & Tires Categories)**:
-    - Integrated CNCKitchen upstream updates with **13 new high-quality procedural presets**:
-      - **Molded (金型シボ - 8 presets)**: `Brushed`, `Concrete` (MT-11120), `Fine Leather`, `Fine Stipple`, `Haircell`, `Hammered`, `Sand Matte` (MT-11010/20/30), `Spark Erosion` (VDI 3400).
-      - **Tires (タイヤ - 5 presets)**: `Loader Tire`, `Mud-Terrain Tire`, `Touring Tire`, `Tractor Tire`, `Truck Rib Tire`.
-    - Total catalog expanded to **125 built-in presets** (12 multi-color + 113 grayscale/displacement).
-    - Added category filters and localized names across all **16 languages**.
-  - **Documentation & UI Asset Overhaul**:
-    - Complete review and rewrite of feature documentation, synchronization of latest version tags, and fresh non-copyrighted original screenshots captured directly from the live engine.
-- **v1.5.21 (2026-10-05)**:
-  - **Preserve User Rotated Model Orientation in Interleaved 3MF Export**:
-    - Fixed a bug where rotating a model in the viewport reverted to the original lying posture in slicers.
-    - Slicing and sampling now strictly align with the user-defined build plate orientation and grounding.
-- **v1.5.20 (2026-10-05)**:
-  - **Safari 3MF Download Fix (WebKitBlobResource Error 1)**:
-    - Sanitized 3MF MIME types from `+xml` to `application/octet-stream` so Safari reliably triggers binary file downloads instead of failing to navigate.
-- **v1.5.19 (2026-10-05)**:
-  - **Zero-Allocation TypedArray Spatial Grid (30–50x Faster 3MF Export)**:
-    - Replaced GC-heavy string map lookups with contiguous typed arrays, eliminating the 78% progress freeze during surface curvature export.
-- **v1.5.18 (2026-10-04)**:
-  - **Base Mesh Displacement (Amplitude) Bypass Toggle**:
-    - Added an optional toggle to combine macro surface displacement relief with micro interleaved layer alternating bands.
-- **v1.5.17 (2026-10-04)**:
-  - **3MF Thumbnail Centering & Clean Buffer Trim**:
-    - Eliminated zero-padded trailing vertices in procedural weave generation to guarantee exact model bounding box centering.
-    - Exported 3MF thumbnails in Windows File Explorer and slicers now render tightly centered at maximum frame resolution.
-- **v1.5.15〜v1.5.16 (2026-10-04)**:
-  - **Universal Arbitrary 3D Mesh Contour Weave Tube Engine**:
-    - Extended the procedural "Rubber Band Weave Tube" engine from simple cylinders to **any arbitrary 3D geometry** (sculptures, custom STLs, organic forms).
-    - Raycasts each layer's horizontal cross-section contour radius R(theta, z) mathematically, synthesizing watertight manifold rings at nozzle-diameter wall thickness (0.40 mm) and layer thickness (0.20 mm).
-    - Guarantees 100% outer perimeter slicing with **zero infill and zero solid top/bottom layers**.
-    - Fully eliminates aliasing, roughness, and mosaic noise artifacts by placing vertices precisely at wave transition angles.
-- **v1.5.8〜v1.5.12 (2026-10-04)**:
-  - **Weave Profile Modes (Sinusoidal, Triangle, Rectangular Block)**:
-    - Introduced sinusoidal weaves, triangle waves, and checkerboard rectangular block profiles for fabric-like woven reliefs and interleaved multi-color halftone effects.
-    - Configurable circumferential pitch (e.g. 1.6 mm) and convex/concave stroke amplitudes.
-- **v1.5.13 (2026-10-04)**:
-  - **Curvature-Based Geometric Shading & Scale Tracking**:
-    - Optional shading source driven by the 3D model's own surface curvature (convex/concave relief) in addition to 2D texture images.
-    - Synchronized 3D spatial hash grid dynamically adapts when scaling models (e.g. 200%) for seamless shading lookup.
-- **v1.5.7 (2026-10-04)**:
-  - **Extended Layer Thickness & Nozzle Support**:
-    - Expanded layer thickness ceiling up to 1.0 mm to accommodate large-format nozzles up to 1.2 mm diameter.
-- **v1.4.0 (2026-10-01)**:
-  - **3D Mesh Turing Pattern Reaction-Diffusion Simulator (Secret Mode 2)**:
-    - Activated via the `🧬` icon in the Displacement Map header or `?turing=1` URL query.
-    - Self-organizing Gray-Scott reaction-diffusion directly on any 3D triangle mesh surface graph without UV unwrapping or distortion.
-    - **Strictly Isotropic Discrete Geometric Laplacian**: Eliminates right-angle triangle grid degeneracy, ensuring 100% isotropic pattern propagation in all directions (X, Y, Z).
-    - **5 Organic Morphogenetic Presets**: Maze / Brain, Coral / Fingerprint, Spots / Leopard, Waves / Solitons, and Organic Spirals.
-    - **Dynamic Interactive Seeding**: Click anywhere on the 3D model surface to plant organic spore clusters, or seed uniformly at random.
-    - **Smoothstep Ridge Isolation**: Cleanly separates pattern ridges from baseline concentrations, eliminating plateau artifacts.
-    - **Exclusion Paint Protection**: Respects user-painted exclusion zones—patterns automatically stop and reflect at protected boundaries.
-
----
-
 ## 🌟 Key Features Added in BumpMesh_Color
 
 ### 1. 🎨 Color Quantization & Multi-Tool Mapping
@@ -98,27 +41,33 @@ Load an STL, OBJ, 3MF, or STEP file, choose a color or displacement texture, tun
 - **Convex & Concave Displacement**:
   - Layers matching the target color extrude outward (Convex offset).
   - Layers of other colors recess inward (Concave offset).
-- **Base Mesh Displacement Bypass Option**:
-  - Optional toggle to preserve underlying macro displacement (`amplitude`) while simultaneously modulating micro interleaved steps.
-- **Comprehensive Profile Modes**:
-  - **Flat Step (Standard / Recommended)**: Crisp, perpendicular step edges between color bands.
-  - **45° Louver Overhang**: Angled overhangs that shield non-target layers from direct top-down view.
-  - **Sinusoidal Weave (正弦波)**: Smooth, undulating woven texture reminiscent of knitwear or fabric.
-  - **Triangle Wave (三角波)**: Sharp, diamond-like zig-zag interlocking patterns.
-  - **Rectangular Block (矩形ブロック)**: Crisp, checkerboard alternating interlocking blocks.
-- **Universal Arbitrary Mesh Weave Engine**:
-  - Automatically slices any 3D model's horizontal contours into hollow, single-perimeter concentric bands.
-  - Slices with 100% outer perimeters, zero infill, and zero solid top/bottom layers for optimal multi-color contrast and surface finish.
-- **Dual Shading Sources**:
-  - **Texture Image**: Map colors and brightness from 2D images or procedural patterns.
-  - **Surface Curvature (幾何陰影)**: Derive shading directly from 3D surface convexities and concavities without needing texture graphics.
-- **Tonal Shading & Gamma Tuning**:
-  - **Sharp (Binary / 0-1)**: Solid, distinct color levels.
-  - **Gradient (Continuous)**: Smoothly modulates extrusion depth based on full-range luminance (ITU-R BT.709) without shadow clipping.
-  - **Tonal Gamma Control (`0.40`–`2.20`)**: Fine-tune shadow contrast and midtone balance in real time.
-- **2D Modulation Map Inspector Modal**:
-  - Click **"🖼️ View Interleaved Modulation Map (2D)"** to examine the exact grayscale weight map used for layer thickness modulation.
-  - Compare algorithms side-by-side (Centroid Clipping vs. Tone-Preserving Full-Range) and hover over any pixel to inspect RGB, luminance, and blend weights.
+
+#### 📐 Profile Modes & Weave Additions (断面プロファイルと編み重ね)
+In addition to conventional step offsets, BumpMesh_Color features procedural **Profile Modes** that define the cross-sectional geometry between alternating tool layers, including **newly added Weave modes**:
+
+![Profile Modes and Weave Additions](docs/images/profile_weave_modes.svg)
+
+- **Flat Step (Standard / Recommended)**: Crisp, perpendicular step edges between color bands for maximum graphic clarity.
+- **45° Louver Overhang (Experimental)**: Angled overhangs that shield non-target layers from direct top-down view.
+- **Sinusoidal Weave (正弦波 - Weave Addition)**: Smooth, undulating harmonic wave profile creating fabric-like knitwear textures and soft color halftones.
+- **Triangle Weave (三角波 - Weave Addition)**: Sharp, diamond-faceted zig-zag relief with crisp geometric highlights.
+- **Rectangular Block Weave (矩形ブロック - Weave Addition)**: Checkerboard alternating interlocking blocks for bold structural patterns.
+- **Universal Arbitrary Mesh Weave Engine**: Automatically extracts horizontal contour cross-sections for any 3D model (cylinders, organic sculptures, custom STLs) and synthesizes single-perimeter hollow bands (100% outer perimeter, 0% infill, 0 top/bottom layers) with zero sampling aliasing.
+
+#### 💡 Dual Shading Sources (2系統の陰影ソース選択)
+You can drive layer thickness modulation using either 2D texture graphics or the 3D model's own organic relief:
+
+![Mesh Curvature Shading on Suzanne](docs/images/curvature_shading_suzanne.png)
+*Curvature-based geometric shading demonstrated on Suzanne (Blender Monkey): High-convexity ridges (brows, nose, ears) and deep crevices automatically modulate extrusion thickness without requiring any 2D texture map.*
+
+- **Texture Image**: Derives layer extrusion depth from 2D pixel colors or procedural graphics.
+- **Surface Curvature (幾何曲率陰影)**: Computes local mean curvature directly from the 3D triangle mesh. Convex peaks (highlights) extrude while concave valleys (shadows) recess, turning 3D sculptures into tangible self-shading multi-color reliefs without any texture image.
+
+#### 🎛️ Tonal Shading, Gamma & Base Displacement
+- **Tonal Shading Options**: Choose between **Sharp** (binary solid color levels) and **Gradient** (continuous ITU-R BT.709 full-range luminance modulation without shadow clipping).
+- **Tonal Gamma Control (`0.40`–`2.20`)**: Real-time slider to calibrate midtone contrast and shadow depth.
+- **Base Mesh Displacement Bypass Option**: Optional checkbox to preserve underlying macro displacement (`amplitude`) while simultaneously modulating micro interleaved steps.
+- **2D Modulation Map Inspector Modal**: Examine the exact grayscale modulation weight map in a full-screen inspector with live RGB and blend weight probes.
 
 ![BumpMesh_Color Interleaved Slicing Preview](docs/images/interleaved_app_screen.png)
 *Fig. 1: Interleaved Layers configuration panel with Blue Porcelain gradient, Extruder Count, palette mapping, base displacement toggle, and real-time 3D preview.*
@@ -232,6 +181,54 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ---
 
+## 🌟 What's New in Recent Updates
+
+- **v1.5.22 (Latest Release - 2026-10-09)**:
+  - **Upstream Texture Catalog Synchronization (Molded & Tires Categories)**:
+    - Integrated CNCKitchen upstream updates with **13 new high-quality procedural presets**:
+      - **Molded (金型シボ - 8 presets)**: `Brushed`, `Concrete` (MT-11120), `Fine Leather`, `Fine Stipple`, `Haircell`, `Hammered`, `Sand Matte` (MT-11010/20/30), `Spark Erosion` (VDI 3400).
+      - **Tires (タイヤ - 5 presets)**: `Loader Tire`, `Mud-Terrain Tire`, `Touring Tire`, `Tractor Tire`, `Truck Rib Tire`.
+    - Total catalog expanded to **125 built-in presets** (12 multi-color + 113 grayscale/displacement).
+    - Added category filters and localized names across all **16 languages**.
+  - **Documentation & UI Asset Overhaul**:
+    - Complete review and rewrite of feature documentation, synchronization of latest version tags, and fresh non-copyrighted original screenshots captured directly from the live engine.
+- **v1.5.21 (2026-10-05)**:
+  - **Preserve User Rotated Model Orientation in Interleaved 3MF Export**:
+    - Fixed a bug where rotating a model in the viewport reverted to the original lying posture in slicers.
+    - Slicing and sampling now strictly align with the user-defined build plate orientation and grounding.
+- **v1.5.20 (2026-10-05)**:
+  - **Safari 3MF Download Fix (WebKitBlobResource Error 1)**:
+    - Sanitized 3MF MIME types from `+xml` to `application/octet-stream` so Safari reliably triggers binary file downloads instead of failing to navigate.
+- **v1.5.19 (2026-10-05)**:
+  - **Zero-Allocation TypedArray Spatial Grid (30–50x Faster 3MF Export)**:
+    - Replaced GC-heavy string map lookups with contiguous typed arrays, eliminating the 78% progress freeze during surface curvature export.
+- **v1.5.18 (2026-10-04)**:
+  - **Base Mesh Displacement (Amplitude) Bypass Toggle**:
+    - Added an optional toggle to combine macro surface displacement relief with micro interleaved layer alternating bands.
+- **v1.5.17 (2026-10-04)**:
+  - **3MF Thumbnail Centering & Clean Buffer Trim**:
+    - Eliminated zero-padded trailing vertices in procedural weave generation to guarantee exact model bounding box centering.
+    - Exported 3MF thumbnails in Windows File Explorer and slicers now render tightly centered at maximum frame resolution.
+- **v1.5.15〜v1.5.16 (2026-10-04)**:
+  - **Universal Arbitrary 3D Mesh Contour Weave Tube Engine**:
+    - Extended the procedural "Rubber Band Weave Tube" engine from simple cylinders to **any arbitrary 3D geometry** (sculptures, custom STLs, organic forms).
+    - Raycasts each layer's horizontal cross-section contour radius R(theta, z) mathematically, synthesizing watertight manifold rings at nozzle-diameter wall thickness (0.40 mm) and layer thickness (0.20 mm).
+    - Guarantees 100% outer perimeter slicing with **zero infill and zero solid top/bottom layers**.
+    - Fully eliminates aliasing, roughness, and mosaic noise artifacts by placing vertices precisely at wave transition angles.
+- **v1.5.8〜v1.5.12 (2026-10-04)**:
+  - **Weave Profile Modes (Sinusoidal, Triangle, Rectangular Block)**:
+    - Introduced sinusoidal weaves, triangle waves, and checkerboard rectangular block profiles for fabric-like woven reliefs and interleaved multi-color halftone effects.
+    - Configurable circumferential pitch (e.g. 1.6 mm) and convex/concave stroke amplitudes.
+- **v1.5.13 (2026-10-04)**:
+  - **Curvature-Based Geometric Shading & Scale Tracking**:
+    - Optional shading source driven by the 3D model's own surface curvature (convex/concave relief) in addition to 2D texture images.
+    - Synchronized 3D spatial hash grid dynamically adapts when scaling models (e.g. 200%) for seamless shading lookup.
+- **v1.5.7 (2026-10-04)**:
+  - **Extended Layer Thickness & Nozzle Support**:
+    - Expanded layer thickness ceiling up to 1.0 mm to accommodate large-format nozzles up to 1.2 mm diameter.
+
+---
+
 ## 📜 License & Credits
 
 - **Original Project:** [BumpMesh (stlTexturizer)](https://github.com/CNCKitchen/stlTexturizer) by Stefan Hermann ([CNC Kitchen](https://bumpmesh.com)).
@@ -270,62 +267,6 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 
 ---
 
-## 🌟 最近の主な更新ハイライト (Recent Updates)
-
-- **v1.5.22 (最新安定版 - 2026-10-09)**:
-  - **本家 CNC Kitchen 最新テクスチャカタログの完全同期（金型シボ＆タイヤカテゴリ）**:
-    - 本家 stlTexturizer で追加されたプロシージャル・テクスチャ **計13種類** を完全取り込み：
-      - **金型シボ (Molded - 8種)**: `Brushed`（ヘアライン）、`Concrete`（コンクリート MT-11120）、`Fine Leather`（微細革シボ）、`Fine Stipple`（梨地）、`Haircell`（ヘアセル）、`Hammered`（槌目）、`Sand Matte`（サンドブラスト MT-11010/20/30）、`Spark Erosion`（放電加工 VDI 3400）。
-      - **タイヤ (Tires - 5種)**: `Loader Tire`（ホイールローダー）、`Mud-Terrain Tire`（マッドテレーン）、`Touring Tire`（乗用車ツーリング）、`Tractor Tire`（トラクター）、`Truck Rib Tire`（トラックリブ）。
-    - プリセット総数は **計125種**（マルチカラー12種＋モノクロ・変位113種）へと大幅拡充。
-    - カテゴリフィルター「金型シボ」「タイヤ」を新設し、**全16言語** で翻訳同期。
-  - **ドキュメント・UIアセットの全面刷新**:
-    - 機能説明の精査、最新仕様への同期、著作権に配慮した完全新規の実機スクリーンショットへの差し替え。
-- **v1.5.21 (2026-10-05)**:
-  - **モデル回転後の振り重ね3MFエクスポートにおける姿勢反転＆座標ズレの完全修正**:
-    - ビューポート上でユーザーが回転させたモデルが、3MF出力時に元の横倒し姿勢に戻ってしまう不具合を解消。作業空間の向き・接地高さを100%保持してスライス。
-- **v1.5.20 (2026-10-05)**:
-  - **Safariにおける3MFダウンロード保存エラー「WebKitBlobResourceエラー1」の解消**:
-    - MIMEタイプのサニタイズ（`application/octet-stream` 強制）により、SafariがZIPをXMLページと誤認して画面遷移・エラー終了する現象を根絶。
-- **v1.5.19 (2026-10-05)**:
-  - **ゼロ・アロケーション TypedArray 空間グリッド刷新（3MF出力 30〜50倍高速化）**:
-    - 陰影ソース「モデルの凹凸」使用時に発生していた進捗78%でのフリーズを解消。大量の文字列生成によるGC負荷をゼロに。
-- **v1.5.18 (2026-10-04)**:
-  - **ベースの凹凸変位 (Amplitude) 併用切り替えオプション**:
-    - 振り重ねモード時に、ベースモデル本来のマクロな凹凸変形（Amplitude）とミクロな層別段差（振り重ね）を同時に重ねがけできるトグルを追加。
-- **v1.5.17 (2026-10-04)**:
-  - **3MFサムネイル生成の自動センタリング＆ゼロ頂点完全トリミング**:
-    - 輪ゴム積層エンジンのバッファ末尾に残存していた未使用ゼロ頂点 `(0, 0, 0)` を厳密にトリミングし、バウンディングボックスの歪みを根本解消。
-    - Windowsエクスプローラーやスライサーのサムネイル枠の中央いっぱいにモデルが大きく鮮明にプレビュー表示されるよう修正。
-- **v1.5.15〜v1.5.16 (2026-10-04)**:
-  - **全3Dモデル対応・任意メッシュ外周輪郭追従の輪ゴム積層（Weave Tube）エンジン**:
-    - 円柱プリセット限定だった輪ゴム積層エンジンを、彫刻・有機的形状・カスタムSTLなど「任意の3Dメッシュ」へ完全拡張。
-    - 各レイヤーの水平断面から外周輪郭半径 R(theta, z) を数学的に自動抽出し、ノズル径相当（幅 0.40mm）の連続した帯状リングとしてプロシージャル生成。
-    - スライサー上でインフィルゼロ・天井ゼロの単一ペリメータビードとして100%外周スライス。
-    - 波の角（立ち上がり・立ち下がり）の正確な角度に頂点を打つことで、サンプリング破綻（モザイク砂嵐・毛羽立ち・ガタガタ）を100%物理的に根絶。
-- **v1.5.8〜v1.5.12 (2026-10-04)**:
-  - **編み重ね（Weave: 矩形ブロック・三角波・正弦波）プロファイル＆ハーフトーン表現**:
-    - 従来の「フラット段差」「45°ルーバー」に加え、正弦波（Sinusoidal）、三角波（Triangle）、矩形ブロック（Rectangular Block / 市松模様）の編み重ねモードを新設。
-    - 周方向ピッチ（1.6mm等）と振幅で、織物やニットのような立体うねりと交互積層カラーハーフトーンを実現。
-- **v1.5.13 (2026-10-04)**:
-  - **モデル表面曲率（幾何陰影）シェーディング＆スケール自動追従**:
-    - 2D画像テクスチャだけでなく、モデル自身の表面凹凸（曲率）から陰影を自動計算して編み重ねや交互積層に反映可能。
-    - モデル拡大縮小（200%等）時にも対角長連動の3D空間ハッシュ検索により探索漏れを根絶。
-- **v1.5.7 (2026-10-04)**:
-  - **ノズル径・積層厚みの設定上限拡張**:
-    - ノズル径1.2mmに対応し、最大積層厚みを余裕をもった1.0mmまで拡張。
-- **v1.4.0 (2026-10-01)**:
-  - **3Dメッシュ・チューリングパターン表面反応拡散シミュレーター（隠し機能 Secret Mode 2）**:
-    - Displacement Map 見出しの秘密の `🧬` アイコンクリック、または URLパラメータ `?turing=1` で直接起動。
-    - UV展開やテクスチャ画像一切不要。3Dメッシュ表面の幾何グラフ上で直接 Gray-Scott 方程式を解き、有機的な自己組織化パターンを自律形成。
-    - **完全等方的幾何学ラプラシアン**: 直角三角形やCADメッシュで生じていた異方性を解消し、全方位へ均等に美しく拡散。
-    - **5種類の有機的形態形成プリセット**: 迷路 / 脳皺、サンゴ / 指紋、ヒョウ柄 / 水玉、波紋 / パルス、有機渦巻。
-    - **直感的なインタラクティブ・シード注入**: 3Dモデル表面をクリックした地点から胞子状クラスタを注入し、リアルタイムに成長。
-    - **Smoothstep 変位カーブによるクレーター化排除**: 背景の残留濃度をカットオフし、シャープで美しい立体の筋・水玉リブだけを隆起。
-    - **テクスチャ除外ペイント領域への侵入防止**: ユーザーが塗った除外領域境界で自動停止・反射。
-
----
-
 ## 🌟 BumpMesh_Color の主な新機能
 
 ### 1. 🎨 カラー量子化とマルチツール割り当て
@@ -339,27 +280,33 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 - **凸量（突出）と凹量（引込）の個別制御**:
   - 目的色と一致する層は外側に突出（凸量オフセット）。
   - 目的色と一致しない他色の層は内側に引込（凹量オフセット）。
-- **ベース凹凸変位 (Amplitude) 併用オプション**:
-  - 「ベースの凹凸変位 (Amplitude) を併用」トグルにより、モデル表面のダイナミックな隆起・変形を生かしたまま、各層の振り重ねハーフトーンを同時に刻み込むことが可能。
-- **多彩な断面プロファイル選択**:
-  - **フラット段差（標準ステップ・推奨）**: 色の境界が直角で美しい、くっきりとした標準仕上げ。
-  - **45° ルーバー庇（実験的）**: 上からの視線に対して他色層を隠す庇（ひさし）形状。
-  - **正弦波編み重ね（Sinusoidal Weave）**: ニットや織物のような滑らかな波打ちテクスチャ。
-  - **三角波編み重ね（Triangle Weave）**: シャープなジグザグのダイヤモンド調立体レリーフ。
-  - **矩形ブロック編み重ね（Rectangular Block Weave）**: 市松模様状に互い違いに噛み合うブロック構造。
-- **任意3Dメッシュ対応 輪ゴム積層エンジン (Weave Tube Generator)**:
-  - 任意の3Dモデル（円柱、彫刻、カップ、各種ジオメトリ等）の外周輪郭をレイヤーごとに自動抽出し、中空の単一外周リングとしてプロシージャル生成。
-  - スライサー上でインフィル0・天井0の単一ペリメータビードとして100%外周スライスされ、最高の色純度とシャープな仕上がりを実現。
-- **2系統の陰影ソース**:
-  - **テクスチャ画像**: 2D画像や幾何学パターンの明暗・色相からマッピング。
-  - **表面曲率（幾何陰影）**: 3Dモデル表面の凹凸（曲率）から陰影を自動抽出し、画像不要で立体的な陰影を造形。
-- **階調表現とガンマ調整**:
-  - **シャープ（二値 / 0-1）**: はっきりとしたコントラストの二値表現。
-  - **グラデーション（連続階調）**: フルレンジ輝度（ITU-R BT.709）により暗部クリッピングなしで滑らかに変調。
-  - **階調調整 (ガンマ) スライダー（`0.40`〜`2.20`）**: 暗部の引き締めや明暗バランスをリアルタイム調整。
-- **振り重ね変調画像（2Dマップ）確認プレビューモーダル**:
-  - **「🖼️ 振り重ね変調画像（2Dマップ）を確認」** ボタンから、実際にスライス変調に用いられるモノクロ重みマップを全画面モーダルで検査可能。
-  - ピクセルごとのRGB・輝度・ブレンド重みのリアルタイムインスペクター、PNG画像保存を搭載。
+
+#### 📐 断面プロファイルに編み重ね（正弦波、三角波、矩形ブロック）を追加
+従来のフラット段差や庇形状に加え、積層断面の境界形状を数学的に定義する**断面プロファイル（Profile Modes）**に、織物のような立体表現を可能にする**編み重ねモード（Weave Modes）**を追加しました：
+
+![断面プロファイルと編み重ね構造](docs/images/profile_weave_modes.svg)
+
+- **フラット段差（標準ステップ・推奨）**: 色の境界が直角で美しい、くっきりとした標準仕上げ。
+- **45° ルーバー庇（実験的）**: 上からの視線に対して他色層を隠す庇（ひさし）形状。
+- **正弦波編み重ね（Sinusoidal Weave - 編み重ね追加）**: ニットや織物のような滑らかな波打ちテクスチャと柔らかいカラーハーフトーンを形成。
+- **三角波編み重ね（Triangle Weave - 編み重ね追加）**: シャープなダイヤモンド調のジグザグ立体レリーフと陰影ハイライトを表現。
+- **矩形ブロック編み重ね（Rectangular Block Weave - 編み重ね追加）**: 市松模様状に互い違いに噛み合うブロック構造で力強い幾何学パターンを実現。
+- **任意3Dメッシュ対応 輪ゴム積層エンジン (Weave Tube Generator)**: 円柱だけでなく、彫刻・有機的形状・カスタムSTLなど任意の3Dモデルの外周輪郭をレイヤーごとに自動抽出し、中空の単一外周リングとしてプロシージャル生成。スライサー上でインフィル0・天井0の単一ペリメータビードとして100%外周スライスされ、波の角に頂点を打つことでサンプリング破綻（モザイク状の毛羽立ち）を完全に排除。
+
+#### 💡 2系統の陰影ソース選択（テクスチャ画像 vs 表面曲率・幾何陰影）
+層ごとの押し出し変調を駆動する陰影データソースとして、従来の2D画像に加えて**モデル自身の表面曲率（幾何陰影）**を選択可能です：
+
+![スザンヌ（Suzanne）による表面曲率（幾何陰影）プレビュー](docs/images/curvature_shading_suzanne.png)
+*スザンヌ（Suzanne / Blender Monkey）による表面曲率（幾何陰影）の適用例: 眉弓や鼻先、耳などの凸部（ハイライト）と、溝や窪みなどの凹部（シャドウ）から直接陰影を抽出し、2Dテクスチャ画像なしでモデル自身の立体形状から自然なマルチカラー・レリーフを自動生成。*
+
+- **テクスチャ画像**: 2D画像や幾何学パターンの明暗・色相から階調をマッピング。
+- **表面曲率（幾何陰影）**: 3Dメッシュの平均曲率を数学的に計算。突出部をハイライト、窪みをシャドウとして抽出し、彫刻や有機モデルを画像不要で自己陰影付きマルチカラー立体へと変換。
+
+#### 🎛️ 階調表現・ガンマ調整・ベース凹凸併用
+- **階調表現の選択**: コントラストが明瞭な**シャープ（二値 / 0-1）**と、フルレンジ輝度（ITU-R BT.709）により暗部クリッピングなしで滑らかに変調する**グラデーション（連続階調）**を選択可能。
+- **階調調整 (ガンマ) スライダー（`0.40`〜`2.20`）**: 暗部の引き締めや明暗バランスをリアルタイム調整。
+- **ベース凹凸変位 (Amplitude) 併用オプション**: モデル表面本来のマクロな隆起・凹凸形状を残したまま、ミクロな層別段差（振り重ね）を同時に重ねがけ可能。
+- **振り重ね変調画像（2Dマップ）確認プレビューモーダル**: 実際にスライス変調に用いられるモノクロ重みマップを全画面モーダルで検査・PNG保存可能。
 
 ![BumpMesh_Color 振り重ねプレビュー画面](docs/images/interleaved_app_screen.png)
 *図1: 最新の振り重ね設定パネル（青白陶器「Blue Porcelain」の階調グラデーション、Extruder数、共通パレット、ベース変位併用トグル、3Dプレビュー連動）*
@@ -466,3 +413,59 @@ python -m http.server 8080
 ```
 
 ブラウザで `http://localhost:8080` を開きます。処理自体はすべてPC内で完結し、完全オフラインで動作します。
+
+---
+
+## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v1.5.22 (最新安定版 - 2026-10-09)**:
+  - **本家 CNC Kitchen 最新テクスチャカタログの完全同期（金型シボ＆タイヤカテゴリ）**:
+    - 本家 stlTexturizer で追加されたプロシージャル・テクスチャ **計13種類** を完全取り込み：
+      - **金型シボ (Molded - 8種)**: `Brushed`（ヘアライン）、`Concrete`（コンクリート MT-11120）、`Fine Leather`（微細革シボ）、`Fine Stipple`（梨地）、`Haircell`（ヘアセル）、`Hammered`（槌目）、`Sand Matte`（サンドブラスト MT-11010/20/30）、`Spark Erosion`（放電加工 VDI 3400）。
+      - **タイヤ (Tires - 5種)**: `Loader Tire`（ホイールローダー）、`Mud-Terrain Tire`（マッドテレーン）、`Touring Tire`（乗用車ツーリング）、`Tractor Tire`（トラクター）、`Truck Rib Tire`（トラックリブ）。
+    - プリセット総数は **計125種**（マルチカラー12種＋モノクロ・変位113種）へと大幅拡充。
+    - カテゴリフィルター「金型シボ」「タイヤ」を新設し、**全16言語** で翻訳同期。
+  - **ドキュメント・UIアセットの全面刷新**:
+    - 機能説明の精査、王道構成への再編、断面プロファイル編み重ね図およびスザンヌ曲率陰影図の追加。
+- **v1.5.21 (2026-10-05)**:
+  - **モデル回転後の振り重ね3MFエクスポートにおける姿勢反転＆座標ズレの完全修正**:
+    - ビューポート上でユーザーが回転させたモデルが、3MF出力時に元の横倒し姿勢に戻ってしまう不具合を解消。作業空間の向き・接地高さを100%保持してスライス。
+- **v1.5.20 (2026-10-05)**:
+  - **Safariにおける3MFダウンロード保存エラー「WebKitBlobResourceエラー1」の解消**:
+    - MIMEタイプのサニタイズ（`application/octet-stream` 強制）により、SafariがZIPをXMLページと誤認して画面遷移・エラー終了する現象を根絶。
+- **v1.5.19 (2026-10-05)**:
+  - **ゼロ・アロケーション TypedArray 空間グリッド刷新（3MF出力 30〜50倍高速化）**:
+    - 陰影ソース「モデルの凹凸」使用時に発生していた進捗78%でのフリーズを解消。大量の文字列生成によるGC負荷をゼロに。
+- **v1.5.18 (2026-10-04)**:
+  - **ベースの凹凸変位 (Amplitude) 併用切り替えオプション**:
+    - 振り重ねモード時に、ベースモデル本来のマクロな凹凸変形（Amplitude）とミクロな層別段差（振り重ね）を同時に重ねがけできるトグルを追加。
+- **v1.5.17 (2026-10-04)**:
+  - **3MFサムネイル生成の自動センタリング＆ゼロ頂点完全トリミング**:
+    - 輪ゴム積層エンジンのバッファ末尾に残存していた未使用ゼロ頂点 `(0, 0, 0)` を厳密にトリミングし、バウンディングボックスの歪みを根本解消。
+    - Windowsエクスプローラーやスライサーのサムネイル枠の中央いっぱいにモデルが大きく鮮明にプレビュー表示されるよう修正。
+- **v1.5.15〜v1.5.16 (2026-10-04)**:
+  - **全3Dモデル対応・任意メッシュ外周輪郭追従の輪ゴム積層（Weave Tube）エンジン**:
+    - 円柱プリセット限定だった輪ゴム積層エンジンを、彫刻・有機的形状・カスタムSTLなど「任意の3Dメッシュ」へ完全拡張。
+    - 各レイヤーの水平断面から外周輪郭半径を数学的に自動抽出し、ノズル径相当（幅 0.40mm）の連続した帯状リングとしてプロシージャル生成。
+    - スライサー上でインフィルゼロ・天井ゼロの単一ペリメータビードとして100%外周スライス。
+    - 波の角（立ち上がり・立ち下がり）の正確な角度に頂点を打つことで、サンプリング破綻（モザイク砂嵐・毛羽立ち・ガタガタ）を100%物理的に根絶。
+- **v1.5.8〜v1.5.12 (2026-10-04)**:
+  - **編み重ね（Weave: 矩形ブロック・三角波・正弦波）プロファイル＆ハーフトーン表現**:
+    - 従来の「フラット段差」「45°ルーバー」に加え、正弦波（Sinusoidal）、三角波（Triangle）、矩形ブロック（Rectangular Block / 市松模様）の編み重ねモードを新設。
+    - 周方向ピッチ（1.6mm等）と振幅で、織物やニットのような立体うねりと交互積層カラーハーフトーンを実現。
+- **v1.5.13 (2026-10-04)**:
+  - **モデル表面曲率（幾何陰影）シェーディング＆スケール自動追従**:
+    - 2D画像テクスチャだけでなく、モデル自身の表面凹凸（曲率）から陰影を自動計算して編み重ねや交互積層に反映可能。
+    - モデル拡大縮小（200%等）時にも対角長連動の3D空間ハッシュ検索により探索漏れを根絶。
+- **v1.5.7 (2026-10-04)**:
+  - **ノズル径・積層厚みの設定上限拡張**:
+    - ノズル径1.2mmに対応し、最大積層厚みを余裕をもった1.0mmまで拡張。
+
+---
+
+## 📜 ライセンスと謝辞 (License & Credits)
+
+- **元プロジェクト:** Stefan Hermann 氏 ([CNC Kitchen](https://bumpmesh.com)) による [BumpMesh (stlTexturizer)](https://github.com/CNCKitchen/stlTexturizer)
+- **フォーク拡張開発:** [@Mithril_MEX](https://x.com/Mithril_MEX)
+- **ライセンス:** [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE)
+

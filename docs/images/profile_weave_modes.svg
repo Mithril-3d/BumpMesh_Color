@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" width="100%" height="100%" style="background:#13151a; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Header Title -->
+  <text x="480" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700" letter-spacing="0.5">断面プロファイル（Profile Modes）と編み重ね（Weave）構造</text>
+  <text x="480" y="62" text-anchor="middle" fill="#94a3b8" font-size="13">層ごとの凸量（突出）・凹量（引込）と周方向ピッチによる立体テクスチャ断面の比較</text>
+
+  <!-- Legend -->
+  <g transform="translate(370, 78)">
+    <rect x="0" y="0" width="14" height="14" rx="3" fill="url(#blueGrad)"/>
+    <text x="20" y="12" fill="#cbd5e1" font-size="12" font-weight="500">目的色層 (Tool 1: 凸量突出)</text>
+    <rect x="150" y="0" width="14" height="14" rx="3" fill="url(#whiteGrad)"/>
+    <text x="170" y="12" fill="#cbd5e1" font-size="12" font-weight="500">他色層 (Tool 2: 凹量引込)</text>
+  </g>
+
+  <!-- Card 1: Flat Step -->
+  <g transform="translate(24, 108)" filter="url(#shadow)">
+    <rect width="170" height="250" rx="10" fill="#1e222b" stroke="#334155" stroke-width="1.5"/>
+    <text x="85" y="28" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">フラット段差</text>
+    <text x="85" y="46" text-anchor="middle" fill="#64748b" font-size="11">Flat Step (標準・推奨)</text>
+    
+    <!-- Cross-section graphic -->
+    <g transform="translate(20, 65)">
+      <!-- Layer 1: Base Blue -->
+      <rect x="20" y="0" width="90" height="24" fill="url(#blueGrad)" rx="2"/>
+      <!-- Layer 2: Recessed White -->
+      <rect x="0" y="28" width="80" height="24" fill="url(#whiteGrad)" rx="2"/>
+      <!-- Layer 3: Protruded Blue -->
+      <rect x="25" y="56" width="95" height="24" fill="url(#blueGrad)" rx="2"/>
+      <!-- Layer 4: Recessed White -->
+      <rect x="5" y="84" width="75" height="24" fill="url(#whiteGrad)" rx="2"/>
+      <!-- Layer 5: Protruded Blue -->
+      <rect x="20" y="112" width="90" height="24" fill="url(#blueGrad)" rx="2"/>
+    </g>
+    <text x="85" y="222" text-anchor="middle" fill="#94a3b8" font-size="11">直角ステップエッジ</text>
+    <text x="85" y="238" text-anchor="middle" fill="#94a3b8" font-size="11">最も鮮明な境界仕上げ</text>
+  </g>
+
+  <!-- Card 2: 45° Louver -->
+  <g transform="translate(208, 108)" filter="url(#shadow)">
+    <rect width="170" height="250" rx="10" fill="#1e222b" stroke="#334155" stroke-width="1.5"/>
+    <text x="85" y="28" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">45° ルーバー庇</text>
+    <text x="85" y="46" text-anchor="middle" fill="#64748b" font-size="11">45° Louver (実験的)</text>
+    
+    <!-- Cross-section graphic -->
+    <g transform="translate(20, 65)">
+      <!-- Louver polygon slices -->
+      <polygon points="15,0 110,0 95,24 15,24" fill="url(#blueGrad)"/>
+      <polygon points="0,28 75,28 65,52 0,52" fill="url(#whiteGrad)"/>
+      <polygon points="20,56 120,56 100,80 20,80" fill="url(#blueGrad)"/>
+      <polygon points="5,84 80,84 70,108 5,108" fill="url(#whiteGrad)"/>
+      <polygon points="15,112 110,112 95,136 15,136" fill="url(#blueGrad)"/>
+    </g>
+    <text x="85" y="222" text-anchor="middle" fill="#94a3b8" font-size="11">45°の傾斜庇構造</text>
+    <text x="85" y="238" text-anchor="middle" fill="#94a3b8" font-size="11">上方からの視線を遮蔽</text>
+  </g>
+
+  <!-- Card 3: Sinusoidal Weave -->
+  <g transform="translate(392, 108)" filter="url(#shadow)">
+    <rect width="176" height="250" rx="10" fill="#1e222b" stroke="#0ea5e9" stroke-width="2"/>
+    <rect x="6" y="6" width="36" height="16" rx="3" fill="#0284c7"/>
+    <text x="24" y="18" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="700">追加</text>
+    <text x="88" y="28" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">正弦波編み重ね</text>
+    <text x="88" y="46" text-anchor="middle" fill="#64748b" font-size="11">Sinusoidal Weave</text>
+    
+    <!-- Cross-section graphic -->
+    <g transform="translate(18, 65)">
+      <!-- Smooth Sine waves per layer -->
+      <path d="M 0,0 Q 30,-8 70,0 T 140,0 L 140,24 Q 100,16 70,24 T 0,24 Z" fill="url(#blueGrad)"/>
+      <path d="M 0,28 Q 40,36 70,28 T 140,28 L 140,52 Q 110,44 70,52 T 0,52 Z" fill="url(#whiteGrad)"/>
+      <path d="M 0,56 Q 30,48 70,56 T 140,56 L 140,80 Q 100,72 70,80 T 0,80 Z" fill="url(#blueGrad)"/>
+      <path d="M 0,84 Q 40,92 70,84 T 140,84 L 140,108 Q 110,100 70,108 T 0,108 Z" fill="url(#whiteGrad)"/>
+      <path d="M 0,112 Q 30,104 70,112 T 140,112 L 140,136 Q 100,128 70,136 T 0,136 Z" fill="url(#blueGrad)"/>
+    </g>
+    <text x="88" y="222" text-anchor="middle" fill="#94a3b8" font-size="11">滑らかなサイン波</text>
+    <text x="88" y="238" text-anchor="middle" fill="#94a3b8" font-size="11">ニット・織物調ハーフトーン</text>
+  </g>
+
+  <!-- Card 4: Triangle Weave -->
+  <g transform="translate(582, 108)" filter="url(#shadow)">
+    <rect width="176" height="250" rx="10" fill="#1e222b" stroke="#0ea5e9" stroke-width="2"/>
+    <rect x="6" y="6" width="36" height="16" rx="3" fill="#0284c7"/>
+    <text x="24" y="18" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="700">追加</text>
+    <text x="88" y="28" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">三角波編み重ね</text>
+    <text x="88" y="46" text-anchor="middle" fill="#64748b" font-size="11">Triangle Weave</text>
+    
+    <!-- Cross-section graphic -->
+    <g transform="translate(18, 65)">
+      <!-- Sharp zigzag triangles -->
+      <polygon points="0,0 45,8 90,-4 135,6 135,24 90,16 45,28 0,24" fill="url(#blueGrad)"/>
+      <polygon points="0,28 45,20 90,32 135,22 135,52 90,60 45,48 0,52" fill="url(#whiteGrad)"/>
+      <polygon points="0,56 45,64 90,52 135,62 135,80 90,72 45,84 0,80" fill="url(#blueGrad)"/>
+      <polygon points="0,84 45,76 90,88 135,78 135,108 90,116 45,104 0,108" fill="url(#whiteGrad)"/>
+      <polygon points="0,112 45,120 90,108 135,118 135,136 90,128 45,140 0,136" fill="url(#blueGrad)"/>
+    </g>
+    <text x="88" y="222" text-anchor="middle" fill="#94a3b8" font-size="11">シャープなジグザグ</text>
+    <text x="88" y="238" text-anchor="middle" fill="#94a3b8" font-size="11">ダイヤモンド・ポリゴン調</text>
+  </g>
+
+  <!-- Card 5: Rectangular Block Weave -->
+  <g transform="translate(772, 108)" filter="url(#shadow)">
+    <rect width="164" height="250" rx="10" fill="#1e222b" stroke="#0ea5e9" stroke-width="2"/>
+    <rect x="6" y="6" width="36" height="16" rx="3" fill="#0284c7"/>
+    <text x="24" y="18" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="700">追加</text>
+    <text x="82" y="28" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">矩形ブロック</text>
+    <text x="82" y="46" text-anchor="middle" fill="#64748b" font-size="11">Rectangular Block</text>
+    
+    <!-- Cross-section graphic -->
+    <g transform="translate(14, 65)">
+      <!-- Checkerboard interlocking blocks -->
+      <rect x="0" y="0" width="65" height="24" fill="url(#blueGrad)" rx="1"/>
+      <rect x="70" y="0" width="65" height="24" fill="#1e3a8a" rx="1"/>
+      
+      <rect x="0" y="28" width="65" height="24" fill="#94a3b8" rx="1"/>
+      <rect x="70" y="28" width="65" height="24" fill="url(#whiteGrad)" rx="1"/>
+      
+      <rect x="0" y="56" width="65" height="24" fill="url(#blueGrad)" rx="1"/>
+      <rect x="70" y="56" width="65" height="24" fill="#1e3a8a" rx="1"/>
+      
+      <rect x="0" y="84" width="65" height="24" fill="#94a3b8" rx="1"/>
+      <rect x="70" y="84" width="65" height="24" fill="url(#whiteGrad)" rx="1"/>
+
+      <rect x="0" y="112" width="65" height="24" fill="url(#blueGrad)" rx="1"/>
+      <rect x="70" y="112" width="65" height="24" fill="#1e3a8a" rx="1"/>
+    </g>
+    <text x="82" y="222" text-anchor="middle" fill="#94a3b8" font-size="11">市松模様の交互ブロック</text>
+    <text x="82" y="238" text-anchor="middle" fill="#94a3b8" font-size="11">くっきりとした幾何レリーフ</text>
+  </g>
+</svg>
