@@ -113,54 +113,45 @@ You can drive layer thickness modulation using either 2D texture graphics or the
 > 📖 **Deep Dive Article:** For a detailed breakdown of the background, theory, and printing mechanics behind the "振り重ね" (Interleaved Layer) technique, see the author's article:  
 > [振り重ねプリント手法の解説 (note.com)](https://note.com/mithril_mex/n/nf6866893448c)
 
-### 3. 🖼️ Texture Gallery & Rich Preset Library
-- **125 Built-in Presets**:
-  - 12 curated multi-color patterns (Porcelain, Ichimatsu, Tartan, Stained Glass, Honeycomb, etc.).
-  - 113 upstream procedural displacement textures organized into 9 categories:
-    `Multicolor`, `Geometric`, `Patterns`, `Organic`, `Fabric`, `Natural`, `Grip`, `Molded` (8 mold grains), and `Tires` (5 tire treads).
-- **Interactive Browsing & Search**:
-  - Instant text filter and category chips.
-  - Star pinning (★) to dock frequently used textures to the main sidebar.
-  - Turntable mode for 360° dynamic model review.
-  - Client-side IndexedDB storage for saving user custom textures locally.
-
-![Texture Gallery Tires & Molded](docs/images/gallery_tires_molded.png)
-*Fig. 3: Built-in Texture Gallery featuring the newly added Tires and Molded texture categories.*
-
-### 4. 📦 Seamless Multi-Tool 3MF Export
+### 3. 📦 Seamless Multi-Tool 3MF Export
 - **Full Slicer Compatibility**: Generates standard 3MF archives with multi-part objects directly recognized by **PrusaSlicer**, **OrcaSlicer**, and **Bambu Studio** without configuration hassles.
 - **Rotation & Orientation Preservation**: User-rotated model orientations and Z-grounding are 100% preserved in the exported 3MF.
 - **High-Performance Pipeline**: Zero-allocation typed-array spatial hashing and asynchronous chunking ensure export never freezes the browser.
 - **Safari & macOS Ready**: Automatic MIME sanitization prevents download corruption across WebKit browsers.
 - **Embedded PNG Thumbnails**: Embeds high-resolution, centered thumbnails for seamless display in Windows File Explorer and slicer plate previews.
 
-### 5. 💾 Full Project Save & Auto-Save (.bumpmesh)
-- **All-in-One Portable Archives**: Save loaded 3D models, textures, parameter adjustments, and multi-color tool assignments in a single `.bumpmesh` project file.
-- **Auto-Save Switch**: Choose between **Session** (`sessionStorage`) and **Persistent** (`localStorage`) modes directly from the header.
-- **Tool Memory Retention**: Custom tool mappings persist across texture replacements.
-
-### 6. 📐 Interactive Real-Time Model Scaling
+### 4. 📐 Interactive Real-Time Model Scaling
 - **Live Percent Scaling**: Resize X / Y / Z with instantaneous viewport rendering and bounding box millimeter updates.
 - **Uniform Aspect Ratio Lock (🔒)**: Lock proportions or unlock for anisotropic scaling.
 - **1-Click Reset & Fit**: One-click 100% restore and camera frame fitting (⛶).
 
-### 7. 🌐 Comprehensive 16-Language Localization
-Fully localized UI with instant language switching:
-- English, Japanese (日本語), German (Deutsch), French (Français), Spanish (Español), Italian (Italiano), Portuguese (Português), Chinese (中文), Korean (한국어), Russian (Русский), Ukrainian (Українська), Polish (Polski), Danish (Dansk), Turkish (Türkçe), Finnish (Suomi), Dutch (Nederlands).
+### 5. 🎨 Curated Multi-Color Presets & Extended Color Persistence
+- **12 Curated Multi-Color Patterns**: Added dedicated color texture patterns (Porcelain, Ichimatsu, Tartan, Stained Glass, Japanese Geometric patterns, etc.) designed specifically for multi-color 3D printing.
+- **Color Settings Persistence**: Extended project files (`.bumpmesh`) and browser auto-save to retain color palettes, extruder counts, and physical tool mappings across sessions and texture replacements.
 
 ---
 
-## 🛠️ Core BumpMesh Features
+## 🛠️ Core BumpMesh Features (Inherited from Upstream)
 
+BumpMesh_Color builds upon the rock-solid foundation of Stefan Hermann's [BumpMesh](https://github.com/CNCKitchen/stlTexturizer):
+
+- **Texture Gallery & Rich Procedural Presets**:
+  - Over 113 upstream displacement textures across 8 categories: `Geometric`, `Patterns`, `Organic`, `Fabric`, `Natural`, `Grip`, `Molded` (8 mold grains), and `Tires` (5 tire treads). Combined with BumpMesh_Color's 12 multi-color presets, a total of 125 presets are available.
+  - Interactive gallery with category filtering, instant search, star pinning (★ favorites), 360° turntable review mode, and local custom texture management (IndexedDB).
 - **Projection Modes**: Triplanar (default normal blending), Cubic (Box), Cylindrical, Spherical, Planar (XY, XZ, YZ).
-- **UV Transform**: Logarithmic Scale U/V, Offset U/V, Rotation, and Seam Blending.
+- **UV Transform & Adjustments**: Logarithmic Scale U/V, Offset U/V, Rotation, and Seam Blending.
 - **Masking Tools**:
-  - Angle-based masking (suppress texture on top/bottom faces).
-  - Interactive face painting (brush tool and dihedral bucket fill).
+  - Angle-based masking (suppress texture on top/bottom flat faces).
+  - Interactive face painting (brush tool and dihedral angle bucket fill).
   - Smooth transition curves (linear, S-curve, ease-in).
+- **Project Archives & Auto-Save (.bumpmesh)**:
+  - Portable `.bumpmesh` ZIP project archives containing settings, model, and custom texture maps.
+  - Instant toggle between **Session** (`sessionStorage`) and **Persistent** (`localStorage`) browser auto-save.
+- **Comprehensive 16-Language Localization**:
+  - Fully localized UI framework across 16 languages (English, Japanese, German, French, Spanish, Italian, Portuguese, Chinese, Korean, Russian, Ukrainian, Polish, Danish, Turkish, Finnish, Dutch) with instant language switching. BumpMesh_Color provides 100% translation synchronization for all new multi-color features.
 - **File Format Support**:
   - Input: `.stl`, `.obj`, `.3mf`, `.step` / `.stp` (via client-side B-rep tessellation).
-  - Output: Binary `.stl`, Standard `.3mf`, Multi-Tool `.3mf`.
+  - Output: Binary `.stl`, Standard single-color `.3mf`, and BumpMesh_Color's Multi-Tool `.3mf`.
 - **Privacy First**: 100% client-side WebAssembly and WebGL execution. No 3D files or textures are ever uploaded to any server.
 
 ---
@@ -211,6 +202,10 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
     - Total catalog expanded to **125 built-in presets** (12 multi-color + 113 grayscale/displacement).
     - Added category filters and localized names across all **16 languages**.
+
+  ![Texture Gallery Tires & Molded](docs/images/gallery_tires_molded.png)
+  *Upstream preset catalog synchronization: Tires and Molded categories integrated in v1.5.22.*
+
   - **Documentation & UI Asset Overhaul**:
     - Complete review and rewrite of feature documentation, synchronization of latest version tags, and fresh non-copyrighted original screenshots captured directly from the live engine.
 - **v1.5.21 (2026-10-05)**:
@@ -375,53 +370,45 @@ STL、OBJ、3MF、STEPファイルを読み込み、カラー画像テクスチ�
 > 📖 **詳細解説記事 (note):** 振り重ねプリント手法の着想・原理・スライスノウハウについての詳しい解説は、以下のnote記事をご参照ください：  
 > [振り重ねプリント手法の解説｜note (@Mithril_MEX)](https://note.com/mithril_mex/n/nf6866893448c)
 
-### 3. 🖼️ テクスチャギャラリー ＆ 豊富なプリセット
-- **125種類の充実した内蔵プリセット**:
-  - 12種類のマルチカラー専用パターン（青白陶器、市松模様、タータンチェック、ステンドグラス、ハニカム等）。
-  - 113種類のプロシージャル凹凸テクスチャ（`マルチカラー`, `幾何学`, `パターン`, `オーガニック`, `ファブリック`, `自然素材`, `グリップ`, `金型シボ` 8種, `タイヤ` 5種）。
-- **快適な検索・お気に入り固定**:
-  - インスタント検索ボックスとカテゴリチップ絞り込み。
-  - お気に入り（★）登録でメインパネルへ即座にピン留め。
-  - 360°自動回転するターンテーブルモード。
-  - ブラウザ内IndexedDBによるマイテクスチャのローカル保存。
-
-![Texture Gallery Tires & Molded](docs/images/gallery_tires_molded.png)
-*図3: 新たに金型シボ（8種）とタイヤ（5種）が追加された内蔵テクスチャギャラリー*
-
-### 4. 📦 スライサー完全互換のマルチツール 3MF エクスポート
+### 3. 📦 スライサー完全互換のマルチツール 3MF エクスポート
 - **ドラッグ＆ドロップで即座に認識**: 出力された3MFファイルを <b>PrusaSlicer、OrcaSlicer、Bambu Studio</b> にドラッグ＆ドロップするだけで、ツール番号ごとのマルチパーツ（オブジェクト）として自動認識されます。
-
 - **モデル回転・接地姿勢の完全維持**: アプリ上で回転・配置した姿勢を作業空間座標としてそのまま保持してスライス出力。
 - **超高速エクスポートパイプライン**: ゼロ・アロケーションTypedArray空間グリッドと非同期処理により、ブラウザをフリーズさせずに大容量メッシュを安定出力。
 - **Safari＆macOS完全対応**: MIMEサニタイズにより、Safari環境でもエラーなく確実に3MFファイルを保存可能。
 - **Windows エクスプローラーのサムネイル表示**: 標準的な3MFサムネイル仕様に準拠しており、Windowsのエクスプローラー上で高解像度プレビューアイコンが表示されます。
 
-### 5. 💾 プロジェクト保存・復元 & 自動保存 (.bumpmesh)
-- **オールインワンのプロジェクト保存**: 読み込んだ3Dモデル、テクスチャ画像、調整パラメータ、マルチカラーのツール割り当てをすべて1つの `.bumpmesh` ファイル（ZIP形式）として保存・復元可能。
-- **自動保存モード切替**: ヘッダーから短期保存（`sessionStorage`）と長期保存（`localStorage`）をワンクリックで切り替え可能。
-- **ツール番号設定の記憶保持**: テクスチャを別の画像に差し替えても、ユーザーが設定した各色のツール番号（Tool 1〜8）をセッション中に自動保持。
-
-### 6. 📐 リアルタイムモデル拡大縮小（スケーリング）
+### 4. 📐 リアルタイムモデル拡大縮小（スケーリング）
 - **パーセント即時入力**: X / Y / Z の%数値を入力すると即座に3Dビューポートと寸法線に反映。
 - **縦横比固定ロック（🔒）**: ロック時はプロポーションを維持したまま一括スケーリング。解除で各軸個別変倍に対応。
 - **1クリック復元＆カメラフィット**: 100%リセットや、モデル全体を収めるカメラフィット（⛶）に対応。
 
-### 7. 🌐 16言語の完全ローカライズ
-日本語および英語をはじめ、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、中国語、韓国語、ロシア語、ウクライナ語、ポーランド語、デンマーク語、トルコ語、フィンランド語、オランダ語の計16言語に完全対応。右上の言語セレクターからいつでも即座に切り替え可能です。
+### 5. 🎨 マルチカラー専用プリセット ＆ カラー設定の永続化
+- **12種類のマルチカラー専用プリセット**: 青白陶器、市松模様、タータンチェック、ステンドグラス、和風幾何学文様など、マルチマテリアル3Dプリントに特化した専用カラーテクスチャを追加。
+- **カラー設定のプロジェクト永続化**: 本家のプロジェクト保存（`.bumpmesh`）およびブラウザ自動保存を拡張し、抽出色数、カラーパレット、物理ツール割り当て情報をセッションやファイル間で確実に保持。
 
 ---
 
-## 🛠️ BumpMesh の基本機能
+## 🛠️ BumpMesh の基本機能（本家からの継承機能）
 
+BumpMesh_Color は、Stefan Hermann 氏の開発した [BumpMesh (stlTexturizer)](https://github.com/CNCKitchen/stlTexturizer) の堅牢な基本設計を受け継いでいます：
+
+- **テクスチャギャラリー ＆ 豊富なプロシージャルプリセット**:
+  - 本家由来の8カテゴリ・計113種類の凹凸テクスチャ（幾何学、パターン、オーガニック、ファブリック、自然素材、グリップ、金型シボ8種、タイヤ5種）を搭載。BumpMesh_Colorのマルチカラー12種と合わせて計125種類が利用可能です。
+  - カテゴリ別絞り込み、インクリメンタル検索、お気に入り（★）ピン留め、360°ターンテーブルプレビュー、IndexedDBによるマイテクスチャのローカル保存をサポート。
 - **投影モード**: トライプラナー（法線ブレンド・標準）、キュービック（ボックス）、シリンドリカル（円筒）、スフェリカル（球状）、プラナー（XY/XZ/YZ平面）。
 - **UV・変形調整**: スケールU/V（対数スライダー・縦横連動）、オフセットU/V、回転、シーム境界ブレンド。
 - **マスキング機能**:
-  - 角度マスク（底面や上面の平坦部へのテクスチャ除外）
-  - サーフェスペイント（ブラシツールおよび角度指定のバケツ塗りつぶし）
-  - 滑らかな境界フォールオフ（リニア、S字カーブ、イーズイン）
+  - 角度マスク（底面や上面の平坦部へのテクスチャ除外）。
+  - サーフェスペイント（ブラシツールおよび角度指定のバケツ塗りつぶし）。
+  - 滑らかな境界フォールオフ（リニア、S字カーブ、イーズイン）。
+- **プロジェクト保存・自動保存 (.bumpmesh)**:
+  - 設定・モデル・テクスチャをまとめたZIP形式のプロジェクト保存・復元。
+  - 短期（`sessionStorage`）／長期（`localStorage`）の自動保存切替。
+- **16言語の多言語対応**:
+  - 日本語・英語をはじめとする16言語のUI即時切り替えフレームワークを搭載。BumpMesh_Colorで追加された全機能も16言語で完全同期しています。
 - **対応ファイル形式**:
-  - 読み込み: `.stl`, `.obj`, `.3mf`, `.step` / `.stp` (ブラウザ内B-repメッシュ化)
-  - 書き出し: バイナリ `.stl`, 標準 `.3mf`, マルチツール `.3mf`
+  - 読み込み: `.stl`, `.obj`, `.3mf`, `.step` / `.stp` (ブラウザ内B-repメッシュ化)。
+  - 書き出し: バイナリ `.stl`, 標準単色 `.3mf`, およびBumpMesh_Colorのマルチツール `.3mf`。
 - **プライバシー保護**: 100% クライアント側（ブラウザ内）処理。3Dモデルや画像データが外部サーバーに送信されることは一切ありません。
 
 ---
@@ -470,6 +457,10 @@ python -m http.server 8080
       - **タイヤ (Tires - 5種)**: `Loader Tire`（ホイールローダー）、`Mud-Terrain Tire`（マッドテレーン）、`Touring Tire`（乗用車ツーリング）、`Tractor Tire`（トラクター）、`Truck Rib Tire`（トラックリブ）。
     - プリセット総数は **計125種**（マルチカラー12種＋モノクロ・変位113種）へと大幅拡充。
     - カテゴリフィルター「金型シボ」「タイヤ」を新設し、**全16言語** で翻訳同期。
+
+  ![Texture Gallery Tires & Molded](docs/images/gallery_tires_molded.png)
+  *本家プリセットカタログの同期: v1.5.22 で取り込まれたタイヤおよび金型シボカテゴリ*
+
   - **ドキュメント・UIアセットの全面刷新**:
     - 機能説明の精査、王道構成への再編、断面プロファイル編み重ね図およびスザンヌ曲率陰影図の追加。
 - **v1.5.21 (2026-10-05)**:
