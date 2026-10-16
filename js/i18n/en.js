@@ -343,6 +343,7 @@ export default {
   "color.profileBlock": "🧱 Block Pulse Weave (Rectangular)",
   "color.profileZigzag": "📐 Zigzag Weave (Triangle Wave / Fast & Lightweight)",
   "color.profileWeave": "✨ Sinusoidal Weave (Halftone Interlocking)",
+  "color.profileHalftone": "🎭 Halftone Weave (Anchored Inner Wall / Multi-Color & Photos)",
   "color.weaveSettings": "Weave Halftone Settings",
   "color.nozzleDiameter": "Nozzle Diameter (mm)",
   "color.nozzleCustom": "Manual Input (Custom)",

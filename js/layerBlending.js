@@ -238,10 +238,10 @@ export function computeLouverDisplacement(
   // Mode 0: Step (discrete 0 / 1)
   if (shadingMode === 0) {
     const isMatch = (activeTool === targetToolId);
-    if ((profileMode !== 2 && profileMode !== 3 && profileMode !== 4) || !isMatch) {
+    if ((profileMode !== 2 && profileMode !== 3 && profileMode !== 4 && profileMode !== 5) || !isMatch) {
       return isMatch ? convexAmp : -concaveAmp;
     }
-    if ((profileMode === 2 || profileMode === 3 || profileMode === 4) && weaveOptions) {
+    if ((profileMode === 2 || profileMode === 3 || profileMode === 4 || profileMode === 5) && weaveOptions) {
       const pitch = Math.max(0.2, weaveOptions.pitch ?? 1.5);
       const waveAmp = Math.max(0.0, weaveOptions.amp ?? 0.25);
       const px = weaveOptions.x ?? 0;
@@ -259,11 +259,22 @@ export function computeLouverDisplacement(
         sHoriz = px * 0.7071 - py * 0.7071;
       }
       const k = (2.0 * Math.PI) / pitch;
-      const layerPhase = (layerIdx % 2) * Math.PI;
+      const toolCount = toolIds?.length || 2;
+      let layerPhase;
+      if (profileMode === 5 && toolCount > 2) {
+        const colIdx = Math.abs(layerIdx) % toolCount;
+        const cycle = Math.floor(Math.abs(layerIdx) / toolCount);
+        layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
+      } else {
+        layerPhase = (Math.abs(layerIdx) % 2) * Math.PI;
+      }
       const phi = k * sHoriz + layerPhase;
       const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
       let W;
-      if (profileMode === 4) {
+      if (profileMode === 5) {
+        W = 0.5 + 0.5 * Math.sin(phi);
+        return isMatch ? (-concaveAmp + (convexAmp + concaveAmp) * W) : -concaveAmp;
+      } else if (profileMode === 4) {
         // 🧱 Block Pulse (Trapezoidal Rectangular Wave)
         const edge = 0.05;
         if (u < edge) W = -1.0 + 2.0 * (u / edge);
@@ -284,8 +295,8 @@ export function computeLouverDisplacement(
     return base + zFrac * slope;
   }
 
-  // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
-  if (profileMode === 2 || profileMode === 3 || profileMode === 4) {
+  // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse), Mode 5 (Halftone Weave)
+  if (profileMode === 2 || profileMode === 3 || profileMode === 4 || profileMode === 5) {
     const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.6);
     const waveAmp = Math.max(0.0, weaveOptions?.amp ?? 0.60);
     const px = weaveOptions?.x ?? 0;
@@ -303,12 +314,38 @@ export function computeLouverDisplacement(
     }
 
     const k = (2.0 * Math.PI) / pitch;
-    const layerPhase = (layerIdx % 2) * Math.PI;
+    const toolCount = toolIds?.length || 2;
+    let layerPhase;
+    if (profileMode === 5 && toolCount > 2) {
+      const colIdx = Math.abs(layerIdx) % toolCount;
+      const cycle = Math.floor(Math.abs(layerIdx) / toolCount);
+      layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
+    } else {
+      layerPhase = (Math.abs(layerIdx) % 2) * Math.PI;
+    }
     const phi = k * sHoriz + layerPhase;
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
 
     let W;
-    if (profileMode === 4) {
+    if (profileMode === 5) {
+      // 🎭 ハーフトーン編み (Halftone Weave)
+      const wRaw = 0.5 + 0.5 * Math.sin(phi);
+      if (toolCount === 2 && exposure > 0.65) {
+        // 2色時: 白ベタ・ハイライト領域は波の山同士が繋がって平らな連続リブ（デューティ比100%）に頭打ち
+        const boost = (exposure - 0.65) / 0.35;
+        W = Math.min(1.0, wRaw + boost * 0.7);
+      } else {
+        // 多色時: 奥の内壁に毎回戻るアンカー谷を維持し、空中落下を防止
+        W = wRaw;
+      }
+      // 混色補正 (Secondary Color Brightness Compensation)
+      let comp = 1.0;
+      if (multiColorInfo && toolCount > 2) {
+        comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
+      }
+      const stroke = Math.max(0.01, (convexAmp + concaveAmp) > 0 ? (convexAmp + concaveAmp) : waveAmp);
+      return -concaveAmp + stroke * Math.min(1.0, exposure * comp) * W;
+    } else if (profileMode === 4) {
       // 🧱 Block Pulse (Trapezoidal Rectangular Wave)
       const edge = 0.05;
       if (u < edge) W = -1.0 + 2.0 * (u / edge);

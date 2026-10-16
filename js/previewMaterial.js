@@ -201,15 +201,30 @@ const sharedGLSL = /* glsl */`
         }
         exposure = clamp(exposure, 0.0, 1.0);
 
-        // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse)
-        if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
+        // ProfileMode 2 (Sinusoidal), Mode 3 (Zigzag), Mode 4 (Block Pulse), Mode 5 (Halftone Weave)
+        if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) {
           float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
           float waveCount = max(6.0, interleavedWaveCount);
-          float layerPhase = mod(float(layerIdx), 2.0) * PI;
+          float layerPhase;
+          if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
+            float colIdx = mod(float(layerIdx), float(interleavedToolCount));
+            float cycle = floor(float(layerIdx) / float(interleavedToolCount));
+            layerPhase = (colIdx * (2.0 * PI / float(interleavedToolCount))) + mod(cycle, 2.0) * PI;
+          } else {
+            layerPhase = mod(float(layerIdx), 2.0) * PI;
+          }
           float phi = waveCount * theta + layerPhase;
           float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
           float B = 0.0;
-          if (interleavedProfileMode == 4) {
+          if (interleavedProfileMode == 5) {
+            float wRaw = 0.5 + 0.5 * sin(phi);
+            if (interleavedToolCount == 2 && exposure > 0.65) {
+              float boost = (exposure - 0.65) / 0.35;
+              B = min(1.0, wRaw + boost * 0.7);
+            } else {
+              B = wRaw;
+            }
+          } else if (interleavedProfileMode == 4) {
             float edge = 0.05;
             if (u < edge) {
               B = u / edge;
@@ -226,8 +241,13 @@ const sharedGLSL = /* glsl */`
             B = 0.5 + 0.5 * sin(phi);
           }
 
+          float comp = 1.0;
+          if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
+            comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
+          }
+
           float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
-          return -interleavedConcave + stroke * exposure * B;
+          return -interleavedConcave + stroke * min(1.0, exposure * comp) * B;
         }
 
         // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
@@ -253,14 +273,23 @@ const sharedGLSL = /* glsl */`
           }
         }
         float exposure = (activeK == bestK) ? 1.0 : 0.0;
-        if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) {
+        if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) {
           float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
           float waveCount = max(6.0, interleavedWaveCount);
-          float layerPhase = mod(float(layerIdx), 2.0) * PI;
+          float layerPhase;
+          if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
+            float colIdx = mod(float(layerIdx), float(interleavedToolCount));
+            float cycle = floor(float(layerIdx) / float(interleavedToolCount));
+            layerPhase = (colIdx * (2.0 * PI / float(interleavedToolCount))) + mod(cycle, 2.0) * PI;
+          } else {
+            layerPhase = mod(float(layerIdx), 2.0) * PI;
+          }
           float phi = waveCount * theta + layerPhase;
           float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
           float B = 0.0;
-          if (interleavedProfileMode == 4) {
+          if (interleavedProfileMode == 5) {
+            B = 0.5 + 0.5 * sin(phi);
+          } else if (interleavedProfileMode == 4) {
             float edge = 0.05;
             if (u < edge) {
               B = u / edge;
@@ -558,14 +587,23 @@ const sharedGLSL = /* glsl */`
         }
       }
 
-      if ((interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4) && interleavedToolCount >= 2) {
+      if ((interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) && interleavedToolCount >= 2) {
         float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
         float waveCount = max(6.0, interleavedWaveCount);
-        float layerPhase = mod(float(layerIdx), 2.0) * PI;
+        float layerPhase;
+        if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
+          float colIdx = mod(float(layerIdx), float(interleavedToolCount));
+          float cycle = floor(float(layerIdx) / float(interleavedToolCount));
+          layerPhase = (colIdx * (2.0 * PI / float(interleavedToolCount))) + mod(cycle, 2.0) * PI;
+        } else {
+          layerPhase = mod(float(layerIdx), 2.0) * PI;
+        }
         float phi = waveCount * theta + layerPhase;
         float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
         float B = 0.0;
-        if (interleavedProfileMode == 4) {
+        if (interleavedProfileMode == 5) {
+          B = 0.5 + 0.5 * sin(phi);
+        } else if (interleavedProfileMode == 4) {
           float edge = 0.05;
           if (u < edge) {
             B = u / edge;

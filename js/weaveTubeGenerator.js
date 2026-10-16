@@ -202,6 +202,11 @@ export function generateWeaveRubberBandTube({
   } else if (profileMode === 3) {
     // 三角波: 山・谷・中間の8点
     uKeypoints = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875];
+  } else if (profileMode === 5) {
+    // 🎭 ハーフトーン編み: 1周期あたり12点均等分割
+    uKeypoints = [];
+    const step = 1.0 / 12.0;
+    for (let k = 0; k < 12; k++) uKeypoints.push(k * step);
   } else {
     // 正弦波: 1周期あたり12点均等分割
     uKeypoints = [];
@@ -226,9 +231,17 @@ export function generateWeaveRubberBandTube({
   }
 
   // 正規化波形 B [0.0, 1.0]
-  function getWaveB(phi) {
+  function getWaveB(phi, exposure = 1.0, toolCount = 2) {
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
-    if (profileMode === 4) {
+    if (profileMode === 5) {
+      const wRaw = 0.5 + 0.5 * Math.sin(phi);
+      if (toolCount === 2 && exposure > 0.65) {
+        // 2色時: 白ベタ・ハイライト領域は波の山同士が繋がって平らな連続リブ（デューティ比100%）に頭打ち
+        const boost = (exposure - 0.65) / 0.35;
+        return Math.min(1.0, wRaw + boost * 0.7);
+      }
+      return wRaw;
+    } else if (profileMode === 4) {
       if (u < edge) return u / edge;
       if (u < 0.5 - edge) return 1.0;
       if (u < 0.5 + edge) return 1.0 - (u - (0.5 - edge)) / (2.0 * edge);
@@ -274,7 +287,15 @@ export function generateWeaveRubberBandTube({
     const z_top = Math.fround(minZ + (lay + 1) * t);
     const z_mid = (z_bot + z_top) * 0.5;
     const activeTool = toolIds[lay % toolIds.length];
-    const layerPhase = (lay % 2) * Math.PI;
+    const L = Math.max(1, toolIds.length);
+    let layerPhase;
+    if (profileMode === 5 && L > 2) {
+      const colIdx = lay % L;
+      const cycle = Math.floor(lay / L);
+      layerPhase = (colIdx * (2.0 * Math.PI / L)) + (cycle % 2) * Math.PI;
+    } else {
+      layerPhase = (lay % 2) * Math.PI;
+    }
 
     // 各角度における内外の頂点位置を計算
     for (let i = 0; i < N; i++) {
@@ -282,16 +303,19 @@ export function generateWeaveRubberBandTube({
       const cosTh = Math.cos(th);
       const sinTh = Math.sin(th);
       const phi = waveCount * th + layerPhase;
-      const B = getWaveB(phi);
 
       const r_base = (contourRadii && contourRadii[lay * N + i] > 0.1) ? contourRadii[lay * N + i] : radius;
 
       // テクスチャ/曲率サンプリングによる exposure
       let exposure = 0.5;
+      let multiColorInfo = null;
       if (sampleFn) {
         const testX = cx + r_base * cosTh;
         const testY = cy + r_base * sinTh;
-        const { targetTool, blendWeight, multiColorInfo } = sampleFn(testX, testY, z_mid, cosTh, sinTh, 0);
+        const sampled = sampleFn(testX, testY, z_mid, cosTh, sinTh, 0);
+        const targetTool = sampled.targetTool;
+        const blendWeight = sampled.blendWeight;
+        multiColorInfo = sampled.multiColorInfo;
         if (multiColorInfo) {
           const { toolA, toolB, t: tAffinity } = multiColorInfo;
           if (activeTool === toolA) exposure = tAffinity;
@@ -305,11 +329,25 @@ export function generateWeaveRubberBandTube({
       }
       exposure = Math.max(0.0, Math.min(1.0, exposure));
 
-      // フラット段差と同等のアルゴリズム: 各層の露出率 exposure に応じてシンプルに波打ち出っ張る
-      const disp = -concaveVal + stroke * exposure * B;
+      // 混色補正 (Secondary Color Brightness Compensation)
+      let comp = 1.0;
+      if (profileMode === 5 && multiColorInfo && L > 2) {
+        comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
+      }
+
+      const B = getWaveB(phi, exposure, L);
+      const disp = -concaveVal + stroke * Math.min(1.0, exposure * comp) * B;
 
       const r_out = Math.fround(r_base + disp);
-      const r_in  = Math.fround(r_out - wall);
+      let r_in;
+      if (profileMode === 5) {
+        // ⚓ ハーフトーン編み: 内壁をベース輪郭 r_base - wall に直線・固定アンカー！
+        // 突起量 disp が大きくても内壁が逃げず、全層で100%密着して崩壊を防ぐ
+        r_in = Math.fround(Math.min(r_base, r_out) - wall);
+      } else {
+        // 既存の輪ゴム編み重ね（Profile 2, 3, 4）: 従来通り肉厚一定のまま内外連動
+        r_in = Math.fround(r_out - wall);
+      }
 
       const obX = cx + r_out * cosTh;
       const obY = cy + r_out * sinTh;

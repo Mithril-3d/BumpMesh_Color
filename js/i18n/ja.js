@@ -345,6 +345,7 @@ export default {
   "color.profileBlock": "🧱 矩形ブロック編み重ね",
   "color.profileZigzag": "📐 三角波編み重ね（ジグザグ・軽量高速）",
   "color.profileWeave": "✨ 正弦波編み重ね（サイン波ハーフトーン）",
+  "color.profileHalftone": "🎭 ハーフトーン編み（内壁固定・写真・多色向け）",
   "color.weaveSettings": "編み重ねハーフトーン設定",
   "color.nozzleDiameter": "ノズル径 (mm)",
   "color.nozzleCustom": "手動入力 (カスタム)",

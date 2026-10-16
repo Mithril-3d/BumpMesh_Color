@@ -1808,8 +1808,9 @@ function renderInterleavedUI() {
     const isWeave = (interleavedSettings.profileMode === 2);
     const isZigzag = (interleavedSettings.profileMode === 3);
     const isBlock = (interleavedSettings.profileMode === 4);
+    const isHalftone = (interleavedSettings.profileMode === 5);
     const isGradient = (interleavedSettings.shadingMode === 1);
-    const profileStr = isBlock ? (t('color.profileBlock') || '矩形ブロック編み重ね') : (isZigzag ? (t('color.profileZigzag') || '三角波編み重ね') : (isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep'))));
+    const profileStr = isHalftone ? (t('color.profileHalftone') || 'ハーフトーン編み') : (isBlock ? (t('color.profileBlock') || '矩形ブロック編み重ね') : (isZigzag ? (t('color.profileZigzag') || '三角波編み重ね') : (isWeave ? (t('color.profileWeave') || '正弦波編み重ね') : (isLouver ? t('color.profileLouver') : t('color.profileStep')))));
     const shadingStr = isGradient ? t('color.shadingGradient') : t('color.shadingSharp');
     interleavedInfoText.textContent = `• ピッチ: ${thickness.toFixed(2)}mm (${totalLayers}層) • 断面: ${profileStr} • 階調: ${shadingStr}`;
   }
@@ -1848,7 +1849,7 @@ function renderInterleavedUI() {
   }
 
   if (interleavedWeaveContainer) {
-    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4);
+    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
     interleavedWeaveContainer.classList.toggle('hidden', !isWeaveMode);
     const nDia = interleavedSettings.nozzleDiameter || 0.40;
     const standardPresets = ['0.1', '0.2', '0.25', '0.4', '0.6', '0.8', '1.0', '1.2', '2.0'];
@@ -6251,7 +6252,7 @@ async function handleExport(format = 'stl') {
     // (circumference / XY) detail. Enforce a safe refineLength lower bound (>= 1.0mm)
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
-    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4);
+    const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
     const effectiveRefineLength = isWeaveMode
       ? Math.max(0.18, Math.min(settings.refineLength, (interleavedSettings.weavePitch || 1.6) / 4.0))
       : (isLayerBlendMode ? Math.max(settings.refineLength, 0.6) : settings.refineLength);
