@@ -21,3 +21,4 @@ meditat38 氏の Full Color Halftone 方式を参考に、内壁アンカー固�
   - [x] Git commit & push (`feature/halftone-weave`)
   - [x] Vercel プレビューデプロイ（※本番 `--prod` は行わない）
   - [x] `walkthrough.md` の作成
+

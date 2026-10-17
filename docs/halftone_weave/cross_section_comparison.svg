@@ -1,0 +1,245 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 650" width="100%" height="auto" font-family="'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <pattern id="infillGrid" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#475569" stroke-width="2" stroke-dasharray="4,4"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="650" rx="12" fill="url(#bgGrad)"/>
+
+  <!-- Title -->
+  <text x="480" y="36" text-anchor="middle" fill="#f8fafc" font-size="19" font-weight="bold">
+    実物に基づく構造比較：meditat38 (Full Color Halftone) vs 現在の BumpMesh_Color
+  </text>
+
+  <!-- ========================================================= -->
+  <!-- PANEL 1: meditat38 / nozzleboss -->
+  <!-- ========================================================= -->
+  <g transform="translate(20, 55)">
+    <rect width="290" height="570" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+    <rect width="290" height="42" rx="10" fill="#1d4ed8"/>
+    <text x="145" y="27" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">
+      ① meditat38 / nozzleboss (実物)
+    </text>
+
+    <!-- Subtitle XY -->
+    <text x="145" y="66" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">
+      【上から見たXY断面（白い頬の領域）】
+    </text>
+
+    <!-- Infill + Inner Wall -->
+    <rect x="25" y="78" width="240" height="42" fill="url(#infillGrid)" stroke="#475569" stroke-width="1"/>
+    <text x="145" y="103" text-anchor="middle" fill="#94a3b8" font-size="11">インフィル（変形なし）</text>
+
+    <rect x="25" y="120" width="240" height="18" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+    <text x="145" y="133" text-anchor="middle" fill="#f8fafc" font-size="10" font-weight="bold">内壁 Inner Wall（ずっと直線で固定）</text>
+
+    <!-- Hidden colors (Red, Black, Blue, Green layers): completely retracted at disp=0 -->
+    <rect x="25" y="138" width="240" height="16" fill="#ef4444" fill-opacity="0.7" stroke="#fca5a5" stroke-width="1" stroke-dasharray="4,2"/>
+    <text x="145" y="150" text-anchor="middle" fill="#fee2e2" font-size="10" font-weight="bold">隠したい色の層：波打たずずっと引っ込める(disp=0)</text>
+
+    <!-- Active color (White layer): periodic loops popping out up to 2.5mm and returning to 0! -->
+    <path d="M 25,146
+             L 38,146 L 48,228 L 62,228 L 72,146
+             L 93,146 L 103,228 L 117,228 L 127,146
+             L 148,146 L 158,228 L 172,228 L 182,146
+             L 203,146 L 213,228 L 227,228 L 237,146
+             L 265,146"
+          fill="none" stroke="#f8fafc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Anchor dots at troughs -->
+    <circle cx="38" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="72" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="93" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="127" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="148" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="182" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="203" cy="146" r="4" fill="#22c55e"/>
+    <circle cx="237" cy="146" r="4" fill="#22c55e"/>
+
+    <text x="145" y="250" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">見せたい色(白)：一定間隔で大きく突出(最大2.5mm)</text>
+    <text x="145" y="266" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="bold">● 谷ごとに必ず奥の壁(disp=0)に戻って溶着アンカー！</text>
+
+    <!-- Divider -->
+    <line x1="15" y1="280" x2="275" y2="280" stroke="#334155" stroke-width="1"/>
+
+    <!-- Subtitle Z -->
+    <text x="145" y="302" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="bold">
+      【横から見たZ積層断面（5色サイクル）】
+    </text>
+
+    <!-- Z Stack diagram -->
+    <!-- Inner wall column -->
+    <rect x="30" y="316" width="45" height="110" fill="#64748b" stroke="#475569"/>
+    <text x="52" y="375" text-anchor="middle" fill="#f8fafc" font-size="10" transform="rotate(-90 52 375)">内壁(固定)</text>
+
+    <!-- 5 layers: L0=White(out), L1=Black(in), L2=Red(in), L3=Green(in), L4=Blue(in), L5=White(out) -->
+    <!-- L0 White -->
+    <rect x="75" y="316" width="140" height="18" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="145" y="329" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="bold">L0 白：飛び出す＋Flow増で太る</text>
+    <!-- L1..L4 retracted -->
+    <rect x="75" y="334" width="38" height="18" rx="4" fill="#1e293b" stroke="#94a3b8"/>
+    <rect x="75" y="352" width="38" height="18" rx="4" fill="#ef4444" stroke="#fca5a5"/>
+    <rect x="75" y="370" width="38" height="18" rx="4" fill="#84cc16" stroke="#bef264"/>
+    <rect x="75" y="388" width="38" height="18" rx="4" fill="#3b82f6" stroke="#93c5fd"/>
+    <text x="170" y="365" text-anchor="middle" fill="#94a3b8" font-size="10">L1〜L4 (黒/赤/緑/青) は</text>
+    <text x="170" y="380" text-anchor="middle" fill="#94a3b8" font-size="10">奥(disp=0)に引っ込んでいる</text>
+    <!-- L5 White -->
+    <rect x="75" y="406" width="140" height="18" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="145" y="419" text-anchor="middle" fill="#0f172a" font-size="10" font-weight="bold">L5 白：再び飛び出して4層を隠す</text>
+
+    <!-- Summary box -->
+    <rect x="15" y="440" width="260" height="115" rx="6" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="460" fill="#fde047" font-size="11" font-weight="bold">💡 なぜ白でも「一定間隔の突起」なのか？</text>
+    <text x="25" y="478" fill="#e2e8f0" font-size="10.5">・間の4層(他色)が奥に引っ込んでいるため、</text>
+    <text x="25" y="494" fill="#e2e8f0" font-size="10.5">　白がずっと飛び出ると空中で垂れ落ちる。</text>
+    <text x="25" y="510" fill="#4ade80" font-size="10.5" font-weight="bold">・一定間隔で谷(0mm)に戻して奥の壁に溶着させ、</text>
+    <text x="25" y="526" fill="#4ade80" font-size="10.5" font-weight="bold">　山のループで4層分の隙間を覆い隠している！</text>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- PANEL 2: Current BumpMesh_Color (weaveTubeGenerator.js) -->
+  <!-- ========================================================= -->
+  <g transform="translate(335, 55)">
+    <rect width="290" height="570" rx="10" fill="#1e293b" stroke="#a855f7" stroke-width="2"/>
+    <rect width="290" height="42" rx="10" fill="#7e22ce"/>
+    <text x="145" y="27" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">
+      ② 現在の BumpMesh_Color
+    </text>
+
+    <!-- Subtitle XY -->
+    <text x="145" y="66" text-anchor="middle" fill="#d8b4fe" font-size="13" font-weight="bold">
+      【上から見たXY断面（輪ゴム方式）】
+    </text>
+
+    <!-- Hollow Inside -->
+    <rect x="25" y="78" width="240" height="60" fill="#0f172a" stroke="#334155" stroke-dasharray="3,3"/>
+    <text x="145" y="105" text-anchor="middle" fill="#94a3b8" font-size="11">内部は中空（内壁・インフィルなし）</text>
+    <text x="145" y="123" text-anchor="middle" fill="#fda4af" font-size="10">r_out = r_base + disp / r_in = r_out - 0.4mm</text>
+
+    <!-- Hidden color layer at r_base -->
+    <rect x="25" y="138" width="240" height="14" fill="#ef4444" fill-opacity="0.45" stroke="#fca5a5" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- Active color layer: 0.4mm hollow wall moving out and in -->
+    <path d="M 25,138
+             L 38,138 L 48,220 L 62,220 L 72,138
+             L 93,138 L 103,220 L 117,220 L 127,138
+             L 148,138 L 158,220 L 172,220 L 182,138
+             L 203,138 L 213,220 L 227,220 L 237,138
+             L 265,138
+             L 265,152
+             L 242,152 L 232,234 L 208,234 L 198,152
+             L 187,152 L 177,234 L 153,234 L 143,152
+             L 132,152 L 122,234 L 98,234 L 88,152
+             L 77,152 L 67,234 L 43,234 L 33,152
+             L 25,152 Z"
+          fill="#c084fc" fill-opacity="0.85" stroke="#f3e8ff" stroke-width="1.5"/>
+
+    <text x="145" y="252" text-anchor="middle" fill="#e9d5ff" font-size="11" font-weight="bold">式は同じでも「肉厚0.4mmの壁ごと」外へ移動</text>
+    <text x="145" y="268" text-anchor="middle" fill="#f87171" font-size="10" font-weight="bold">▲ 大きく飛び出すと内側に空洞ができ下が支えられない</text>
+
+    <!-- Divider -->
+    <line x1="15" y1="280" x2="275" y2="280" stroke="#334155" stroke-width="1"/>
+
+    <!-- Subtitle Z -->
+    <text x="145" y="302" text-anchor="middle" fill="#d8b4fe" font-size="13" font-weight="bold">
+      【横から見たZ積層断面（山の部分）】
+    </text>
+
+    <!-- Z Stack diagram at Peak -->
+    <rect x="165" y="316" width="50" height="18" rx="5" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <rect x="75" y="334" width="45" height="18" rx="4" fill="#1e293b" stroke="#94a3b8"/>
+    <rect x="75" y="352" width="45" height="18" rx="4" fill="#ef4444" stroke="#fca5a5"/>
+    <rect x="75" y="370" width="45" height="18" rx="4" fill="#84cc16" stroke="#bef264"/>
+    <rect x="75" y="388" width="45" height="18" rx="4" fill="#3b82f6" stroke="#93c5fd"/>
+    <rect x="165" y="406" width="50" height="18" rx="5" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+
+    <!-- Gap arrow -->
+    <line x1="120" y1="325" x2="165" y2="325" stroke="#f43f5e" stroke-width="2" stroke-dasharray="3,2"/>
+    <text x="142" y="355" text-anchor="middle" fill="#fda4af" font-size="10" font-weight="bold">← 空中に浮く →</text>
+    <text x="142" y="370" text-anchor="middle" fill="#fda4af" font-size="10">(内壁がないため</text>
+    <text x="142" y="384" text-anchor="middle" fill="#fda4af" font-size="10">0.4mm以上の凸で</text>
+    <text x="142" y="398" text-anchor="middle" fill="#fda4af" font-size="10">下層と重ならない)</text>
+
+    <!-- Summary box -->
+    <rect x="15" y="440" width="260" height="115" rx="6" fill="#0f172a" stroke="#334155"/>
+    <text x="25" y="460" fill="#d8b4fe" font-size="11" font-weight="bold">🔍 現在の BumpMesh_Color の特徴と限界</text>
+    <text x="25" y="478" fill="#4ade80" font-size="10.5">◎ 実はすでに「見せたい色は一定間隔で突出し、</text>
+    <text x="25" y="494" fill="#4ade80" font-size="10.5">　隠したい色は引っ込める」式になっている！</text>
+    <text x="25" y="512" fill="#f87171" font-size="10.5">△ ただし内壁 r_in も一緒に外へ逃げるため、</text>
+    <text x="25" y="528" fill="#f87171" font-size="10.5">　凸量を 0.4mm 以上にすると山が空中印刷になる。</text>
+    <text x="25" y="544" fill="#f87171" font-size="10.5">△ 位相が (lay % 2) 固定で同色層が千鳥にならない。</text>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- PANEL 3: Proposed Upgrade for BumpMesh_Color -->
+  <!-- ========================================================= -->
+  <g transform="translate(650, 55)">
+    <rect width="290" height="570" rx="10" fill="#1e293b" stroke="#10b981" stroke-width="2.5"/>
+    <rect width="290" height="42" rx="10" fill="#047857"/>
+    <text x="145" y="27" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">
+      ③ BumpMesh_Color 改良案 (推奨)
+    </text>
+
+    <!-- Subtitle XY -->
+    <text x="145" y="66" text-anchor="middle" fill="#6ee7b7" font-size="13" font-weight="bold">
+      【内壁ベース固定＋外周ループ突起構造】
+    </text>
+
+    <!-- Base Ring / Inner Wall always continuous -->
+    <rect x="25" y="78" width="240" height="42" fill="url(#infillGrid)" stroke="#475569" stroke-width="1"/>
+    <text x="145" y="103" text-anchor="middle" fill="#a7f3d0" font-size="11">中空リング または 中実インフィル</text>
+
+    <!-- Inner anchor wall + Outer periodic teeth -->
+    <path d="M 25,120
+             L 265,120
+             L 265,152
+             L 237,152 L 227,228 L 213,228 L 203,152
+             L 182,152 L 172,228 L 158,228 L 148,152
+             L 127,152 L 117,228 L 103,228 L 93,152
+             L 72,152 L 62,228 L 48,228 L 38,152
+             L 25,152 Z"
+          fill="#10b981" fill-opacity="0.88" stroke="#a7f3d0" stroke-width="2"/>
+    <line x1="25" y1="120" x2="265" y2="120" stroke="#ffffff" stroke-width="2.5"/>
+
+    <text x="145" y="140" text-anchor="middle" fill="#ffffff" font-size="10.5" font-weight="bold">内壁 r_in は常に r_base - wall で一直線に固定！</text>
+    <text x="145" y="250" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="bold">外壁 r_out だけが一定間隔でループ状に突出</text>
+    <text x="145" y="266" text-anchor="middle" fill="#a7f3d0" font-size="10">スライサーが「内壁(直線)＋外壁(突起ループ)」を生成！</text>
+
+    <!-- Divider -->
+    <line x1="15" y1="280" x2="275" y2="280" stroke="#334155" stroke-width="1"/>
+
+    <!-- Subtitle Z -->
+    <text x="145" y="302" text-anchor="middle" fill="#6ee7b7" font-size="13" font-weight="bold">
+      【横から見たZ積層断面（山の部分）】
+    </text>
+
+    <!-- Z Stack diagram -->
+    <rect x="65" y="316" width="150" height="18" rx="6" fill="#10b981" stroke="#a7f3d0" stroke-width="1.5"/>
+    <rect x="65" y="334" width="55" height="18" rx="4" fill="#1e293b" stroke="#94a3b8"/>
+    <rect x="65" y="352" width="55" height="18" rx="4" fill="#ef4444" stroke="#fca5a5"/>
+    <rect x="65" y="370" width="55" height="18" rx="4" fill="#84cc16" stroke="#bef264"/>
+    <rect x="65" y="388" width="55" height="18" rx="4" fill="#3b82f6" stroke="#93c5fd"/>
+    <rect x="65" y="406" width="150" height="18" rx="6" fill="#10b981" stroke="#a7f3d0" stroke-width="1.5"/>
+
+    <line x1="65" y1="312" x2="65" y2="428" stroke="#ffffff" stroke-width="2.5"/>
+    <line x1="120" y1="312" x2="120" y2="428" stroke="#6ee7b7" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <text x="172" y="366" text-anchor="middle" fill="#6ee7b7" font-size="10.5" font-weight="bold">根元が全層で100%密着し</text>
+    <text x="172" y="382" text-anchor="middle" fill="#6ee7b7" font-size="10.5" font-weight="bold">1.0〜2.5mmの深い突起も</text>
+    <text x="172" y="398" text-anchor="middle" fill="#6ee7b7" font-size="10.5" font-weight="bold">垂れずに造形可能！</text>
+
+    <!-- Summary box -->
+    <rect x="15" y="440" width="260" height="115" rx="6" fill="#0f172a" stroke="#10b981"/>
+    <text x="25" y="460" fill="#6ee7b7" font-size="11" font-weight="bold">★ BumpMesh_Color で実物同等にする3つの改良</text>
+    <text x="25" y="478" fill="#4ade80" font-size="10.5" font-weight="bold">① 内壁固定 (r_in = r_base - wall 固定)</text>
+    <text x="25" y="494" fill="#e2e8f0" font-size="10">　→ スライサー上で「直線の内壁＋波打つ外壁」を実現</text>
+    <text x="25" y="510" fill="#4ade80" font-size="10.5" font-weight="bold">② 同色千鳥・位相シフト (Angle / Stagger)</text>
+    <text x="25" y="526" fill="#e2e8f0" font-size="10">　→ 同じ色の層が回ってくるたびに半周期ずらして編む</text>
+    <text x="25" y="542" fill="#4ade80" font-size="10.5" font-weight="bold">③ 第2色輝度補正 (Brightness Compensation)</text>
+  </g>
+</svg>

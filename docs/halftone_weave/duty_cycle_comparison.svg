@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="100%" height="auto" font-family="'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif">
+  <rect width="900" height="400" rx="12" fill="#0f172a"/>
+  <text x="450" y="34" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="bold">
+    実物写真の仕組み：「一定間隔の突起ループ」と「隠したい色の完全引込 (disp = 0)」
+  </text>
+
+  <!-- Left: Pure White Area -->
+  <g transform="translate(25, 52)">
+    <rect width="410" height="325" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+    <text x="205" y="28" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="bold">
+      ① 単色領域（例：白い頬）での各層の動き
+    </text>
+    <text x="205" y="48" text-anchor="middle" fill="#cbd5e1" font-size="11">
+      白も「ずっと出っ張る」のではなく、一定間隔で飛び出て谷で奥に溶着する
+    </text>
+
+    <!-- Base wall line -->
+    <line x1="25" y1="150" x2="385" y2="150" stroke="#64748b" stroke-width="2" stroke-dasharray="4,4"/>
+    <text x="385" y="166" text-anchor="end" fill="#94a3b8" font-size="10">基準壁面 (disp = 0mm)</text>
+
+    <!-- Hidden layers (Red, Black, Blue, Green) flat at disp = 0 -->
+    <line x1="25" y1="146" x2="385" y2="146" stroke="#ef4444" stroke-width="4" opacity="0.8"/>
+    <line x1="25" y1="152" x2="385" y2="152" stroke="#3b82f6" stroke-width="3" opacity="0.8"/>
+
+    <!-- White Layer N (solid white wave) -->
+    <path d="M 25,148 L 40,148 L 55,82 L 75,82 L 90,148 L 130,148 L 145,82 L 165,82 L 180,148 L 220,148 L 235,82 L 255,82 L 270,148 L 310,148 L 325,82 L 345,82 L 360,148 L 385,148"
+          fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linejoin="round"/>
+
+    <!-- Next White Layer N+5 (staggered phase) -->
+    <path d="M 25,148 L 85,148 L 100,88 L 120,88 L 135,148 L 175,148 L 190,88 L 210,88 L 225,148 L 265,148 L 280,88 L 300,88 L 315,148 L 385,148"
+          fill="none" stroke="#cbd5e1" stroke-width="3" stroke-dasharray="5,3" stroke-linejoin="round"/>
+
+    <text x="205" y="72" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">白レイヤー：一定間隔(Density)で最大 2.5mm 飛び出す</text>
+    <text x="205" y="185" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="bold">隠したい色（赤・黒・青・緑の層）：振幅 0 でずっと引っ込めている</text>
+
+    <rect x="18" y="205" width="374" height="105" rx="6" fill="#0f172a" stroke="#334155"/>
+    <text x="30" y="226" fill="#fde047" font-size="11" font-weight="bold">なぜ白をベタッと出さずに一定間隔で引っ込めるのか？</text>
+    <text x="30" y="246" fill="#e2e8f0" font-size="10.5">1. 5色造形では白は次の白まで4層(0.8mm)空くため、ずっと外に</text>
+    <text x="30" y="262" fill="#e2e8f0" font-size="10.5">　 出すと下が空洞になり、重力で垂れ落ちてしまう。</text>
+    <text x="30" y="280" fill="#4ade80" font-size="10.5" font-weight="bold">2. 一定間隔で谷(0mm)に戻すことで、引っ込んでいる他色の壁に</text>
+    <text x="30" y="296" fill="#4ade80" font-size="10.5" font-weight="bold">　 数ミリおきにブリッジ固定（アンカー溶着）できる！</text>
+  </g>
+
+  <!-- Right: Mixed Color / Halftone Gradient Area -->
+  <g transform="translate(465, 52)">
+    <rect width="410" height="325" rx="10" fill="#1e293b" stroke="#10b981" stroke-width="2"/>
+    <text x="205" y="28" text-anchor="middle" fill="#6ee7b7" font-size="14" font-weight="bold">
+      ② 混色・中間調領域＆位相シフトの問題点
+    </text>
+    <text x="205" y="48" text-anchor="middle" fill="#a7f3d0" font-size="11">
+      使う色だけがそれぞれの比率(振幅)で飛び出し、使わない色は引っ込む
+    </text>
+
+    <!-- Base wall line -->
+    <line x1="25" y1="150" x2="385" y2="150" stroke="#64748b" stroke-width="2" stroke-dasharray="4,4"/>
+
+    <!-- Unused colors flat at 0 -->
+    <line x1="25" y1="150" x2="385" y2="150" stroke="#84cc16" stroke-width="3" opacity="0.7"/>
+
+    <!-- Primary color (e.g. White 70%) -->
+    <path d="M 25,148 L 40,148 L 55,95 L 75,95 L 90,148 L 130,148 L 145,95 L 165,95 L 180,148 L 220,148 L 235,95 L 255,95 L 270,148 L 310,148 L 325,95 L 345,95 L 360,148 L 385,148"
+          fill="none" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
+
+    <!-- Secondary color (e.g. Red 50% with Brightness Kompensation) -->
+    <path d="M 25,148 L 85,148 L 100,110 L 120,110 L 135,148 L 175,148 L 190,110 L 210,110 L 225,148 L 265,148 L 280,110 L 300,110 L 315,148 L 385,148"
+          fill="none" stroke="#ef4444" stroke-width="4" stroke-linejoin="round"/>
+
+    <text x="205" y="80" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">第1色(白)と第2色(赤)が互い違いの位相で飛び出す</text>
+    <text x="205" y="185" text-anchor="middle" fill="#bef264" font-size="11" font-weight="bold">使わない第3〜5色（緑・青・黒）は disp=0 で引っ込めたまま</text>
+
+    <rect x="18" y="205" width="374" height="105" rx="6" fill="#0f172a" stroke="#10b981"/>
+    <text x="30" y="226" fill="#6ee7b7" font-size="11" font-weight="bold">現在の BumpMesh_Color にある2つの弱点：</text>
+    <text x="30" y="246" fill="#fda4af" font-size="10.5">① 位相が (lay % 2) 固定のため、2色造形だと「白は常に同じ位置」</text>
+    <text x="30" y="262" fill="#fda4af" font-size="10.5">　 にしか出ず縦筋になり、4色造形だと1色目と3色目の山が重なる。</text>
+    <text x="30" y="280" fill="#4ade80" font-size="10.5" font-weight="bold">② 第2色の補正(Secondary Color Brightness Kompensation)がない</text>
+    <text x="30" y="296" fill="#4ade80" font-size="10.5" font-weight="bold">　 ため、混色部で両方の山が50%に縮んで引っ込みすぎてしまう。</text>
+  </g>
+</svg>
