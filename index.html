@@ -99,7 +99,7 @@
       <div class="logo-text">
         <div class="logo-title">
           <span>BumpMesh_Color</span>
-          <span id="app-version" class="app-version">v1.5.23</span>
+          <span id="app-version" class="app-version">v1.6.0</span>
         </div>
         <div class="logo-subtitle">
           by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener noreferrer">@Mithril_MEX</a>
@@ -567,9 +567,15 @@
               </label>
             </div>
 
-            <div class="form-row" style="margin-bottom:8px;">
-              <label for="interleaved-profile-mode" data-i18n="color.profileMode" data-i18n-title="color.profileModeTitle" title="層ごとの断面形状。フラット段差は直線が美しく、他作品のような綺麗な仕上がりになる標準方式です。">断面形状 (遮蔽)</label>
-              <select id="interleaved-profile-mode" class="interleaved-select">
+            <div class="form-row" id="interleaved-profile-mode-card">
+              <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:6px;">
+                <label for="interleaved-profile-mode" data-i18n="color.profileMode" data-i18n-title="color.profileModeTitle" title="層ごとの断面形状。フラット段差は直線が美しく、他作品のような綺麗な仕上がりになる標準方式です。" style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer;">
+                  <span style="font-size:14px;">📐</span>
+                  <span>断面形状 (遮蔽・造形方式)</span>
+                </label>
+                <span class="profile-mode-badge">CORE SETTING</span>
+              </div>
+              <select id="interleaved-profile-mode" class="interleaved-select profile-mode-select-prominent">
                 <option value="0" selected data-i18n-opt="color.profileStep">フラット段差（標準ステップ・推奨）</option>
                 <option value="1" data-i18n-opt="color.profileLouver">45° ルーバー庇（他色シールド・実験的）</option>
                 <option value="4" data-i18n-opt="color.profileBlock">🧱 矩形ブロック編み重ね</option>
@@ -1749,6 +1755,6 @@
     </div>
   </aside>
 
-  <script type="module" src="js/main.js?v=20261018_1523"></script>
+  <script type="module" src="js/main.js?v=20261018_1600"></script>
 </body>
 </html>

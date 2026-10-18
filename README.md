@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.5.23-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.6.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,10 +194,11 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
-- **v1.5.23 (Latest Release - 2026-10-18)**:
-  - **Flat Amplitude Scale for Halftone Weave (Profile 5)**:
+- **v1.6.0 (Major Release - 2026-10-18)**:
+  - **Flat Amplitude Scale & Prominent Profile Mode Selection**:
     - Added independent amplitude scaling (0.00x - 2.00x) for tools configured in Flat (━) mode under Profile 5 (Halftone Weave).
     - Prevents flat-step tools (such as background white porcelain bodies) from over-protruding past oscillating weave beads, achieving beautifully balanced ceramic-like reliefs.
+    - Upgraded **Cross-Section Profile (断面形状・遮蔽方式)** to a prominent featured card with dedicated badge and enhanced contrast for quick discovery.
     - Fully integrated into WebGL real-time shaders, multi-material 3MF watertight slicing, and project state persistence.
   - **Preset Persistence Fix**:
     - Fixed an issue where enabling long-term storage could inadvertently show the default cube when cylinder preset was saved.
@@ -262,7 +263,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.5.23--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v1.6.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -457,11 +458,13 @@ python -m http.server 8080
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
-- **v1.5.23 (最新安定版 - 2026-10-18)**:
+- **v1.6.0 (メジャーリリース - 2026-10-18)**:
   - **ハーフトーン編み（Profile 5）におけるフラットツールの振幅倍率調整機能（フラット振幅倍率）**:
     - 断面プロファイル「🎭 ハーフトーン編み」において、フラット（━）に設定したツールの突出量倍率を自由に調整できるスライダー（0.00〜2.00倍）を追加。
     - 地色となる白などフラット設定ツールが波打ちツール（青など）のピークよりも外側へ庇（ひさし）のように突出しすぎる問題を解消し、陶磁器の染付のような均一で自然なレリーフ表現を実現。
     - リアルタイムWebGLプレビュー、3MFメッシュ生成エンジン、プロジェクト長期保存に完全連動。
+  - **断面形状（遮蔽・造形方式）UIの視認性大幅強化**:
+    - 振り重ねの核となる最重要設定「断面形状」セレクターを専用のカードデザイン・バッジ付きスタイルへ刷新し、直感的に見つけやすく改善。
   - **長期保存リロード時のプリセット形状復元修正**:
     - 長期保存が有効な状態でリロードした際、円柱モデルが選択されているにもかかわらず立方体が表示される不具合を修正。
 - **v1.5.22 (2026-10-09)**:
