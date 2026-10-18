@@ -124,3 +124,4 @@ VS Code / Agy IDE 内で Live Server を起動して確認できます：
    - 生成された `.3mf` を Bambu Studio / OrcaSlicer に読み込み、「壁生成エンジン: Arachne」でスライスして、内壁の垂直密着と外壁ループの樹脂充填パスを確認。
 3. **本番ブランチ（main）へのマージ**:
    - 実機検証完了後、GitHub 上で `feature/halftone-weave` から `main` への Pull Request を作成・マージ。
+

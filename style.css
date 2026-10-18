@@ -4116,3 +4116,58 @@ main.gallery-open #settings-panel { display: none; }
 .hidden {
   display: none !important;
 }
+
+/* ── Weave / Flat Mode Toggle Buttons (High Contrast for Dark & Light Themes) ── */
+.palette-weave-toggle,
+.weave-box-tool-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+/* Weave mode (Wave active) */
+.palette-weave-toggle.is-weave,
+.weave-box-tool-toggle.is-weave {
+  border: 1px solid #7c3aed;
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+}
+:root:not([data-theme="light"]) .palette-weave-toggle.is-weave,
+:root:not([data-theme="light"]) .weave-box-tool-toggle.is-weave {
+  border: 1px solid #a855f7;
+  background: rgba(168, 85, 247, 0.22);
+  color: #e9d5ff;
+}
+
+/* Flat mode (Circle straight wall) */
+.palette-weave-toggle.is-flat,
+.weave-box-tool-toggle.is-flat {
+  border: 1px solid #94a3b8;
+  background: #f1f5f9;
+  color: #1e293b;
+}
+:root:not([data-theme="light"]) .palette-weave-toggle.is-flat,
+:root:not([data-theme="light"]) .weave-box-tool-toggle.is-flat {
+  border: 1px solid #64748b;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.palette-weave-toggle:hover,
+.weave-box-tool-toggle:hover {
+  filter: brightness(0.95);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+:root:not([data-theme="light"]) .palette-weave-toggle:hover,
+:root:not([data-theme="light"]) .weave-box-tool-toggle:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}

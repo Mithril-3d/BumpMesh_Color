@@ -68,6 +68,8 @@ const sharedGLSL = /* glsl */`
   uniform vec2      textureAspect;
   uniform int       interleavedExclusionMode;
   uniform int       interleavedEnableBaseDisplacement;
+  uniform int       interleavedToolWeaveMask;
+  uniform float     interleavedFlatAmpScale;
 
 
   const float PI     = 3.14159265358979;
@@ -217,12 +219,17 @@ const sharedGLSL = /* glsl */`
           float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
           float B = 0.0;
           if (interleavedProfileMode == 5) {
-            float wRaw = 0.5 + 0.5 * sin(phi);
-            if (interleavedToolCount == 2 && exposure > 0.65) {
-              float boost = (exposure - 0.65) / 0.35;
-              B = min(1.0, wRaw + boost * 0.7);
+            if (exposure <= 0.001) {
+              B = 0.0;
             } else {
-              B = wRaw;
+              float s = sin(phi);
+              float thresh = 1.0 - 2.0 * min(1.0, exposure);
+              if (s > thresh) {
+                float norm = (s - thresh) / (1.0 - thresh + 0.00001);
+                B = pow(norm, 1.2) * exposure;
+              } else {
+                B = 0.0;
+              }
             }
           } else if (interleavedProfileMode == 4) {
             float edge = 0.05;
@@ -241,13 +248,23 @@ const sharedGLSL = /* glsl */`
             B = 0.5 + 0.5 * sin(phi);
           }
 
+          bool isToolWeave = ((interleavedToolWeaveMask & (1 << activeK)) != 0);
           float comp = 1.0;
           if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
             comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
           }
 
           float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
-          return -interleavedConcave + stroke * min(1.0, exposure * comp) * B;
+
+          if (!isToolWeave) {
+            // ━ フラット段差: ピッチごとの高周波波打ちを介さず、画像の露出度 exposure そのものによって幅広な段差（幅広の波1個）として突出
+            float flatMul = (interleavedProfileMode == 5) ? interleavedFlatAmpScale : 1.0;
+            float effExp = min(1.0, exposure * comp);
+            return -interleavedConcave + stroke * flatMul * effExp;
+          }
+
+          float effExposure = (interleavedProfileMode == 5) ? 1.0 : min(1.0, exposure * comp);
+          return -interleavedConcave + stroke * effExposure * B;
         }
 
         // Mode 1: Gradient for Profile 0 (Flat Step) and Profile 1 (45° Louver)
@@ -306,7 +323,12 @@ const sharedGLSL = /* glsl */`
             B = 0.5 + 0.5 * sin(phi);
           }
 
+          bool isToolWeave = ((interleavedToolWeaveMask & (1 << activeK)) != 0);
           float stroke = max(0.01, (interleavedConvex + interleavedConcave) > 0.0 ? (interleavedConvex + interleavedConcave) : interleavedWeaveAmp);
+          if (!isToolWeave) {
+            float flatMul = (interleavedProfileMode == 5) ? interleavedFlatAmpScale : 1.0;
+            return -interleavedConcave + stroke * flatMul * exposure;
+          }
           return -interleavedConcave + stroke * exposure * B;
         }
 
@@ -618,6 +640,11 @@ const sharedGLSL = /* glsl */`
           B = clamp(1.0 - 2.0 * abs(u - 0.25), 0.0, 1.0);
         } else {
           B = 0.5 + 0.5 * sin(phi);
+        }
+
+        bool isToolWeave = ((interleavedToolWeaveMask & (1 << activeK)) != 0);
+        if (!isToolWeave) {
+          B = 1.0;
         }
 
         float zFrac = clamp((zRel - float(layerIdx) * t) / t, 0.0, 1.0);
@@ -1005,6 +1032,12 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
   if (!u.interleavedEnableBaseDisplacement) u.interleavedEnableBaseDisplacement = { value: 0 };
   u.interleavedEnableBaseDisplacement.value = settings.interleavedEnableBaseDisplacement ? 1 : 0;
 
+  if (!u.interleavedToolWeaveMask) u.interleavedToolWeaveMask = { value: 0xFFFF };
+  u.interleavedToolWeaveMask.value = settings.interleavedToolWeaveMask ?? 0xFFFF;
+
+  if (!u.interleavedFlatAmpScale) u.interleavedFlatAmpScale = { value: 1.0 };
+  u.interleavedFlatAmpScale.value = (settings.interleavedFlatAmpScale !== undefined) ? settings.interleavedFlatAmpScale : 1.0;
+
   if (!u.shadingSource) u.shadingSource = { value: 0 };
   u.shadingSource.value = (settings.shadingSource === 'curvature') ? 1 : 0;
 
@@ -1079,6 +1112,8 @@ function buildUniforms(tex, settings, colorTex = null) {
     interleavedInvertTools:   { value: settings.interleavedInvertTools ? 1 : 0 },
     interleavedExclusionMode: { value: settings.interleavedExclusionMode ?? 0 },
     interleavedEnableBaseDisplacement: { value: settings.interleavedEnableBaseDisplacement ? 1 : 0 },
+    interleavedToolWeaveMask: { value: settings.interleavedToolWeaveMask ?? 0xFFFF },
+    interleavedFlatAmpScale:  { value: settings.interleavedFlatAmpScale ?? 1.0 },
     shadingSource:            { value: (settings.shadingSource === 'curvature') ? 1 : 0 },
     untexturedColor:          { value: uc.clone ? uc.clone() : new THREE.Vector3(0.68, 0.08, 0.22) },
     textureAspect:            { value: new THREE.Vector2(settings.textureAspectU ?? 1, settings.textureAspectV ?? 1) },

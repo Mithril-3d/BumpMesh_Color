@@ -98,6 +98,22 @@ let autoFitHeight     = 100;      // mm
 let autoFitRepeat     = 1;        // panels per circumference
 let autoFitNgon       = 6;        // sides for n-gon (>= 3)
 
+// ── Storage Keys and Mode ───────────────────────────────────────────────────
+const PROJECT_STORAGE_KEY = 'bumpmesh-settings';
+const STORAGE_MODE_KEY    = 'bumpmesh-storage-mode';
+
+let currentStorageMode = 'session';
+try {
+  const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
+  if (savedMode === 'local' || savedMode === 'session') {
+    currentStorageMode = savedMode;
+  }
+} catch { /* quota / private mode */ }
+
+function getActiveStorage() {
+  return currentStorageMode === 'local' ? localStorage : sessionStorage;
+}
+
 // Boundary edge data texture for per-fragment falloff in bump-only preview
 let _boundaryEdgeTex   = null;
 let _boundaryEdgeCount = 0;
@@ -516,6 +532,10 @@ const interleavedWeavePitchSlider     = document.getElementById('interleaved-wea
 const interleavedWeavePitchVal        = document.getElementById('interleaved-weave-pitch-val');
 const interleavedWeaveAmpSlider       = document.getElementById('interleaved-weave-amp');
 const interleavedWeaveAmpVal          = document.getElementById('interleaved-weave-amp-val');
+const interleavedFlatScaleRow         = document.getElementById('interleaved-flat-scale-row');
+const interleavedFlatScaleSlider      = document.getElementById('interleaved-flat-scale');
+const interleavedFlatScaleVal         = document.getElementById('interleaved-flat-scale-val');
+const flatScaleReset                  = document.getElementById('flat-scale-reset');
 const shadingSourceSelect             = document.getElementById('shading-source-select');
 const curvatureOptionsContainer       = document.getElementById('curvature-options-container');
 const curvatureRadiusSlider           = document.getElementById('curvature-radius');
@@ -535,6 +555,7 @@ const interleavedInvertToolsChk       = document.getElementById('interleaved-inv
 const interleavedExclusionModeSelect  = document.getElementById('interleaved-exclusion-mode');
 const interleavedToolList             = document.getElementById('interleaved-tool-list');
 const interleavedInfoText             = document.getElementById('interleaved-info-text');
+const weaveToolModesContainer         = document.getElementById('weave-tool-modes-container');
 
 let currentColorPalette          = [];
 let _userAssignedToolIds         = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -561,6 +582,8 @@ let interleavedSettings          = {
   curvatureBias: 0.50,
   curvatureSmooth: 2,
   curvatureInvert: false,
+  toolWeaveModes: {}, // { [toolId]: boolean } - true (default) = Weave wave, false = Flat circle
+  flatAmpScale: 1.0,  // Protrusion amplitude multiplier for tools set to Flat in Profile 5
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -1377,8 +1400,36 @@ const gallery = initTextureGallery({
 gallery.refreshText();
 initSidebarToggle();
 
-// Load geometry immediately — don't wait for textures
-loadDefaultCube();
+let _initialModelPromise = null;
+
+function _loadInitialGeometry() {
+  let persisted = null;
+  try {
+    const raw = getActiveStorage().getItem(PROJECT_STORAGE_KEY);
+    if (raw) persisted = JSON.parse(raw);
+  } catch { /* ignore */ }
+
+  if (persisted) {
+    if (persisted.autoFitUnlocked) {
+      unlockAutoFitMode();
+    }
+    if (persisted.currentModelMode === 'autofit') {
+      if (persisted.autoFitShape) autoFitShape = persisted.autoFitShape;
+      if (persisted.autoFitHeight != null) autoFitHeight = persisted.autoFitHeight;
+      if (persisted.autoFitRepeat != null) autoFitRepeat = persisted.autoFitRepeat;
+      if (persisted.autoFitNgon != null) autoFitNgon = persisted.autoFitNgon;
+      loadAutoFitModel();
+      return;
+    } else if (persisted.currentPresetKey) {
+      _initialModelPromise = loadPresetModel(persisted.currentPresetKey);
+      return;
+    }
+  }
+  _initialModelPromise = loadDefaultCube();
+}
+
+// Load geometry immediately based on saved session/local state — don't wait for textures
+_loadInitialGeometry();
 
 initTuringController({
   getGeometry: () => currentGeometry,
@@ -1407,9 +1458,7 @@ initTuringController({
 queueMicrotask(async () => {
   let persisted = null;
   try {
-    const storageMode = localStorage.getItem('bumpmesh-storage-mode');
-    const store = (storageMode === 'local') ? localStorage : sessionStorage;
-    persisted = JSON.parse(store.getItem('bumpmesh-settings'));
+    persisted = JSON.parse(getActiveStorage().getItem(PROJECT_STORAGE_KEY));
   } catch { /* ignore */ }
   const persistedName = persisted?.activeMapName || null;
 
@@ -1726,6 +1775,27 @@ function renderPaletteUI() {
     right.appendChild(label);
     right.appendChild(select);
 
+    // Weave / Flat toggle button directly in the main palette row
+    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
+    if (isWeaveMode) {
+      if (!interleavedSettings.toolWeaveModes) interleavedSettings.toolWeaveModes = {};
+      const isWeave = (interleavedSettings.toolWeaveModes[item.toolId] !== false);
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = `palette-weave-toggle ${isWeave ? 'is-weave' : 'is-flat'}`;
+      toggleBtn.style.marginLeft = '4px';
+      toggleBtn.textContent = isWeave ? '〰️ 編み' : '━ フラット';
+      toggleBtn.title = isWeave ? `Tool ${item.toolId}: 編み重ね(波打ち)。クリックでフラット(真円)に切替` : `Tool ${item.toolId}: フラット(真円)。クリックで編み重ね(波打ち)に切替`;
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        interleavedSettings.toolWeaveModes[item.toolId] = !isWeave;
+        renderPaletteUI();
+        renderInterleavedUI();
+        updatePreview();
+      });
+      right.appendChild(toggleBtn);
+    }
+
     row.appendChild(left);
     row.appendChild(right);
     paletteList.appendChild(row);
@@ -1779,12 +1849,15 @@ function renderInterleavedUI() {
   // Tool chips preview if element exists
   if (interleavedToolList) {
     interleavedToolList.innerHTML = '';
+    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
+    if (!interleavedSettings.toolWeaveModes) interleavedSettings.toolWeaveModes = {};
+
     palette.forEach((item) => {
       const chip = document.createElement('div');
-      chip.style.cssText = 'display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--border,#444);font-size:11px;';
+      chip.style.cssText = 'display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:4px;background:rgba(255,255,255,0.06);border:1px solid var(--border,#444);font-size:11px;';
       
       const colorDot = document.createElement('span');
-      colorDot.style.cssText = `width:12px;height:12px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);`;
+      colorDot.style.cssText = `width:12px;height:12px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);flex-shrink:0;`;
 
       const label = document.createElement('span');
       label.style.cssText = 'font-weight:600;color:var(--text,#fff);';
@@ -1792,6 +1865,27 @@ function renderInterleavedUI() {
 
       chip.appendChild(colorDot);
       chip.appendChild(label);
+
+      // Weave / Flat toggle button (especially useful for Profile 5 Halftone and other weave modes)
+      if (isWeaveMode) {
+        const isWeave = (interleavedSettings.toolWeaveModes[item.toolId] !== false);
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'tool-weave-toggle';
+        toggleBtn.style.cssText = isWeave
+          ? 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #2196f3;background:rgba(33,150,243,0.22);color:#90caf9;'
+          : 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #777;background:rgba(255,255,255,0.08);color:#aaa;';
+        toggleBtn.textContent = isWeave ? '〰️ 編み' : '━ フラット';
+        toggleBtn.title = isWeave ? '現在: 編み重ね(波打ち)。クリックでフラット(真円)に切替' : '現在: フラット(真円)。クリックで編み重ね(波打ち)に切替';
+        toggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          interleavedSettings.toolWeaveModes[item.toolId] = !isWeave;
+          renderInterleavedUI();
+          updatePreview();
+        });
+        chip.appendChild(toggleBtn);
+      }
+
       interleavedToolList.appendChild(chip);
     });
   }
@@ -1828,6 +1922,16 @@ function renderInterleavedUI() {
   settings.interleavedInvertTools = !!interleavedSettings.invertTools;
   settings.interleavedExclusionMode = interleavedSettings.exclusionMode ?? 0;
   settings.interleavedToolIds     = toolIds;
+  settings.interleavedToolWeaveModes = interleavedSettings.toolWeaveModes;
+
+  let weaveMask = 0;
+  palette.forEach((item, idx) => {
+    const isW = (interleavedSettings.toolWeaveModes && interleavedSettings.toolWeaveModes[item.toolId] !== false);
+    if (isW) weaveMask |= (1 << idx);
+  });
+  settings.interleavedToolWeaveMask = weaveMask;
+  settings.interleavedFlatAmpScale  = interleavedSettings.flatAmpScale ?? 1.0;
+
   settings.colorSubMode           = currentColorSubMode;
   settings.shadingSource          = interleavedSettings.shadingSource ?? 'texture';
   settings.curvatureScale         = interleavedSettings.curvatureScale ?? 1.0;
@@ -1869,6 +1973,47 @@ function renderInterleavedUI() {
     if (weaveAmpWarning) {
       const isOver = ((interleavedSettings.weaveAmp ?? 0.60) > nDia * 3.0 + 1e-4);
       weaveAmpWarning.classList.toggle('hidden', !isOver);
+    }
+
+    if (weaveToolModesContainer) {
+      weaveToolModesContainer.innerHTML = '';
+      if (!interleavedSettings.toolWeaveModes) interleavedSettings.toolWeaveModes = {};
+      palette.forEach((item) => {
+        const isWeave = (interleavedSettings.toolWeaveModes[item.toolId] !== false);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `weave-box-tool-toggle ${isWeave ? 'is-weave' : 'is-flat'}`;
+
+        const dot = document.createElement('span');
+        dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);flex-shrink:0;`;
+
+        const txt = document.createElement('span');
+        txt.textContent = `Tool ${item.toolId}: ` + (isWeave ? '〰️ 編み' : '━ フラット');
+
+        btn.appendChild(dot);
+        btn.appendChild(txt);
+        btn.title = isWeave ? `Tool ${item.toolId}: 編み重ね(波打ち)。クリックでフラット(真円)に切替` : `Tool ${item.toolId}: フラット(真円)。クリックで編み重ね(波打ち)に切替`;
+
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          interleavedSettings.toolWeaveModes[item.toolId] = !isWeave;
+          renderPaletteUI();
+          renderInterleavedUI();
+          updatePreview();
+        });
+        weaveToolModesContainer.appendChild(btn);
+      });
+    }
+
+    if (interleavedFlatScaleRow) {
+      const isHalftone = (interleavedSettings.profileMode === 5);
+      interleavedFlatScaleRow.classList.toggle('hidden', !isHalftone);
+      if (interleavedFlatScaleSlider) {
+        interleavedFlatScaleSlider.value = (interleavedSettings.flatAmpScale ?? 1.0).toFixed(2);
+      }
+      if (interleavedFlatScaleVal) {
+        interleavedFlatScaleVal.textContent = (interleavedSettings.flatAmpScale ?? 1.0).toFixed(2);
+      }
     }
   }
 
@@ -1993,6 +2138,7 @@ function initInterleavedEvents() {
     interleavedProfileModeSelect.addEventListener('change', (e) => {
       const parsed = parseInt(e.target.value, 10);
       interleavedSettings.profileMode = isNaN(parsed) ? 0 : parsed;
+      renderPaletteUI();
       renderInterleavedUI();
       updatePreview();
     });
@@ -2086,6 +2232,27 @@ function initInterleavedEvents() {
       const v = isNaN(parsed) ? 0.20 : parsed;
       interleavedSettings.weaveAmp = v;
       if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (interleavedFlatScaleSlider) {
+    interleavedFlatScaleSlider.addEventListener('input', (e) => {
+      const parsed = parseFloat(e.target.value);
+      const v = isNaN(parsed) ? 1.0 : parsed;
+      interleavedSettings.flatAmpScale = v;
+      if (interleavedFlatScaleVal) interleavedFlatScaleVal.textContent = v.toFixed(2);
+      renderInterleavedUI();
+      updatePreview();
+    });
+  }
+
+  if (flatScaleReset) {
+    flatScaleReset.addEventListener('click', () => {
+      interleavedSettings.flatAmpScale = 1.0;
+      if (interleavedFlatScaleSlider) interleavedFlatScaleSlider.value = '1.0';
+      if (interleavedFlatScaleVal) interleavedFlatScaleVal.textContent = '1.00';
       renderInterleavedUI();
       updatePreview();
     });
@@ -2237,16 +2404,29 @@ function wireEvents() {
   document.querySelectorAll('#standard-preset-btns .model-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const presetKey = btn.dataset.preset;
-      if (presetKey) loadPresetModel(presetKey);
+      if (presetKey) {
+        Promise.resolve(loadPresetModel(presetKey)).then(() => {
+          _scheduleUndoCapture();
+          if (typeof _autoSaveSettings === 'function') _autoSaveSettings();
+        });
+      }
     });
   });
 
   // ── Secret mode trigger (Auto-fit mode) ──
   if (secretModeTrigger) {
-    secretModeTrigger.addEventListener('click', toggleSecretMode);
+    secretModeTrigger.addEventListener('click', () => {
+      toggleSecretMode();
+      _scheduleUndoCapture();
+      if (typeof _autoSaveSettings === 'function') _autoSaveSettings();
+    });
   }
   if (modelPresetsTitle) {
-    modelPresetsTitle.addEventListener('dblclick', toggleSecretMode);
+    modelPresetsTitle.addEventListener('dblclick', () => {
+      toggleSecretMode();
+      _scheduleUndoCapture();
+      if (typeof _autoSaveSettings === 'function') _autoSaveSettings();
+    });
   }
 
   // ── Model mode switcher tabs ──
@@ -2254,6 +2434,8 @@ function wireEvents() {
     modelModeTabs.querySelectorAll('.model-mode-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         switchModelMode(tab.dataset.mode);
+        _scheduleUndoCapture();
+        if (typeof _autoSaveSettings === 'function') _autoSaveSettings();
       });
     });
   }
@@ -2266,6 +2448,8 @@ function wireEvents() {
         autoFitShape = shape;
         updateModelModeUI();
         loadAutoFitModel();
+        _scheduleUndoCapture();
+        if (typeof _autoSaveSettings === 'function') _autoSaveSettings();
       }
     });
   });
@@ -5526,6 +5710,13 @@ function getFullPreviewSettings() {
     }
   }
 
+  let weaveMask = 0;
+  for (let k = 0; k < paletteSource.length; k++) {
+    const tId = paletteSource[k].toolId;
+    const isW = (interleavedSettings.toolWeaveModes && interleavedSettings.toolWeaveModes[tId] !== false);
+    if (isW) weaveMask |= (1 << k);
+  }
+
   return {
     ...settings,
     bounds: currentBounds,
@@ -5542,6 +5733,7 @@ function getFullPreviewSettings() {
     interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
     interleavedGamma: interleavedSettings.gamma ?? 1.0,
     interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
+    interleavedToolWeaveMask: weaveMask,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
     layerBlendMap: null,
@@ -6269,6 +6461,7 @@ async function handleExport(format = 'stl') {
       interleavedNozzleDiameter: interleavedSettings.nozzleDiameter ?? 0.40,
       interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.60,
       interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.60,
+      interleavedFlatAmpScale: interleavedSettings.flatAmpScale ?? 1.0,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedGamma: interleavedSettings.gamma ?? 1.0,
       interleavedInvertTools: !!interleavedSettings.invertTools,
@@ -6352,7 +6545,7 @@ async function handleExport(format = 'stl') {
         const thickness = effectiveSettings.interleavedThickness || settings.interleavedThickness || 0.20;
         const totalLayers = Math.max(1, Math.ceil(groundedMaxZ / thickness) + 1);
 
-        const isWeaveMode = (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4);
+        const isWeaveMode = (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4 || effectiveSettings.interleavedProfileMode === 5);
 
         // 3. Slice all triangles at exact layer boundaries for non-weave modes (flat step, louver)
         const cutOffset = 0.005;
@@ -6591,6 +6784,8 @@ async function handleExport(format = 'stl') {
             convexVal: convexAmp,
             concaveVal: concaveAmp,
             sampleFn,
+            toolWeaveModes: interleavedSettings.toolWeaveModes,
+            flatAmpScale: effectiveSettings.interleavedFlatAmpScale ?? interleavedSettings.flatAmpScale ?? 1.0,
           });
 
           const triCount = tube.triCount || Math.floor(tube.positions.length / 9);
@@ -7176,25 +7371,11 @@ function yieldFrame() {
 // auto-persisted to sessionStorage (short-term) or localStorage (long-term),
 // configurable by the user.
 
-const PROJECT_STORAGE_KEY = 'bumpmesh-settings';
-const STORAGE_MODE_KEY    = 'bumpmesh-storage-mode';
 const PROJECT_VERSION     = 1;
 const PROJECT_MAX_IMPORT  = 500 * 1024 * 1024; // 500 MB cap on imports
 
 const storageModeSessionBtn = document.getElementById('storage-mode-session');
 const storageModeLocalBtn   = document.getElementById('storage-mode-local');
-
-let currentStorageMode = 'session';
-try {
-  const savedMode = localStorage.getItem(STORAGE_MODE_KEY);
-  if (savedMode === 'local' || savedMode === 'session') {
-    currentStorageMode = savedMode;
-  }
-} catch { /* quota / private mode */ }
-
-function getActiveStorage() {
-  return currentStorageMode === 'local' ? localStorage : sessionStorage;
-}
 
 function setStorageMode(mode, saveCurrent = true) {
   if (mode !== 'session' && mode !== 'local') return;
@@ -7285,6 +7466,8 @@ function getSettingsSnapshot() {
   snap.curvatureBias          = interleavedSettings.curvatureBias;
   snap.curvatureSmooth        = interleavedSettings.curvatureSmooth;
   snap.curvatureInvert        = interleavedSettings.curvatureInvert;
+  snap.interleavedToolWeaveModes = interleavedSettings.toolWeaveModes ? { ...interleavedSettings.toolWeaveModes } : {};
+  snap.interleavedFlatAmpScale   = interleavedSettings.flatAmpScale ?? 1.0;
 
   // Model Scale state
   snap.modelScale   = { x: _modelScale.x, y: _modelScale.y, z: _modelScale.z };
@@ -7517,6 +7700,16 @@ function applySettingsSnapshot(snap) {
       if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = snap.interleavedWeaveAmp.toFixed(2);
     }
   }
+  if (snap.interleavedToolWeaveModes != null) {
+    interleavedSettings.toolWeaveModes = { ...snap.interleavedToolWeaveModes };
+  }
+  if (snap.interleavedFlatAmpScale != null) {
+    interleavedSettings.flatAmpScale = snap.interleavedFlatAmpScale;
+    if (interleavedFlatScaleSlider) {
+      interleavedFlatScaleSlider.value = snap.interleavedFlatAmpScale;
+      if (interleavedFlatScaleVal) interleavedFlatScaleVal.textContent = snap.interleavedFlatAmpScale.toFixed(2);
+    }
+  }
   if (snap.shadingSource != null) {
     interleavedSettings.shadingSource = snap.shadingSource;
     if (shadingSourceSelect) shadingSourceSelect.value = snap.shadingSource;
@@ -7648,7 +7841,7 @@ function _autoSaveSettings() {
   }, 300);
 }
 
-function _restoreSessionSettings() {
+async function _restoreSessionSettings() {
   let raw;
   try { raw = getActiveStorage().getItem(PROJECT_STORAGE_KEY); }
   catch { return; }
@@ -7656,7 +7849,13 @@ function _restoreSessionSettings() {
   let data;
   try { data = JSON.parse(raw); } catch { return; }
   if (!data || typeof data !== 'object') return;
+
+  if (_initialModelPromise) {
+    try { await _initialModelPromise; } catch (err) { console.warn('Initial model load failed:', err); }
+  }
+
   applySettingsSnapshot(data);
+  updatePreview();
   // Preset activation is handled by the thumbnail-load auto-select path —
   // it reads activeMapName from active storage and suppresses defaults so
   // the user's saved scaleU / textureSmoothing survive.
@@ -8297,9 +8496,10 @@ window.addEventListener('keydown', (e) => {
 });
 
 // Restore last session's settings on startup, then take an initial baseline.
-_restoreSessionSettings();
-_baselineSnapshot = _captureUndoSnapshot();
-_updateUndoButtons();
+_restoreSessionSettings().finally(() => {
+  _baselineSnapshot = _captureUndoSnapshot();
+  _updateUndoButtons();
+});
 
 // ── Interleaved Modulation Map (2D Blend Weight) Preview ─────────────────────
 (function initInterleavedMapPreview() {

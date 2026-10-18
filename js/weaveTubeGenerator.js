@@ -183,6 +183,8 @@ export function generateWeaveRubberBandTube({
   convexVal = 0.35,
   concaveVal = 0.00,
   sampleFn = null,
+  toolWeaveModes = null,
+  flatAmpScale = 1.0,
 } = {}) {
   const t = Math.max(0.01, Number(thickness) || 0.20);
   const wall = Math.max(0.10, Number(wallThickness) || 0.40);
@@ -234,13 +236,12 @@ export function generateWeaveRubberBandTube({
   function getWaveB(phi, exposure = 1.0, toolCount = 2) {
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
     if (profileMode === 5) {
-      const wRaw = 0.5 + 0.5 * Math.sin(phi);
-      if (toolCount === 2 && exposure > 0.65) {
-        // 2色時: 白ベタ・ハイライト領域は波の山同士が繋がって平らな連続リブ（デューティ比100%）に頭打ち
-        const boost = (exposure - 0.65) / 0.35;
-        return Math.min(1.0, wRaw + boost * 0.7);
-      }
-      return wRaw;
+      if (exposure <= 0.001) return 0.0;
+      const s = Math.sin(phi);
+      const thresh = 1.0 - 2.0 * Math.min(1.0, exposure);
+      if (s <= thresh) return 0.0;
+      const norm = (s - thresh) / (1.0 - thresh + 1e-5);
+      return Math.pow(norm, 1.2) * exposure;
     } else if (profileMode === 4) {
       if (u < edge) return u / edge;
       if (u < 0.5 - edge) return 1.0;
@@ -287,6 +288,9 @@ export function generateWeaveRubberBandTube({
     const z_top = Math.fround(minZ + (lay + 1) * t);
     const z_mid = (z_bot + z_top) * 0.5;
     const activeTool = toolIds[lay % toolIds.length];
+    const isToolWeave = (toolWeaveModes && toolWeaveModes[activeTool] !== undefined)
+      ? !!toolWeaveModes[activeTool]
+      : true;
     const L = Math.max(1, toolIds.length);
     let layerPhase;
     if (profileMode === 5 && L > 2) {
@@ -335,15 +339,25 @@ export function generateWeaveRubberBandTube({
         comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
       }
 
-      const B = getWaveB(phi, exposure, L);
-      const disp = -concaveVal + stroke * Math.min(1.0, exposure * comp) * B;
+      let disp;
+      if (isToolWeave) {
+        const B = getWaveB(phi, exposure, L);
+        const effExposure = (profileMode === 5) ? 1.0 : Math.min(1.0, exposure * comp);
+        disp = -concaveVal + stroke * effExposure * B;
+      } else {
+        // ━ フラット段差: ピッチごとの高周波波打ちを介さず、画像の露出度 exposure そのものによって幅広な段差（幅広の波1個）として突出
+        const flatMul = (profileMode === 5) ? Math.max(0.0, Number(flatAmpScale ?? 1.0)) : 1.0;
+        disp = -concaveVal + stroke * flatMul * Math.min(1.0, exposure * comp);
+      }
 
       const r_out = Math.fround(r_base + disp);
       let r_in;
       if (profileMode === 5) {
-        // ⚓ ハーフトーン編み: 内壁をベース輪郭 r_base - wall に直線・固定アンカー！
-        // 突起量 disp が大きくても内壁が逃げず、全層で100%密着して崩壊を防ぐ
-        r_in = Math.fround(Math.min(r_base, r_out) - wall);
+        // ⚓ ハーフトーン編み（全ツール完全共通）:
+        // ノズル2本分（baseWall = 2.0 * wall = 0.80mm）の均一内壁を全周で完全保証！
+        // ツール1（フラット）もツール2・3（編み重ね）も、全レイヤーで同一の内壁半径（r_base - 0.80mm）にピシッと完璧に揃う！
+        const baseWall = 2.0 * wall;
+        r_in = Math.fround(Math.min(r_base, r_out) - baseWall);
       } else {
         // 既存の輪ゴム編み重ね（Profile 2, 3, 4）: 従来通り肉厚一定のまま内外連動
         r_in = Math.fround(r_out - wall);

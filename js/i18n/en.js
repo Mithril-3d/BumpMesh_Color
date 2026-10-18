@@ -349,6 +349,8 @@ export default {
   "color.nozzleCustom": "Manual Input (Custom)",
   "color.weavePitch": "Wave Pitch (mm)",
   "color.weaveAmp": "Wave Amplitude (mm)",
+  "color.flatAmpScale": "Flat Amplitude Scale",
+  "color.flatAmpScaleTitle": "Scale multiplier for protrusion amplitude of tools set to Flat (━) in Halftone Weave mode (1.0 = standard, 0.5 = half).",
   "color.shadingSource": "Shading Source",
   "color.shadingSourceTexture": "Texture Map (2D Image)",
   "color.shadingSourceCurvature": "✨ Mesh Curvature (Auto Geometry / No UV)",

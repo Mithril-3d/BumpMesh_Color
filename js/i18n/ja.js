@@ -351,6 +351,8 @@ export default {
   "color.nozzleCustom": "手動入力 (カスタム)",
   "color.weavePitch": "波長ピッチ (mm)",
   "color.weaveAmp": "波の振幅 (mm)",
+  "color.flatAmpScale": "フラット振幅倍率",
+  "color.flatAmpScaleTitle": "ハーフトーン編みにおいて、フラット(━)に設定したツールの突出量倍率を調整します (1.0 = 等倍、0.5 = 半分)。",
   "color.shadingSource": "陰影ソース",
   "color.shadingSourceTexture": "テクスチャ画像 (Texture Map)",
   "color.shadingSourceCurvature": "✨ モデルの凹凸 (Mesh Curvature / UV不要)",

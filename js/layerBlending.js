@@ -168,7 +168,8 @@ export function computeMultiColorBlend(rgb, palette, gamma = 1.0, invert = false
   const dA = Math.sqrt(bestDistSq);
   const dB = Math.sqrt(secondDistSq);
   const sumD = dA + dB;
-  let t = (sumD > 1e-6) ? (dB / sumD) : 1.0;
+  // Normalize to full 0.0..1.0 range: when dA == dB, t = 0.0; when dA == 0, t = 1.0
+  let t = (sumD > 1e-6) ? Math.max(0.0, Math.min(1.0, 2.0 * (dB / sumD - 0.5))) : 1.0;
   if (gamma !== 1.0 && gamma > 0.01) {
     t = Math.pow(t, gamma);
   }
@@ -328,23 +329,17 @@ export function computeLouverDisplacement(
 
     let W;
     if (profileMode === 5) {
-      // 🎭 ハーフトーン編み (Halftone Weave)
-      const wRaw = 0.5 + 0.5 * Math.sin(phi);
-      if (toolCount === 2 && exposure > 0.65) {
-        // 2色時: 白ベタ・ハイライト領域は波の山同士が繋がって平らな連続リブ（デューティ比100%）に頭打ち
-        const boost = (exposure - 0.65) / 0.35;
-        W = Math.min(1.0, wRaw + boost * 0.7);
-      } else {
-        // 多色時: 奥の内壁に毎回戻るアンカー谷を維持し、空中落下を防止
-        W = wRaw;
-      }
-      // 混色補正 (Secondary Color Brightness Compensation)
-      let comp = 1.0;
-      if (multiColorInfo && toolCount > 2) {
-        comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
+      // 🎭 ハーフトーン編み (Halftone Weave): 露出度 exposure に応じて高さと幅を同時変調
+      if (exposure <= 0.001) return -concaveAmp;
+      const s = Math.sin(phi);
+      const thresh = 1.0 - 2.0 * Math.min(1.0, exposure);
+      let W = 0.0;
+      if (s > thresh) {
+        const norm = (s - thresh) / (1.0 - thresh + 1e-5);
+        W = exposure * Math.pow(norm, 1.2);
       }
       const stroke = Math.max(0.01, (convexAmp + concaveAmp) > 0 ? (convexAmp + concaveAmp) : waveAmp);
-      return -concaveAmp + stroke * Math.min(1.0, exposure * comp) * W;
+      return -concaveAmp + stroke * W;
     } else if (profileMode === 4) {
       // 🧱 Block Pulse (Trapezoidal Rectangular Wave)
       const edge = 0.05;
