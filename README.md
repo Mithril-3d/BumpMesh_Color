@@ -198,8 +198,10 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
   - **Flat Amplitude Scale & Prominent Profile Mode Selection**:
     - Added independent amplitude scaling (0.00x - 2.00x) for tools configured in Flat (━) mode under Profile 5 (Halftone Weave).
     - Prevents flat-step tools (such as background white porcelain bodies) from over-protruding past oscillating weave beads, achieving beautifully balanced ceramic-like reliefs.
-    - Upgraded **Cross-Section Profile (断面形状・遮蔽方式)** to a prominent featured card with dedicated badge and enhanced contrast for quick discovery.
+    - Upgraded **Cross-Section Profile (断面形状・遮蔽方式)** to a prominent featured card with dedicated highlighted borders for quick discovery and clean readability.
     - Fully integrated into WebGL real-time shaders, multi-material 3MF watertight slicing, and project state persistence.
+  - **Full 14-Language Localization Synchronization**:
+    - Synchronized all newly introduced features (Halftone Weave, Flat Amplitude Scale, Base Mesh Displacement) across all 14 supported languages (`da`, `de`, `en`, `es`, `fr`, `it`, `ja`, `ko`, `pl`, `pt`, `ru`, `tr`, `uk`, `zh`) with 0 missing keys.
   - **Preset Persistence Fix**:
     - Fixed an issue where enabling long-term storage could inadvertently show the default cube when cylinder preset was saved.
 - **v1.5.22 (2026-10-09)**:
@@ -464,7 +466,9 @@ python -m http.server 8080
     - 地色となる白などフラット設定ツールが波打ちツール（青など）のピークよりも外側へ庇（ひさし）のように突出しすぎる問題を解消し、陶磁器の染付のような均一で自然なレリーフ表現を実現。
     - リアルタイムWebGLプレビュー、3MFメッシュ生成エンジン、プロジェクト長期保存に完全連動。
   - **断面形状（遮蔽・造形方式）UIの視認性大幅強化**:
-    - 振り重ねの核となる最重要設定「断面形状」セレクターを専用のカードデザイン・バッジ付きスタイルへ刷新し、直感的に見つけやすく改善。
+    - 振り重ねの核となる最重要設定「断面形状」セレクターを専用のカードデザインへ刷新し、直感的に見つけやすく改善。
+  - **全14言語の完全同期ローカライズ**:
+    - 今回追加された新機能（ハーフトーン編み、フラット振幅倍率、ベース変位併用）の辞書キーを、サポートする全14言語（日本語、英語、ドイツ語、フランス語、スペイン語、イタリア語、ポルトガル語、ロシア語、ウクライナ語、ポーランド語、トルコ語、デンマーク語、中国語、韓国語）で100%同期（未翻訳キー 0）。
   - **長期保存リロード時のプリセット形状復元修正**:
     - 長期保存が有効な状態でリロードした際、円柱モデルが選択されているにもかかわらず立方体が表示される不具合を修正。
 - **v1.5.22 (2026-10-09)**:
