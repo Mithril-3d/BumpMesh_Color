@@ -1059,215 +1059,475 @@ export function addDiagFaces(overlayGeo, color, opacity = 0.6, xray = false) {
   requestRender();
 }
 
-// ── Rotation Gizmo ───────────────────────────────────────────────────────────
-
-let _rotGizmoGroup = null;   // THREE.Group holding the 3 rings
-let _rotGizmoVisible = false;
-let _rotGizmoDragging = null; // { axis: 'x'|'y'|'z', startAngle, startPointer }
-let _rotGizmoCallback = null; // function(axis, deltaDegreesIncremental) called during drag
-const _gizmoRaycaster = new THREE.Raycaster();
-const GIZMO_COLORS = { x: 0xff3333, y: 0x33dd55, z: 0x4488ff };
-const GIZMO_HOVER_COLORS = { x: 0xff8888, y: 0x88ff99, z: 0x88bbff };
-
-function _buildRotGizmo() {
-  if (_rotGizmoGroup) return;
-  _rotGizmoGroup = new THREE.Group();
-  _rotGizmoGroup.renderOrder = 100;
-
-  const createRing = (axis, color) => {
-    // Visible ring
-    const geo = new THREE.TorusGeometry(1, 0.02, 12, 64);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.85,
-      depthTest: false,
-    });
-    const ring = new THREE.Mesh(geo, mat);
-    ring.userData.gizmoAxis = axis;
-    ring.userData.baseColor = color;
-
-    // Invisible fat hitbox for easier picking
-    const hitGeo = new THREE.TorusGeometry(1, 0.08, 8, 64);
-    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
-    const hitRing = new THREE.Mesh(hitGeo, hitMat);
-    hitRing.userData.gizmoAxis = axis;
-    ring.add(hitRing);
-
-    // Rotate ring into the correct plane
-    if (axis === 'x') ring.rotation.y = Math.PI / 2;
-    else if (axis === 'y') ring.rotation.x = Math.PI / 2;
-    // z ring: default XY plane already correct
-    _rotGizmoGroup.add(ring);
-    return ring;
-  };
-
-  createRing('x', GIZMO_COLORS.x);
-  createRing('y', GIZMO_COLORS.y);
-  createRing('z', GIZMO_COLORS.z);
-
-  scene.add(_rotGizmoGroup);
-}
-
-let _rotGizmoLockedScale = null; // fixed scale set once on show, not updated during drag
-
-function _updateGizmoScale(lock = false) {
-  if (!_rotGizmoGroup || !currentMesh) return;
-  currentMesh.geometry.computeBoundingSphere();
-  if (lock || _rotGizmoLockedScale === null) {
-    _rotGizmoLockedScale = currentMesh.geometry.boundingSphere.radius * 0.65;
-  }
-  _rotGizmoGroup.scale.setScalar(_rotGizmoLockedScale);
-  _rotGizmoGroup.position.copy(currentMesh.geometry.boundingSphere.center);
-}
-
-/**
- * Show/hide the rotation gizmo.
- * @param {boolean} visible
- * @param {function|null} onRotate - callback(axis, deltaDegrees) called during drag
- */
-export function setRotationGizmo(visible, onRotate = null) {
-  _rotGizmoVisible = visible;
-  _rotGizmoCallback = onRotate;
-  if (visible) {
-    _buildRotGizmo();
-    _rotGizmoLockedScale = null; // reset so it measures fresh
-    _updateGizmoScale(true);
-    _rotGizmoGroup.visible = true;
-  } else {
-    if (_rotGizmoGroup) _rotGizmoGroup.visible = false;
-    _rotGizmoDragging = null;
-    _rotGizmoLockedScale = null;
-  }
-  requestRender();
-}
-
-/** Refresh gizmo size/position after geometry changes */
-export function updateRotationGizmo() {
-  if (_rotGizmoVisible && _rotGizmoGroup) {
-    _updateGizmoScale();
-    requestRender();
-  }
-}
-
-/**
- * Returns true if the gizmo is currently being dragged
- * (so main.js can suppress other mouse handlers).
- */
-export function isGizmoDragging() {
-  return _rotGizmoDragging !== null;
-}
-
-// Hit-test the gizmo rings. Returns axis string or null.
-function _pickGizmoRing(ndcX, ndcY) {
-  if (!_rotGizmoGroup || !_rotGizmoVisible) return null;
-  _gizmoRaycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
-  // Recursive: true to also hit invisible fat hitbox children
-  const hits = _gizmoRaycaster.intersectObjects(_rotGizmoGroup.children, true);
-  if (hits.length > 0) return hits[0].object.userData.gizmoAxis;
-  return null;
-}
-
-// Compute angle on the gizmo plane given screen position
-function _gizmoPlaneAngle(ndcX, ndcY, axis) {
-  // Project NDC onto the plane perpendicular to the axis through gizmo center
-  const center = _rotGizmoGroup.position.clone();
-  const normal = new THREE.Vector3();
-  if (axis === 'x') normal.set(1, 0, 0);
-  else if (axis === 'y') normal.set(0, 1, 0);
-  else normal.set(0, 0, 1);
-
-  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, center);
-  const ray = new THREE.Ray();
-  _gizmoRaycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
-  ray.copy(_gizmoRaycaster.ray);
-
-  const pt = new THREE.Vector3();
-  if (!ray.intersectPlane(plane, pt)) return null;
-
-  // Get angle in the ring's local 2D system
-  const local = pt.sub(center);
-  if (axis === 'x') return Math.atan2(local.z, local.y);
-  if (axis === 'y') return Math.atan2(local.x, local.z);
-  return Math.atan2(local.y, local.x); // z
-}
-
-// Attach gizmo interaction to the canvas (called once from initViewer)
-function _initGizmoInteraction() {
-  const canvas = renderer.domElement;
-  let _hoveredAxis = null;
-
-  canvas.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || !_rotGizmoVisible) return;
-    const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    const axis = _pickGizmoRing(ndcX, ndcY);
-    if (!axis) return;
-
-    e.stopPropagation();
-    e.preventDefault();
-    controls.enabled = false;
-
-    const startAngle = _gizmoPlaneAngle(ndcX, ndcY, axis);
-    _rotGizmoDragging = { axis, lastAngle: startAngle };
-  }, { capture: true });
-
-  document.addEventListener('pointermove', (e) => {
-    if (!_rotGizmoVisible) return;
-    const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    if (_rotGizmoDragging) {
-      const angle = _gizmoPlaneAngle(ndcX, ndcY, _rotGizmoDragging.axis);
-      if (angle !== null && _rotGizmoDragging.lastAngle !== null) {
-        let delta = angle - _rotGizmoDragging.lastAngle;
-        // Wrap delta to [-PI, PI]
-        if (delta > Math.PI) delta -= 2 * Math.PI;
-        if (delta < -Math.PI) delta += 2 * Math.PI;
-        const degrees = THREE.MathUtils.radToDeg(delta);
-        if (Math.abs(degrees) > 0.01 && _rotGizmoCallback) {
-          _rotGizmoCallback(_rotGizmoDragging.axis, degrees);
-        }
-        _rotGizmoDragging.lastAngle = angle;
-      }
-      return;
-    }
-
-    // Hover highlight
-    const axis = _pickGizmoRing(ndcX, ndcY);
-    if (axis !== _hoveredAxis) {
-      // Reset previous
-      if (_hoveredAxis && _rotGizmoGroup) {
-        _rotGizmoGroup.children.forEach(r => {
-          if (r.userData.gizmoAxis === _hoveredAxis) {
-            r.material.color.set(r.userData.baseColor);
-          }
-        });
-      }
-      _hoveredAxis = axis;
-      if (axis && _rotGizmoGroup) {
-        _rotGizmoGroup.children.forEach(r => {
-          if (r.userData.gizmoAxis === axis) {
-            r.material.color.set(GIZMO_HOVER_COLORS[axis]);
-          }
-        });
-        canvas.style.cursor = 'grab';
-      } else {
-        canvas.style.cursor = '';
-      }
-      requestRender();
-    }
-  });
-
-  document.addEventListener('pointerup', () => {
-    if (_rotGizmoDragging) {
-      _rotGizmoDragging = null;
-      controls.enabled = true;
-      requestRender();
-    }
-  });
+// ── Rotation Gizmo ───────────────────────────────────────────────────────────
+
+let _rotGizmoGroup = null;   // THREE.Group holding the 3 rings
+let _rotGizmoVisible = false;
+let _rotGizmoDragging = null; // { axis: 'x'|'y'|'z', startAngle, lastRawAngle, totalRawDeltaDeg, appliedDeltaDeg }
+let _rotGizmoCallback = null; // function(axis, deltaDegreesIncremental) called during drag
+const _gizmoRaycaster = new THREE.Raycaster();
+const GIZMO_COLORS = { x: 0xff3333, y: 0x33dd55, z: 0x4488ff };
+const GIZMO_HOVER_COLORS = { x: 0xff8888, y: 0x88ff99, z: 0x88bbff };
+
+// Protractor visual components (PrusaSlicer-style)
+let _protractorGroup = null;
+let _protractorDisk = null;
+let _protractorTicks = null;
+let _protractorStartLine = null;
+let _protractorNeedle = null;
+let _protractorSector = null;
+let _angleBadgeEl = null;
+
+function _getAngleBadge() {
+  if (!_angleBadgeEl) {
+    _angleBadgeEl = document.createElement('div');
+    _angleBadgeEl.id = 'gizmo-angle-badge';
+    _angleBadgeEl.className = 'gizmo-angle-badge hidden';
+    document.body.appendChild(_angleBadgeEl);
+  }
+  return _angleBadgeEl;
+}
+
+function _updateAngleBadge(clientX, clientY, deltaDeg, isSnap) {
+  const badge = _getAngleBadge();
+  const sign = deltaDeg > 0 ? '+' : '';
+  const formattedDeg = isSnap ? `${sign}${Math.round(deltaDeg)}°` : `${sign}${deltaDeg.toFixed(1)}°`;
+  const modeText = isSnap ? '5° Snap (内側)' : 'Free (外側)';
+  const modeClass = isSnap ? 'badge-snap' : 'badge-free';
+
+  badge.innerHTML = `<span class="badge-deg">${formattedDeg}</span><span class="badge-mode ${modeClass}">${modeText}</span>`;
+  badge.style.left = `${clientX + 16}px`;
+  badge.style.top = `${clientY - 20}px`;
+  badge.classList.remove('hidden');
+}
+
+function _hideAngleBadge() {
+  if (_angleBadgeEl) _angleBadgeEl.classList.add('hidden');
+}
+
+function _buildProtractor() {
+  if (_protractorGroup) return;
+  _protractorGroup = new THREE.Group();
+  _protractorGroup.renderOrder = 150;
+  _protractorGroup.visible = false;
+
+  // 1. Semi-transparent snap zone disc (radius 0.05 to 1.0)
+  const discGeo = new THREE.RingGeometry(0.05, 1.0, 72);
+  const discMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    depthTest: false,
+  });
+  _protractorDisk = new THREE.Mesh(discGeo, discMat);
+  _protractorGroup.add(_protractorDisk);
+
+  // 2. Sector / Wedge (shows rotated angle span)
+  const maxSteps = 72;
+  const sectorPositions = new Float32Array(maxSteps * 3 * 3);
+  const sectorGeo = new THREE.BufferGeometry();
+  sectorGeo.setAttribute('position', new THREE.BufferAttribute(sectorPositions, 3));
+  const sectorMat = new THREE.MeshBasicMaterial({
+    color: 0x4488ff,
+    transparent: true,
+    opacity: 0.28,
+    side: THREE.DoubleSide,
+    depthTest: false,
+  });
+  _protractorSector = new THREE.Mesh(sectorGeo, sectorMat);
+  _protractorSector.visible = false;
+  _protractorGroup.add(_protractorSector);
+
+  // 3. Tick marks (5 deg intervals around the circle, in local XY plane)
+  const tickPositions = [];
+  const tickColors = [];
+  for (let i = 0; i < 72; i++) {
+    const rad = (i * 5) * Math.PI / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    let innerR = 0.90;
+    let col = [0.85, 0.85, 0.85];
+    if (i % 18 === 0) { // 90 deg
+      innerR = 0.68;
+      col = [1.0, 0.85, 0.2];
+    } else if (i % 9 === 0) { // 45 deg
+      innerR = 0.76;
+      col = [1.0, 1.0, 1.0];
+    } else if (i % 3 === 0) { // 15 deg
+      innerR = 0.82;
+      col = [0.95, 0.95, 0.95];
+    }
+    tickPositions.push(cos * innerR, sin * innerR, 0);
+    tickPositions.push(cos * 1.0, sin * 1.0, 0);
+    tickColors.push(...col, ...col);
+  }
+  const tickGeo = new THREE.BufferGeometry();
+  tickGeo.setAttribute('position', new THREE.Float32BufferAttribute(tickPositions, 3));
+  tickGeo.setAttribute('color', new THREE.Float32BufferAttribute(tickColors, 3));
+  const tickMat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8,
+    depthTest: false,
+  });
+  _protractorTicks = new THREE.LineSegments(tickGeo, tickMat);
+  _protractorGroup.add(_protractorTicks);
+
+  // 4. Start Reference Line (line from center to startAngle)
+  const startLineGeo = new THREE.BufferGeometry();
+  startLineGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+  const startLineMat = new THREE.LineBasicMaterial({
+    color: 0xffd700,
+    transparent: true,
+    opacity: 0.9,
+    depthTest: false,
+  });
+  _protractorStartLine = new THREE.Line(startLineGeo, startLineMat);
+  _protractorGroup.add(_protractorStartLine);
+
+  // 5. Current Needle (line from center to current angle)
+  const needleGeo = new THREE.BufferGeometry();
+  needleGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+  const needleMat = new THREE.LineBasicMaterial({
+    color: 0x00ff88,
+    transparent: true,
+    opacity: 1.0,
+    depthTest: false,
+  });
+  _protractorNeedle = new THREE.Line(needleGeo, needleMat);
+  _protractorGroup.add(_protractorNeedle);
+
+  _rotGizmoGroup.add(_protractorGroup);
+}
+
+function _showProtractor(axis, startAngle) {
+  _buildProtractor();
+  if (!_protractorGroup) return;
+
+  // Align protractor local XY plane with the active axis plane
+  const mat4 = new THREE.Matrix4();
+  if (axis === 'x') {
+    mat4.makeBasis(
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(1, 0, 0)
+    );
+  } else if (axis === 'y') {
+    mat4.makeBasis(
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 1, 0)
+    );
+  } else {
+    mat4.identity();
+  }
+  _protractorGroup.quaternion.setFromRotationMatrix(mat4);
+
+  const baseCol = GIZMO_COLORS[axis] || 0x4488ff;
+  _protractorDisk.material.color.set(baseCol);
+  _protractorSector.material.color.set(baseCol);
+
+  // Position start line at startAngle
+  const startPos = _protractorStartLine.geometry.attributes.position;
+  startPos.setXYZ(0, 0, 0, 0);
+  startPos.setXYZ(1, Math.cos(startAngle) * 1.05, Math.sin(startAngle) * 1.05, 0);
+  startPos.needsUpdate = true;
+
+  // Position needle initially at startAngle
+  const needlePos = _protractorNeedle.geometry.attributes.position;
+  needlePos.setXYZ(0, 0, 0, 0);
+  needlePos.setXYZ(1, Math.cos(startAngle) * 1.05, Math.sin(startAngle) * 1.05, 0);
+  needlePos.needsUpdate = true;
+  _protractorNeedle.material.color.set(0x00ff88);
+
+  _protractorSector.visible = false;
+  _protractorGroup.visible = true;
+}
+
+function _updateProtractorVisual(axis, startAngle, deltaDeg, isSnap) {
+  if (!_protractorGroup || !_protractorGroup.visible) return;
+
+  const currAngle = startAngle + THREE.MathUtils.degToRad(deltaDeg);
+
+  // Update needle
+  const needlePos = _protractorNeedle.geometry.attributes.position;
+  needlePos.setXYZ(1, Math.cos(currAngle) * 1.05, Math.sin(currAngle) * 1.05, 0);
+  needlePos.needsUpdate = true;
+  _protractorNeedle.material.color.set(isSnap ? 0x00ff88 : 0xffffff);
+
+  // Update sector wedge
+  const absDelta = Math.abs(deltaDeg);
+  if (absDelta < 0.2) {
+    _protractorSector.visible = false;
+  } else {
+    _protractorSector.visible = true;
+    const deltaRad = THREE.MathUtils.degToRad(deltaDeg);
+    const steps = Math.min(70, Math.max(4, Math.ceil(absDelta / 4)));
+    const pos = _protractorSector.geometry.attributes.position;
+    const stepRad = deltaRad / steps;
+    let pIdx = 0;
+
+    for (let s = 0; s < steps; s++) {
+      const a1 = startAngle + s * stepRad;
+      const a2 = startAngle + (s + 1) * stepRad;
+
+      // Triangle: (0, 0, 0) -> (cos a1, sin a1) -> (cos a2, sin a2)
+      pos.setXYZ(pIdx++, 0, 0, 0);
+      pos.setXYZ(pIdx++, Math.cos(a1) * 0.98, Math.sin(a1) * 0.98, 0);
+      pos.setXYZ(pIdx++, Math.cos(a2) * 0.98, Math.sin(a2) * 0.98, 0);
+    }
+    pos.needsUpdate = true;
+    _protractorSector.geometry.setDrawRange(0, steps * 3);
+  }
+  requestRender();
+}
+
+function _hideProtractor() {
+  if (_protractorGroup) _protractorGroup.visible = false;
+}
+
+function _buildRotGizmo() {
+  if (_rotGizmoGroup) return;
+  _rotGizmoGroup = new THREE.Group();
+  _rotGizmoGroup.renderOrder = 100;
+
+  const createRing = (axis, color) => {
+    // Visible ring
+    const geo = new THREE.TorusGeometry(1, 0.02, 12, 64);
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+    });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.userData.gizmoAxis = axis;
+    ring.userData.baseColor = color;
+
+    // Invisible fat hitbox for easier picking
+    const hitGeo = new THREE.TorusGeometry(1, 0.08, 8, 64);
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    const hitRing = new THREE.Mesh(hitGeo, hitMat);
+    hitRing.userData.gizmoAxis = axis;
+    ring.add(hitRing);
+
+    // Rotate ring into the correct plane
+    if (axis === 'x') ring.rotation.y = Math.PI / 2;
+    else if (axis === 'y') ring.rotation.x = Math.PI / 2;
+    // z ring: default XY plane already correct
+    _rotGizmoGroup.add(ring);
+    return ring;
+  };
+
+  createRing('x', GIZMO_COLORS.x);
+  createRing('y', GIZMO_COLORS.y);
+  createRing('z', GIZMO_COLORS.z);
+
+  scene.add(_rotGizmoGroup);
+}
+
+let _rotGizmoLockedScale = null; // fixed scale set once on show, not updated during drag
+
+function _updateGizmoScale(lock = false) {
+  if (!_rotGizmoGroup || !currentMesh) return;
+  currentMesh.geometry.computeBoundingSphere();
+  if (lock || _rotGizmoLockedScale === null) {
+    _rotGizmoLockedScale = currentMesh.geometry.boundingSphere.radius * 0.65;
+  }
+  _rotGizmoGroup.scale.setScalar(_rotGizmoLockedScale);
+  _rotGizmoGroup.position.copy(currentMesh.geometry.boundingSphere.center);
+}
+
+/**
+ * Show/hide the rotation gizmo.
+ * @param {boolean} visible
+ * @param {function|null} onRotate - callback(axis, deltaDegrees) called during drag
+ */
+export function setRotationGizmo(visible, onRotate = null) {
+  _rotGizmoVisible = visible;
+  _rotGizmoCallback = onRotate;
+  if (visible) {
+    _buildRotGizmo();
+    _rotGizmoLockedScale = null; // reset so it measures fresh
+    _updateGizmoScale(true);
+    _rotGizmoGroup.visible = true;
+  } else {
+    if (_rotGizmoGroup) _rotGizmoGroup.visible = false;
+    _rotGizmoDragging = null;
+    _rotGizmoLockedScale = null;
+    _hideProtractor();
+    _hideAngleBadge();
+  }
+  requestRender();
+}
+
+/** Refresh gizmo size/position after geometry changes */
+export function updateRotationGizmo() {
+  if (_rotGizmoVisible && _rotGizmoGroup) {
+    _updateGizmoScale();
+    requestRender();
+  }
+}
+
+/**
+ * Returns true if the gizmo is currently being dragged
+ * (so main.js can suppress other mouse handlers).
+ */
+export function isGizmoDragging() {
+  return _rotGizmoDragging !== null;
+}
+
+// Hit-test the gizmo rings. Returns axis string or null.
+function _pickGizmoRing(ndcX, ndcY) {
+  if (!_rotGizmoGroup || !_rotGizmoVisible) return null;
+  _gizmoRaycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
+  // Recursive: true to also hit invisible fat hitbox children
+  const hits = _gizmoRaycaster.intersectObjects(_rotGizmoGroup.children, true);
+  if (hits.length > 0) return hits[0].object.userData.gizmoAxis;
+  return null;
+}
+
+// Compute intersection details on the gizmo plane given screen position
+function _gizmoPlaneInfo(ndcX, ndcY, axis) {
+  if (!_rotGizmoGroup) return null;
+  const center = _rotGizmoGroup.position.clone();
+  const normal = new THREE.Vector3();
+  if (axis === 'x') normal.set(1, 0, 0);
+  else if (axis === 'y') normal.set(0, 1, 0);
+  else normal.set(0, 0, 1);
+
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, center);
+  const ray = new THREE.Ray();
+  _gizmoRaycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
+  ray.copy(_gizmoRaycaster.ray);
+
+  const pt = new THREE.Vector3();
+  if (!ray.intersectPlane(plane, pt)) return null;
+
+  // Get angle in the ring's local 2D system
+  const local = pt.sub(center);
+  let angle = 0;
+  if (axis === 'x') angle = Math.atan2(local.z, local.y);
+  else if (axis === 'y') angle = Math.atan2(local.x, local.z);
+  else angle = Math.atan2(local.y, local.x); // z
+
+  const scale = _rotGizmoLockedScale || _rotGizmoGroup.scale.x || 1;
+  const radius = local.length() / scale;
+
+  return { angle, radius };
+}
+
+// Attach gizmo interaction to the canvas (called once from initViewer)
+function _initGizmoInteraction() {
+  const canvas = renderer.domElement;
+  let _hoveredAxis = null;
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !_rotGizmoVisible) return;
+    const rect = canvas.getBoundingClientRect();
+    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const axis = _pickGizmoRing(ndcX, ndcY);
+    if (!axis) return;
+
+    e.stopPropagation();
+    e.preventDefault();
+    controls.enabled = false;
+
+    const info = _gizmoPlaneInfo(ndcX, ndcY, axis);
+    const startAngle = info ? info.angle : 0;
+    _rotGizmoDragging = {
+      axis,
+      startAngle,
+      lastRawAngle: startAngle,
+      totalRawDeltaDeg: 0,
+      appliedDeltaDeg: 0,
+    };
+
+    _showProtractor(axis, startAngle);
+    _updateProtractorVisual(axis, startAngle, 0, true);
+    _updateAngleBadge(e.clientX, e.clientY, 0, true);
+    requestRender();
+  }, { capture: true });
+
+  document.addEventListener('pointermove', (e) => {
+    if (!_rotGizmoVisible) return;
+    const rect = canvas.getBoundingClientRect();
+    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    if (_rotGizmoDragging) {
+      const info = _gizmoPlaneInfo(ndcX, ndcY, _rotGizmoDragging.axis);
+      if (info !== null && _rotGizmoDragging.lastRawAngle !== null) {
+        let step = info.angle - _rotGizmoDragging.lastRawAngle;
+        // Wrap delta to [-PI, PI]
+        if (step > Math.PI) step -= 2 * Math.PI;
+        if (step < -Math.PI) step += 2 * Math.PI;
+
+        _rotGizmoDragging.lastRawAngle = info.angle;
+        _rotGizmoDragging.totalRawDeltaDeg += THREE.MathUtils.radToDeg(step);
+
+        // PrusaSlicer-style snap rule:
+        // Inside/on the ring (radius <= 1.05) or holding Shift => 5-degree snap
+        // Outside the ring (radius > 1.05) => free smooth rotation
+        const isSnap = (info.radius <= 1.05) || e.shiftKey;
+
+        let targetDeltaDeg = _rotGizmoDragging.totalRawDeltaDeg;
+        if (isSnap) {
+          targetDeltaDeg = Math.round(targetDeltaDeg / 5) * 5;
+        }
+
+        const deltaToApply = targetDeltaDeg - _rotGizmoDragging.appliedDeltaDeg;
+        if (Math.abs(deltaToApply) > 0.0001 && _rotGizmoCallback) {
+          _rotGizmoCallback(_rotGizmoDragging.axis, deltaToApply);
+          _rotGizmoDragging.appliedDeltaDeg = targetDeltaDeg;
+        }
+
+        _updateProtractorVisual(_rotGizmoDragging.axis, _rotGizmoDragging.startAngle, targetDeltaDeg, isSnap);
+        _updateAngleBadge(e.clientX, e.clientY, targetDeltaDeg, isSnap);
+      }
+      return;
+    }
+
+    // Hover highlight
+    const axis = _pickGizmoRing(ndcX, ndcY);
+    if (axis !== _hoveredAxis) {
+      // Reset previous
+      if (_hoveredAxis && _rotGizmoGroup) {
+        _rotGizmoGroup.children.forEach(r => {
+          if (r.userData.gizmoAxis === _hoveredAxis) {
+            r.material.color.set(r.userData.baseColor);
+          }
+        });
+      }
+      _hoveredAxis = axis;
+      if (axis && _rotGizmoGroup) {
+        _rotGizmoGroup.children.forEach(r => {
+          if (r.userData.gizmoAxis === axis) {
+            r.material.color.set(GIZMO_HOVER_COLORS[axis]);
+          }
+        });
+        canvas.style.cursor = 'grab';
+      } else {
+        canvas.style.cursor = '';
+      }
+      requestRender();
+    }
+  });
+
+  const _stopGizmoDrag = () => {
+    if (_rotGizmoDragging) {
+      _rotGizmoDragging = null;
+      _hideProtractor();
+      _hideAngleBadge();
+      controls.enabled = true;
+      requestRender();
+    }
+  };
+
+  document.addEventListener('pointerup', _stopGizmoDrag);
+  window.addEventListener('blur', _stopGizmoDrag);
 }
 
 /**

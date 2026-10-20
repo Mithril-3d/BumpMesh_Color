@@ -104,6 +104,16 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
 
   // ── Build indexed mesh ──
   const pa = geometry.attributes.position.array;
+  const uvAttr = geometry.attributes.uv || null;
+  const ua = uvAttr ? uvAttr.array : null;
+  const cornerU = ua ? new Float64Array(ua.length / 2) : null;
+  const cornerV = ua ? new Float64Array(ua.length / 2) : null;
+  if (ua) {
+    for (let i = 0, n = ua.length / 2; i < n; i++) {
+      cornerU[i] = ua[i * 2];
+      cornerV[i] = ua[i * 2 + 1];
+    }
+  }
   const triCount = pa.length / 9;
 
   const posMap = new QuantizedPointMap(QUANTISE, Math.min(triCount * 3, 1 << 22));
@@ -111,6 +121,9 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
   // below must match the previous plain-array behaviour exactly).
   let vcap = Math.min(Math.max(1 << 16, triCount), triCount * 3);
   let vertX = new Float64Array(vcap), vertY = new Float64Array(vcap), vertZ = new Float64Array(vcap);
+  let vertU = ua ? new Float64Array(vcap) : null;
+  let vertV = ua ? new Float64Array(vcap) : null;
+  let uvSeam = ua ? new Uint8Array(vcap) : null;
   let nextVid = 0;
   const corners = new Int32Array(triCount * 3);
   for (let i = 0; i < triCount * 3; i++) {
@@ -122,9 +135,22 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
         const gx = new Float64Array(vcap); gx.set(vertX); vertX = gx;
         const gy = new Float64Array(vcap); gy.set(vertY); vertY = gy;
         const gz = new Float64Array(vcap); gz.set(vertZ); vertZ = gz;
+        if (ua) {
+          const gu = new Float64Array(vcap); gu.set(vertU); vertU = gu;
+          const gv = new Float64Array(vcap); gv.set(vertV); vertV = gv;
+          const gs = new Uint8Array(vcap);   gs.set(uvSeam); uvSeam = gs;
+        }
       }
       vertX[nextVid] = x; vertY[nextVid] = y; vertZ[nextVid] = z;
+      if (ua) {
+        vertU[nextVid] = cornerU[i];
+        vertV[nextVid] = cornerV[i];
+      }
       nextVid++;
+    } else if (ua && !uvSeam[id]) {
+      if (Math.abs(vertU[id] - cornerU[i]) > 1e-4 || Math.abs(vertV[id] - cornerV[i]) > 1e-4) {
+        uvSeam[id] = 1;
+      }
     }
     corners[i] = id;
   }
@@ -205,6 +231,11 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
   // features (cube edges, chamfers) are bordered by well-shaped tris on
   // each side and are unaffected.
   const frozenVert = new Uint8Array(nextVid);
+  if (uvSeam) {
+    for (let id = 0; id < nextVid; id++) {
+      if (uvSeam[id]) frozenVert[id] = 1;
+    }
+  }
   {
     const triThin2 = new Float32Array(triCount);
     for (let t = 0; t < triCount; t++) triThin2[t] = triAspectSq(t);
@@ -332,6 +363,7 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
   // ── Compact: drop deleted tris, build output buffers ──
   const survivingTriCount = triCount - countDeleted();
   const outPositions = new Float32Array(survivingTriCount * 9);
+  const outUVs       = ua ? new Float32Array(survivingTriCount * 6) : null;
   const outParents   = new Int32Array(survivingTriCount);
   let oi = 0;
   for (let t = 0; t < triCount; t++) {
@@ -340,12 +372,18 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
     outPositions[oi*9]   = vertX[a]; outPositions[oi*9+1] = vertY[a]; outPositions[oi*9+2] = vertZ[a];
     outPositions[oi*9+3] = vertX[b]; outPositions[oi*9+4] = vertY[b]; outPositions[oi*9+5] = vertZ[b];
     outPositions[oi*9+6] = vertX[c]; outPositions[oi*9+7] = vertY[c]; outPositions[oi*9+8] = vertZ[c];
+    if (outUVs) {
+      outUVs[oi*6]   = cornerU[t*3];   outUVs[oi*6+1] = cornerV[t*3];
+      outUVs[oi*6+2] = cornerU[t*3+1]; outUVs[oi*6+3] = cornerV[t*3+1];
+      outUVs[oi*6+4] = cornerU[t*3+2]; outUVs[oi*6+5] = cornerV[t*3+2];
+    }
     outParents[oi] = newParentId[t];
     oi++;
   }
 
   const outGeo = new THREE.BufferGeometry();
   outGeo.setAttribute('position', new THREE.BufferAttribute(outPositions, 3));
+  if (outUVs) outGeo.setAttribute('uv', new THREE.BufferAttribute(outUVs, 2));
   outGeo.computeVertexNormals();
 
   // Carry through excludeWeight if input had it (precision masking pipeline)
@@ -522,6 +560,13 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
     // ── All good — apply the collapse ──
     // Move u to merged position; redirect all v references to u.
     vertX[u] = mx; vertY[u] = my; vertZ[u] = mz;
+    let mu = 0, mv = 0;
+    if (ua) {
+      mu = 0.5 * (vertU[u] + vertU[v]);
+      mv = 0.5 * (vertV[u] + vertV[v]);
+      vertU[u] = mu;
+      vertV[u] = mv;
+    }
 
     // Delete wings — unlink all three corner slots of each
     triDeleted[w0] = 1;
@@ -536,6 +581,7 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
       const ns = slotNext[s];
       unlinkSlot(s);          // owner is still v here
       corners[s] = u;
+      if (ua) { cornerU[s] = mu; cornerV[s] = mv; }
       linkSlot(s);            // now owned by u
       recomputeFaceNormal((s / 3) | 0);
       s = ns;
@@ -544,6 +590,7 @@ export function regularizeMesh(geometry, faceParentId, maxEdgeLength, opts = {})
     for (let s2 = vfHead[u]; s2 !== -1; s2 = slotNext[s2]) {
       const t = (s2 / 3) | 0;
       if (triDeleted[t]) continue;
+      if (ua) { cornerU[s2] = mu; cornerV[s2] = mv; }
       recomputeFaceNormal(t);
     }
     return true;

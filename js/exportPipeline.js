@@ -200,6 +200,9 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(input.positions, 3));
+  if (input.uvs) {
+    geometry.setAttribute('uv', new THREE.BufferAttribute(input.uvs, 2));
+  }
 
   // Hoist intermediates so the finally block can always dispose them.
   let subdivided    = null;
@@ -351,6 +354,7 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
       positions: finalGeometry.attributes.position.array,
       normals: finalGeometry.attributes.normal ? finalGeometry.attributes.normal.array : null,
       excludeWeights: finalGeometry.attributes.excludeWeight ? finalGeometry.attributes.excludeWeight.array : null,
+      uvs: finalGeometry.attributes.uv ? finalGeometry.attributes.uv.array : null,
       safetyCapHit,
       lockedOverBudget,
       runDecimation,

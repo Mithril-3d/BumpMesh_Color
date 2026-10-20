@@ -57,6 +57,23 @@ export async function loadSTLFromUrl(url) {
 }
 
 /**
+ * Load an OBJ from a URL (e.g. a bundled preset model with UVs).
+ * Returns a Promise<{ geometry, bounds, nanCount, degenerateCount, originOffset }>.
+ */
+export async function loadOBJFromUrl(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error('Failed to fetch OBJ from ' + url + ': ' + resp.status + ' ' + resp.statusText);
+  }
+  const text = await resp.text();
+  const group = objLoader.parse(text);
+  const geometry = mergeGroupGeometries(group);
+  const { nanCount, degenerateCount, originOffset } = setupGeometry(geometry);
+  const bounds = computeBounds(geometry);
+  return { geometry, bounds, nanCount, degenerateCount, originOffset };
+}
+
+/**
  * Scan a non-indexed geometry's position array and remove:
  *   - triangles with any non-finite (NaN / ±Infinity) coordinate
  *   - degenerate triangles whose area is below 1e-12 mm²
@@ -64,6 +81,7 @@ export async function loadSTLFromUrl(url) {
  * Operates in-place by compacting the Float32Array and replacing the
  * BufferAttribute. Any existing normal attribute is deleted so that
  * setupGeometry will recompute it on the clean data.
+ * Also compacts uv (2 floats/vert) and color (3 floats/vert) if present.
  *
  * Returns { nanCount, degenerateCount } so callers can warn the user.
  */
@@ -71,8 +89,13 @@ function validateAndCleanGeometry(geometry) {
   const pos  = geometry.attributes.position;
   const src  = pos.array;           // Float32Array, 9 floats per triangle
   const triCount = src.length / 9;
+  const uvAttr = geometry.attributes.uv || null;
+  const uvSrc  = uvAttr ? uvAttr.array : null; // 6 floats per triangle
+  const colAttr = geometry.attributes.color || null;
+  const colSrc  = colAttr ? colAttr.array : null; // 9 floats per triangle
 
   let writeIdx = 0;
+  let writeUvIdx = 0;
   let nanCount = 0;
   let degenerateCount = 0;
 
@@ -102,13 +125,27 @@ function validateAndCleanGeometry(geometry) {
       src[writeIdx]   = ax; src[writeIdx+1] = ay; src[writeIdx+2] = az;
       src[writeIdx+3] = bx; src[writeIdx+4] = by; src[writeIdx+5] = bz;
       src[writeIdx+6] = cx; src[writeIdx+7] = cy; src[writeIdx+8] = cz;
+      if (uvSrc) {
+        const ub = t * 6;
+        for (let k = 0; k < 6; k++) uvSrc[writeUvIdx + k] = uvSrc[ub + k];
+      }
+      if (colSrc) {
+        for (let k = 0; k < 9; k++) colSrc[writeIdx + k] = colSrc[b + k];
+      }
     }
     writeIdx += 9;
+    writeUvIdx += 6;
   }
 
   const removed = nanCount + degenerateCount;
   if (removed > 0) {
     geometry.setAttribute('position', new THREE.BufferAttribute(src.slice(0, writeIdx), 3));
+    if (uvSrc) {
+      geometry.setAttribute('uv', new THREE.BufferAttribute(uvSrc.slice(0, writeUvIdx), 2));
+    }
+    if (colSrc) {
+      geometry.setAttribute('color', new THREE.BufferAttribute(colSrc.slice(0, writeIdx), 3));
+    }
     geometry.deleteAttribute('normal'); // stale — recomputed below
   }
 
@@ -529,20 +566,35 @@ function mergeGroupGeometries(group) {
   const totalVerts = geometries.reduce((sum, g) => sum + g.attributes.position.count, 0);
   const mergedPos = new Float32Array(totalVerts * 3);
   let mergedNrm = null;
+  let mergedUV  = null;
+  let mergedCol = null;
   const hasNormals = geometries.every(g => g.attributes.normal);
+  const hasUVs     = geometries.some(g => g.attributes.uv);
+  const hasColors  = geometries.some(g => g.attributes.color);
   if (hasNormals) mergedNrm = new Float32Array(totalVerts * 3);
+  if (hasUVs)     mergedUV  = new Float32Array(totalVerts * 2);
+  if (hasColors)  mergedCol = new Float32Array(totalVerts * 3);
   let offset = 0;
   for (const g of geometries) {
+    const count = g.attributes.position.count;
     const posArr = g.attributes.position.array;
     mergedPos.set(posArr, offset * 3);
     if (hasNormals && mergedNrm) {
       mergedNrm.set(g.attributes.normal.array, offset * 3);
     }
-    offset += g.attributes.position.count;
+    if (hasUVs && mergedUV && g.attributes.uv) {
+      mergedUV.set(g.attributes.uv.array, offset * 2);
+    }
+    if (hasColors && mergedCol && g.attributes.color) {
+      mergedCol.set(g.attributes.color.array, offset * 3);
+    }
+    offset += count;
     g.dispose();
   }
   const merged = new THREE.BufferGeometry();
   merged.setAttribute('position', new THREE.BufferAttribute(mergedPos, 3));
   if (mergedNrm) merged.setAttribute('normal', new THREE.BufferAttribute(mergedNrm, 3));
+  if (mergedUV)  merged.setAttribute('uv',     new THREE.BufferAttribute(mergedUV, 2));
+  if (mergedCol) merged.setAttribute('color',  new THREE.BufferAttribute(mergedCol, 3));
   return merged;
 }

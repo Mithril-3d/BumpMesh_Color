@@ -54,7 +54,7 @@ const SAFETY_CAP = (typeof navigator !== 'undefined' && navigator.deviceMemory >
 // mode only) are optional. Arrays are reallocated on growth, so long-lived
 // references must re-read store fields after any append — cached references
 // remain valid for READS of pre-growth entries (values are copied).
-function makeVertStore(initialCap, hasWeights, hasCanon) {
+function makeVertStore(initialCap, hasWeights, hasCanon, hasUV = false) {
   return {
     cap: initialCap,
     count: 0,
@@ -62,12 +62,14 @@ function makeVertStore(initialCap, hasWeights, hasCanon) {
     nrm: new Float64Array(initialCap * 3),
     wgt: hasWeights ? new Float64Array(initialCap) : null,
     canon: hasCanon ? new Int32Array(initialCap) : null,
+    uv: hasUV ? new Float64Array(initialCap * 2) : null,
     grow() {
       this.cap *= 2;
       const np = new Float64Array(this.cap * 3); np.set(this.pos); this.pos = np;
       const nn = new Float64Array(this.cap * 3); nn.set(this.nrm); this.nrm = nn;
       if (this.wgt)   { const nw = new Float64Array(this.cap); nw.set(this.wgt);   this.wgt = nw; }
       if (this.canon) { const nc = new Int32Array(this.cap);   nc.set(this.canon); this.canon = nc; }
+      if (this.uv)    { const nu = new Float64Array(this.cap * 2); nu.set(this.uv); this.uv = nu; }
     },
   };
 }
@@ -389,6 +391,10 @@ function getMidpoint(verts, cache, a, b, posCanonMap) {
   verts.pos[idx*3] = mx; verts.pos[idx*3+1] = my; verts.pos[idx*3+2] = mz;
   verts.nrm[idx*3] = nx / nl; verts.nrm[idx*3+1] = ny / nl; verts.nrm[idx*3+2] = nz / nl;
   if (verts.wgt) verts.wgt[idx] = (verts.wgt[a] + verts.wgt[b]) / 2;
+  if (verts.uv) {
+    verts.uv[idx*2]   = 0.5 * (verts.uv[a*2]   + verts.uv[b*2]);
+    verts.uv[idx*2+1] = 0.5 * (verts.uv[a*2+1] + verts.uv[b*2+1]);
+  }
 
   // Maintain canonical position ids when in accurate (export) mode.
   if (verts.canon) {
@@ -405,6 +411,9 @@ function getMidpoint(verts, cache, a, b, posCanonMap) {
 // Much faster than toIndexed() on high-poly meshes like the 3DBenchy.
 
 function toIndexedFast(geometry, nonIndexedWeights = null) {
+  if (geometry.attributes.uv) {
+    return toIndexed(geometry, nonIndexedWeights);
+  }
   const posAttr = geometry.attributes.position;
   const nrmAttr = geometry.attributes.normal;
   const n = posAttr.count;
@@ -412,7 +421,7 @@ function toIndexedFast(geometry, nonIndexedWeights = null) {
   const indices = new Uint32Array(n);
   // nrm accumulates raw normal sums during the merge and is normalised in
   // place afterwards (the pre-normalisation values are never read).
-  const verts = makeVertStore(Math.max(16, Math.min(1 << 16, n)), !!nonIndexedWeights, false);
+  const verts = makeVertStore(Math.max(16, Math.min(1 << 16, n)), !!nonIndexedWeights, false, false);
 
   for (let i = 0; i < n; i++) {
     const px = posAttr.getX(i);
@@ -466,6 +475,8 @@ function normalizeStoreNormals(verts) {
 // weight wins (conservative: any excluded face marks the shared vertex).
 function toIndexed(geometry, nonIndexedWeights = null) {
   const posAttr = geometry.attributes.position;
+  const uvAttr  = geometry.attributes.uv || null;
+  const hasUV   = Boolean(uvAttr);
   const n = posAttr.count;
 
   // ── Pre-compute per-face normals (unit + raw cross product) ──────────────
@@ -503,16 +514,18 @@ function toIndexed(geometry, nonIndexedWeights = null) {
   const indices = new Uint32Array(n);
   // nrm accumulates raw (area-weighted) normal sums during the merge and is
   // normalised in place afterwards; canon holds the canonical position ids.
-  const verts = makeVertStore(Math.max(16, Math.min(1 << 16, n)), !!nonIndexedWeights, true);
+  const verts = makeVertStore(Math.max(16, Math.min(1 << 16, n)), !!nonIndexedWeights, true, hasUV);
   // position → first vertex idx at that position (canonical ID)
   const posCanonMap = new QuantizedPointMap(QUANTISE, Math.min(n, 1 << 22));
-  // canonical ID → [{idx, fnU: [x,y,z]}] smooth-group clusters at that position
+  // canonical ID → [{idx, fnU: [x,y,z], uv: [u,v]}] smooth-group clusters at that position
   const clustersByCanon = new Map();
 
   for (let i = 0; i < n; i++) {
     const px = posAttr.getX(i);
     const py = posAttr.getY(i);
     const pz = posAttr.getZ(i);
+    const u  = hasUV ? uvAttr.getX(i) : 0;
+    const v  = hasUV ? uvAttr.getY(i) : 0;
     const fnUx = faceNrmUnit[i*3], fnUy = faceNrmUnit[i*3+1], fnUz = faceNrmUnit[i*3+2];
     const fnRx = faceNrmRaw[i*3],  fnRy = faceNrmRaw[i*3+1],  fnRz = faceNrmRaw[i*3+2];
 
@@ -523,7 +536,8 @@ function toIndexed(geometry, nonIndexedWeights = null) {
       let matched = false;
       for (const cl of clusters) {
         const dot = cl.fnU[0]*fnUx + cl.fnU[1]*fnUy + cl.fnU[2]*fnUz;
-        if (dot >= SHARP_COS) {
+        const uvOk = !hasUV || (Math.abs(cl.uv[0] - u) < 1e-4 && Math.abs(cl.uv[1] - v) < 1e-4);
+        if (dot >= SHARP_COS && uvOk) {
           // Same smooth group – accumulate area-weighted face normal
           const idx = cl.idx;
           verts.nrm[idx*3]   += fnRx;
@@ -547,15 +561,16 @@ function toIndexed(geometry, nonIndexedWeights = null) {
         }
       }
       if (!matched) {
-        // New cluster at this position (sharp-edge split)
+        // New cluster at this position (sharp-edge or UV-seam split)
         const idx = verts.count;
         if (idx === verts.cap) verts.grow();
         verts.pos[idx*3] = px;   verts.pos[idx*3+1] = py;   verts.pos[idx*3+2] = pz;
         verts.nrm[idx*3] = fnRx; verts.nrm[idx*3+1] = fnRy; verts.nrm[idx*3+2] = fnRz;
         if (verts.wgt) verts.wgt[idx] = nonIndexedWeights[i];
+        if (hasUV) { verts.uv[idx*2] = u; verts.uv[idx*2+1] = v; }
         verts.canon[idx] = canonId;  // same canonical position ID
         verts.count++;
-        clusters.push({idx, fnU: [fnUx, fnUy, fnUz]});
+        clusters.push({idx, fnU: [fnUx, fnUy, fnUz], uv: hasUV ? [u, v] : null});
         indices[i] = idx;
       }
     } else {
@@ -564,9 +579,10 @@ function toIndexed(geometry, nonIndexedWeights = null) {
       verts.pos[idx*3] = px;   verts.pos[idx*3+1] = py;   verts.pos[idx*3+2] = pz;
       verts.nrm[idx*3] = fnRx; verts.nrm[idx*3+1] = fnRy; verts.nrm[idx*3+2] = fnRz;
       if (verts.wgt) verts.wgt[idx] = nonIndexedWeights[i];
+      if (hasUV) { verts.uv[idx*2] = u; verts.uv[idx*2+1] = v; }
       verts.canon[idx] = canonId;
       verts.count++;
-      clustersByCanon.set(canonId, [{idx, fnU: [fnUx, fnUy, fnUz]}]);
+      clustersByCanon.set(canonId, [{idx, fnU: [fnUx, fnUy, fnUz], uv: hasUV ? [u, v] : null}]);
       indices[i] = idx;
     }
   }
@@ -578,11 +594,12 @@ function toIndexed(geometry, nonIndexedWeights = null) {
 // ── Indexed → non-indexed ────────────────────────────────────────────────────
 
 function toNonIndexed(verts, indices, faceExcluded = null) {
-  const positions = verts.pos, normals = verts.nrm, weights = verts.wgt;
+  const positions = verts.pos, normals = verts.nrm, weights = verts.wgt, uvs = verts.uv;
   const triCount  = indices.length / 3;
   const posArray  = new Float32Array(triCount * 9);
   const nrmArray  = new Float32Array(triCount * 9);
   const wgtArray  = (faceExcluded || weights) ? new Float32Array(triCount * 3) : null;
+  const uvArray   = uvs ? new Float32Array(triCount * 6) : null;
 
   for (let t = 0; t < triCount; t++) {
     // Use the binary faceExcluded flag (tracked accurately through subdivision)
@@ -603,6 +620,10 @@ function toNonIndexed(verts, indices, faceExcluded = null) {
       nrmArray[t * 9 + v * 3 + 2] = normals[vidx * 3 + 2];
 
       if (wgtArray) wgtArray[t * 3 + v] = faceW !== null ? faceW : weights[vidx];
+      if (uvArray) {
+        uvArray[t * 6 + v * 2]     = uvs[vidx * 2];
+        uvArray[t * 6 + v * 2 + 1] = uvs[vidx * 2 + 1];
+      }
     }
   }
 
@@ -610,5 +631,6 @@ function toNonIndexed(verts, indices, faceExcluded = null) {
   geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
   geo.setAttribute('normal',   new THREE.BufferAttribute(nrmArray, 3));
   if (wgtArray) geo.setAttribute('excludeWeight', new THREE.BufferAttribute(wgtArray, 1));
+  if (uvArray)  geo.setAttribute('uv',            new THREE.BufferAttribute(uvArray, 2));
   return geo;
 }

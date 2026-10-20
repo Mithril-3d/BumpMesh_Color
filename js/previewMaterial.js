@@ -14,6 +14,7 @@ export const MODE_CYLINDRICAL = 3;
 export const MODE_SPHERICAL   = 4;
 export const MODE_TRIPLANAR   = 5;
 export const MODE_CUBIC       = 6;
+export const MODE_MESH_UV     = 7;
 
 // ── GLSL source ──────────────────────────────────────────────────────────────
 //
@@ -31,6 +32,7 @@ const sharedGLSL = /* glsl */`
   uniform sampler2D displacementMap;
   uniform sampler2D colorMap;
   uniform int       mappingMode;
+  uniform int       hasMeshUV;
   uniform vec2      scaleUV;
   uniform float     amplitude;
   uniform vec2      offsetUV;
@@ -71,6 +73,7 @@ const sharedGLSL = /* glsl */`
   uniform int       interleavedToolWeaveMask;
   uniform float     interleavedFlatAmpScale;
 
+  vec2 gMeshUV;
 
   const float PI     = 3.14159265358979;
   const float TWO_PI = 6.28318530717959;
@@ -132,6 +135,25 @@ const sharedGLSL = /* glsl */`
 
   vec3 sampleMapColor(vec2 rawUV) {
     vec2 uv = (rawUV * textureAspect) / scaleUV + offsetUV;
+    float c = cos(rotation); float s = sin(rotation);
+    uv -= 0.5;
+    uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
+    uv += 0.5;
+    return texture2D(colorMap, uv).rgb;
+  }
+
+  // Sample native Mesh UV (1:1 UV space, with offset and rotation)
+  float sampleMeshUVMap(vec2 rawUV) {
+    vec2 uv = rawUV + offsetUV;
+    float c = cos(rotation); float s = sin(rotation);
+    uv -= 0.5;
+    uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
+    uv += 0.5;
+    return texture2D(displacementMap, uv).r;
+  }
+
+  vec3 sampleMeshUVMapColor(vec2 rawUV) {
+    vec2 uv = rawUV + offsetUV;
     float c = cos(rotation); float s = sin(rotation);
     uv -= 0.5;
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
@@ -351,6 +373,9 @@ const sharedGLSL = /* glsl */`
 
   // Compute base BumpMesh texture displacement height (normalized 0..1)
   float computeBaseTextureHeight(vec3 pos, vec3 projN, vec3 blendN) {
+    if (mappingMode == 7 && hasMeshUV == 1) {
+      return sampleMeshUVMap(gMeshUV);
+    }
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
@@ -454,6 +479,9 @@ const sharedGLSL = /* glsl */`
 
   // Compute raw texture color at a world-space point
   vec3 computeRawColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
+    if (mappingMode == 7 && hasMeshUV == 1) {
+      return sampleMeshUVMapColor(gMeshUV);
+    }
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
@@ -684,8 +712,11 @@ const vertexShader = /* glsl */`
   varying float vUserMask;    // raw user-exclusion mask (0 = user-excluded, 1 = included)
   varying float vMaskType;    // boundary mask type (0 = user mask, 1 = angle mask)
   varying float vCurvature;
+  varying vec2  vMeshUV;
 
   void main() {
+    gMeshUV = uv;
+    vMeshUV = uv;
     vec3 safeN = length(normal) > 1e-6 ? normalize(normal) : vec3(0.0, 0.0, 1.0);
     // Use the true geometric face normal for angle masking so that
     // smooth/interpolated normals from subdivision don't cause mask bleeding.
@@ -764,6 +795,7 @@ const fragmentShader = /* glsl */`
   varying float vUserMask;
   varying float vMaskType;
   varying float vCurvature;
+  varying vec2  vMeshUV;
 
   // Fragment-only wrapper: compute face-stable projection normal via dFdx
   // then delegate to the shared height function.
@@ -776,6 +808,7 @@ const fragmentShader = /* glsl */`
   }
 
   void main() {
+    gMeshUV = vMeshUV;
     // Flip normal for back faces so flipped-winding geometry still lights correctly.
     vec3 N = normalize(vNormal) * (gl_FrontFacing ? 1.0 : -1.0);
     float h = getHeight();
@@ -942,6 +975,8 @@ export function updateMaterial(material, displacementTexture, settings, colorTex
     u.colorMap.value = effectiveColorTex;
   }
   u.mappingMode.value   = settings.mappingMode;
+  if (!u.hasMeshUV) u.hasMeshUV = { value: 0 };
+  u.hasMeshUV.value     = settings.hasMeshUV ? 1 : 0;
   // settings.scaleU/scaleV are absolute mm; the shader works in normalized
   // UV space, so convert to the mode's relative factors on the CPU.
   {
@@ -1076,6 +1111,7 @@ function buildUniforms(tex, settings, colorTex = null) {
     colorMap:        { value: colorTex || baseTex },
     layerBlendMap:   { value: settings.layerBlendMap || createFallbackTexture() },
     mappingMode:     { value: settings.mappingMode ?? MODE_TRIPLANAR },
+    hasMeshUV:       { value: settings.hasMeshUV ? 1 : 0 },
     scaleUV:         { value: new THREE.Vector2(relScale.u, relScale.v) },
     amplitude:       { value: settings.amplitude ?? 1.0 },
     offsetUV:        { value: new THREE.Vector2(settings.offsetU ?? 0, settings.offsetV ?? 0) },

@@ -13,12 +13,13 @@
  */
 
 import { computeLouverDisplacement, getInterleavedToolAtLayer } from './layerBlending.js';
+import { TolerantPointMap } from './meshIndex.js';
 
 export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLayers, excludeWeights = null) {
   const t = Math.max(0.01, thickness);
   const zCuts = [];
   for (let k = 1; k < totalLayers; k++) {
-    zCuts.push(minZ + k * t);
+    zCuts.push(Math.fround(minZ + k * t));
   }
   const triCount = (positions.length / 9) | 0;
   if (zCuts.length === 0) {
@@ -31,49 +32,44 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     return { positions, normals, triExcluded: triExcl };
   }
 
-  const QUANT = 1e5; // 10 um quantization for vertex dedup
+  const SNAP_TOL = 0.0005; // 0.5 um cut-plane snap tolerance
 
-  // Step 1: Dedup original vertices to integer IDs
-  const vertMap = new Map();
-  const uniqueVerts = []; // id -> [x, y, z]
-  const uniqueNorms = []; // id -> [nx, ny, nz]
-  const vertExcluded = []; // id -> 0 or 1
+  // Step 1: Dedup original vertices using TolerantPointMap with cut-plane snapping
+  const welder = new TolerantPointMap(0.0002);
   const triVerts = new Int32Array(triCount * 3);
-
-  function getVertId(x, y, z, nx, ny, nz) {
-    const qx = Math.round(x * QUANT);
-    const qy = Math.round(y * QUANT);
-    const qz = Math.round(z * QUANT);
-    const key = `${qx},${qy},${qz}`;
-    let id = vertMap.get(key);
-    if (id === undefined) {
-      id = uniqueVerts.length;
-      vertMap.set(key, id);
-      uniqueVerts.push([Math.fround(x), Math.fround(y), Math.fround(z)]);
-      uniqueNorms.push([Math.fround(nx), Math.fround(ny), Math.fround(nz)]);
-      vertExcluded.push(0);
-    }
-    return id;
-  }
+  const uniqueNorms = [];
+  const vertExcluded = [];
 
   for (let i = 0; i < triCount; i++) {
     const b = i * 9;
-    const nx0 = normals ? normals[b]   : 0, ny0 = normals ? normals[b+1] : 0, nz0 = normals ? normals[b+2] : 1;
-    const nx1 = normals ? normals[b+3] : 0, ny1 = normals ? normals[b+4] : 0, nz1 = normals ? normals[b+5] : 1;
-    const nx2 = normals ? normals[b+6] : 0, ny2 = normals ? normals[b+7] : 0, nz2 = normals ? normals[b+8] : 1;
-
-    const v0 = getVertId(positions[b],   positions[b+1], positions[b+2], nx0, ny0, nz0);
-    const v1 = getVertId(positions[b+3], positions[b+4], positions[b+5], nx1, ny1, nz1);
-    const v2 = getVertId(positions[b+6], positions[b+7], positions[b+8], nx2, ny2, nz2);
-    triVerts[i * 3]     = v0;
-    triVerts[i * 3 + 1] = v1;
-    triVerts[i * 3 + 2] = v2;
-
-    if (excludeWeights && excludeWeights[i * 3] > 0.99) {
-      vertExcluded[v0] = 1;
-      vertExcluded[v1] = 1;
-      vertExcluded[v2] = 1;
+    for (let j = 0; j < 3; j++) {
+      let x = positions[b + j * 3];
+      let y = positions[b + j * 3 + 1];
+      let z = positions[b + j * 3 + 2];
+      // Snap to nearest zCut if within SNAP_TOL to prevent micro-slivers at boundary planes
+      const k = Math.round((z - minZ) / t);
+      if (k >= 1 && k < totalLayers) {
+        const cutZ = zCuts[k - 1];
+        if (Math.abs(z - cutZ) < SNAP_TOL) {
+          z = cutZ;
+        }
+      }
+      const vid = welder.getOrSet(x, y, z);
+      triVerts[i * 3 + j] = vid;
+      if (vid >= uniqueNorms.length) {
+        const nx = normals ? normals[b + j * 3] : 0;
+        const ny = normals ? normals[b + j * 3 + 1] : 0;
+        const nz = normals ? normals[b + j * 3 + 2] : 1;
+        uniqueNorms.push([nx, ny, nz]);
+        vertExcluded.push(excludeWeights && excludeWeights[i * 3] > 0.99 ? 1 : 0);
+      }
     }
+  }
+
+  const uniqueVerts = [];
+  const uXYZ = welder.uniqueXYZ;
+  for (let i = 0; i < uXYZ.length; i += 3) {
+    uniqueVerts.push([uXYZ[i], uXYZ[i + 1], uXYZ[i + 2]]);
   }
 
   // Step 2: Shared edge-cut cache: "minId,maxId,cutIdx" -> newVertId
@@ -89,20 +85,29 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     const zCut = zCuts[cutIdx];
     const A = uniqueVerts[idA];
     const B = uniqueVerts[idB];
-    const nA = uniqueNorms[idA];
-    const nB = uniqueNorms[idB];
+    if (Math.abs(A[2] - zCut) < 1e-6) return idA;
+    if (Math.abs(B[2] - zCut) < 1e-6) return idB;
 
     const dz = B[2] - A[2];
     const alpha = Math.abs(dz) > 1e-10 ? Math.max(0, Math.min(1, (zCut - A[2]) / dz)) : 0.5;
+    if (alpha < 1e-4) return idA;
+    if (alpha > 1.0 - 1e-4) return idB;
+
     const px = A[0] + alpha * (B[0] - A[0]);
     const py = A[1] + alpha * (B[1] - A[1]);
     const pz = zCut; // exact cut height
 
+    const nA = uniqueNorms[idA];
+    const nB = uniqueNorms[idB];
     let nx = nA[0] + alpha * (nB[0] - nA[0]);
     let ny = nA[1] + alpha * (nB[1] - nA[1]);
     let nz = nA[2] + alpha * (nB[2] - nA[2]);
     const nlen = Math.hypot(nx, ny, nz) || 1;
     nx /= nlen; ny /= nlen; nz /= nlen;
+
+    // Coincidence check with endpoints to guarantee zero micro-edges
+    if (Math.hypot(px - A[0], py - A[1], pz - A[2]) < 0.0002) return idA;
+    if (Math.hypot(px - B[0], py - B[1], pz - B[2]) < 0.0002) return idB;
 
     cutId = uniqueVerts.length;
     uniqueVerts.push([Math.fround(px), Math.fround(py), Math.fround(pz)]);
@@ -125,12 +130,10 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
   function emitTri(id0, id1, id2, layerIdx, isExcl = 0) {
     if (id0 === id1 || id1 === id2 || id2 === id0) return;
     const p0 = uniqueVerts[id0], p1 = uniqueVerts[id1], p2 = uniqueVerts[id2];
-    const e1x = p1[0] - p0[0], e1y = p1[1] - p0[1], e1z = p1[2] - p0[2];
-    const e2x = p2[0] - p0[0], e2y = p2[1] - p0[1], e2z = p2[2] - p0[2];
-    const cx = e1y * e2z - e1z * e2y;
-    const cy = e1z * e2x - e1x * e2z;
-    const cz = e1x * e2y - e1y * e2x;
-    if (cx * cx + cy * cy + cz * cz < 1e-12) return;
+    const e1x = p1[0]-p0[0], e1y = p1[1]-p0[1], e1z = p1[2]-p0[2];
+    const e2x = p2[0]-p0[0], e2y = p2[1]-p0[1], e2z = p2[2]-p0[2];
+    const cx = e1y*e2z - e1z*e2y, cy = e1z*e2x - e1x*e2z, cz = e1x*e2y - e1y*e2x;
+    if (cx*cx + cy*cy + cz*cz < 1e-16) return; // Drop collinear zero-area sliver
 
     if (chunkCount >= CHUNK_SIZE) {
       triChunks.push(curTriChunk);
@@ -186,35 +189,51 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
       let cutEdgeEnd = -1;
 
       const num = poly.length;
+      const EPS = 1e-6;
+
       for (let i = 0; i < num; i++) {
         const curId = poly[i];
         const nextId = poly[(i + 1) % num];
         const curZ = uniqueVerts[curId][2];
         const nextZ = uniqueVerts[nextId][2];
 
-        const curBelow = curZ <= zCut + 1e-6;
-        const nextBelow = nextZ <= zCut + 1e-6;
+        const curDiff = curZ - zCut;
+        const nextDiff = nextZ - zCut;
 
-        if (curBelow) {
+        const curState = curDiff < -EPS ? -1 : (curDiff > EPS ? 1 : 0);
+        const nextState = nextDiff < -EPS ? -1 : (nextDiff > EPS ? 1 : 0);
+
+        if (curState <= 0) {
           if (below.length === 0 || below[below.length - 1] !== curId) below.push(curId);
-        } else {
+        }
+        if (curState >= 0) {
           if (above.length === 0 || above[above.length - 1] !== curId) above.push(curId);
         }
 
-        if (curBelow !== nextBelow) {
-          const isCurOnPlane = Math.abs(curZ - zCut) <= 1e-6;
-          const isNextOnPlane = Math.abs(nextZ - zCut) <= 1e-6;
-          const interId = isCurOnPlane ? curId : (isNextOnPlane ? nextId : getEdgeCut(curId, nextId, cutIdx));
-          if (below.length === 0 || below[below.length - 1] !== interId) below.push(interId);
-          if (above.length === 0 || above[above.length - 1] !== interId) above.push(interId);
-
-          if (curBelow && !nextBelow) {
-            cutEdgeEnd = interId;
-          } else {
-            cutEdgeStart = interId;
+        if ((curState < 0 && nextState > 0) || (curState > 0 && nextState < 0)) {
+          const interId = getEdgeCut(curId, nextId, cutIdx);
+          if (interId !== curId && interId !== nextId) {
+            if (below.length === 0 || below[below.length - 1] !== interId) below.push(interId);
+            if (above.length === 0 || above[above.length - 1] !== interId) above.push(interId);
+            if (curState < 0) {
+              cutEdgeEnd = interId;
+            } else {
+              cutEdgeStart = interId;
+            }
           }
+        } else if (curState === 0 && nextState > 0) {
+          cutEdgeEnd = curId;
+        } else if (curState > 0 && nextState === 0) {
+          cutEdgeStart = nextId;
+        } else if (curState === 0 && nextState < 0) {
+          cutEdgeStart = curId;
+        } else if (curState < 0 && nextState === 0) {
+          cutEdgeEnd = nextId;
         }
       }
+
+      if (below.length > 1 && below[below.length - 1] === below[0]) below.pop();
+      if (above.length > 1 && above[above.length - 1] === above[0]) above.pop();
 
       if (cutEdgeStart !== -1 && cutEdgeEnd !== -1 && cutEdgeStart !== cutEdgeEnd) {
         if (cutEdgesPerCut[cutIdx]) {
@@ -224,13 +243,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
 
       if (below.length >= 3) {
         for (let j = 1; j < below.length - 1; j++) {
-          const id0 = below[0], id1 = below[j], id2 = below[j + 1];
-          const zA = uniqueVerts[id0][2], zB = uniqueVerts[id1][2], zC = uniqueVerts[id2][2];
-          // Discard artificial zero-thickness horizontal slivers lying entirely on the cut plane
-          if (Math.abs(zA - zCut) <= 1e-5 && Math.abs(zB - zCut) <= 1e-5 && Math.abs(zC - zCut) <= 1e-5) {
-            continue;
-          }
-          emitTri(id0, id1, id2, cutIdx, isExcl);
+          emitTri(below[0], below[j], below[j + 1], cutIdx, isExcl);
         }
       }
 
@@ -243,12 +256,7 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
 
     if (poly.length >= 3) {
       for (let j = 1; j < poly.length - 1; j++) {
-        const id0 = poly[0], id1 = poly[j], id2 = poly[j + 1];
-        const zA = uniqueVerts[id0][2], zB = uniqueVerts[id1][2], zC = uniqueVerts[id2][2];
-        if (Math.abs(zA - zB) <= 1e-6 && Math.abs(zB - zC) <= 1e-6) {
-          continue;
-        }
-        emitTri(id0, id1, id2, endCut, isExcl);
+        emitTri(poly[0], poly[j], poly[j + 1], endCut, isExcl);
       }
     }
   }
@@ -434,6 +442,87 @@ function computeLayerDisplacementByLayer(
     return disp;
   }
 
+  // ProfileMode 6: 🌊 Modulated Step (Any Mesh / Wave Flow)
+  // Maintains 100% watertight sliced topology for arbitrary bifurcated meshes (e.g. 4 legs),
+  // while applying horizontal waveform exposure modulation (halftone weave) per layer.
+  if (profileMode === 6) {
+    const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.60);
+    const stroke = Math.max(0.01, (convexVal + concaveVal) > 0 ? (convexVal + concaveVal) : (weaveOptions?.amp ?? 0.60));
+    
+    // Check tool mode for the current layer's activeTool:
+    // 'weave': Always weave (50% checker wave even at 100% exposure)
+    // 'pwm': Duty-cycle weave (proportional pulse width, 100% exposure is flat)
+    // 'flat': Completely flat (pure stepped displacement, no horizontal wave)
+    let toolMode = weaveOptions?.toolWeaveModes ? weaveOptions.toolWeaveModes[activeTool] : 'weave';
+    if (toolMode === true || toolMode === undefined) toolMode = 'weave';
+    else if (toolMode === false) toolMode = 'flat';
+
+    // 1. Completely flat mode
+    if (toolMode === 'flat') {
+      return -concaveVal + stroke * exposure;
+    }
+
+    // Wave phase calculation:
+    // Uses smooth geometric polar coordinate around the local island center (cx, cy).
+    // theta = atan2(y - cy, x - cx) is a smooth, continuous C-inf function of position,
+    // completely independent of individual triangle normals, eliminating "missing-tooth gear" tearing!
+    const cx = weaveOptions?.cx ?? 0;
+    const cy = weaveOptions?.cy ?? 0;
+    const px = weaveOptions?.x ?? 0;
+    const py = weaveOptions?.y ?? 0;
+    const theta = Math.atan2(py - cy, px - cx);
+    const waveCount = weaveOptions?.waveCount ?? Math.max(1, Math.round((2.0 * Math.PI * (weaveOptions?.radius ?? 10.0)) / pitch));
+
+    const layerPhase = (lay % 2) * Math.PI;
+    const phi = theta * waveCount + layerPhase;
+
+    const uFrac = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
+    const edge = 0.06;
+    let B = 0.0;
+
+    if (toolMode === 'pwm') {
+      // 2. 🌊 PWM Mode: Duty cycle scales with exposure.
+      // At 100% exposure, pulse width is 100% (flat). At 50%, duty cycle is 50%.
+      if (exposure <= 0.001) {
+        B = 0.0;
+      } else if (exposure >= 0.999) {
+        B = 1.0;
+      } else {
+        const duty = Math.max(edge * 2, Math.min(1.0 - edge * 2, exposure));
+        if (uFrac < edge) {
+          B = uFrac / edge;
+        } else if (uFrac < duty - edge) {
+          B = 1.0;
+        } else if (uFrac < duty + edge) {
+          B = 1.0 - (uFrac - (duty - edge)) / (2.0 * edge);
+        } else {
+          B = 0.0;
+        }
+      }
+      const h_peak = -concaveVal + stroke * Math.min(1.0, 2.0 * exposure);
+      const h_trough = -concaveVal + stroke * Math.max(0.0, 2.0 * exposure - 1.0);
+      return h_trough + (h_peak - h_trough) * B;
+    } else {
+      // 3. 〰️ Always Weave Mode:
+      // Even if exposure is 100% (pure color), it maintains a 50% duty cycle checker wave so
+      // alternating layers form interlocking woven beads across the entire surface!
+      if (exposure <= 0.001) {
+        return -concaveVal;
+      }
+      if (uFrac < edge) {
+        B = uFrac / edge;
+      } else if (uFrac < 0.5 - edge) {
+        B = 1.0;
+      } else if (uFrac < 0.5 + edge) {
+        B = 1.0 - (uFrac - (0.5 - edge)) / (2.0 * edge);
+      } else {
+        B = 0.0;
+      }
+      // Height scales with exposure (100% exposure = full stroke bead)
+      return -concaveVal + stroke * exposure * B;
+    }
+  }
+
   // ProfileMode 1: 45° Louver
   const effAmp = Math.max(0.0, disp);
   const zFrac = Math.max(0, Math.min(1, (z - (minZ + lay * t)) / t));
@@ -447,6 +536,118 @@ function computeLayerDisplacementByLayer(
     slope = effAmp;
   }
   return base + zFrac * slope;
+}
+
+/**
+ * Automatically decompose sliced triangles into connected component islands per layer,
+ * computing each island's geometric centroid (cx, cy), mean radius, and exact integer wave count.
+ * This guarantees:
+ *  1. Smooth, continuous polar coordinates theta = atan2(y - cy, x - cx) around each island.
+ *  2. Constant metric physical pitch (e.g. 1.60 mm) across ALL parts of the model (torso, legs, ears).
+ *  3. Absolutely zero jagged "missing-tooth gear" tearing since normals are never projected onto positions.
+ */
+function buildLayerIslands(sliced, actualMaxLay, pitch) {
+  const { positions: inPos, layers: inLay } = sliced;
+  const count = inLay.length;
+  const totalLayers = actualMaxLay + 1;
+
+  const layerTris = Array.from({ length: totalLayers }, () => []);
+  for (let i = 0; i < count; i++) {
+    layerTris[inLay[i]].push(i);
+  }
+
+  const triIslands = new Array(count);
+  const layerIslands = Array.from({ length: totalLayers }, () => []);
+
+  for (let lay = 0; lay < totalLayers; lay++) {
+    const tris = layerTris[lay];
+    const n = tris.length;
+    if (n === 0) continue;
+
+    // Group triangles in this layer by topological vertex sharing
+    const vertToTris = new Map();
+    for (let i = 0; i < n; i++) {
+      const tIdx = tris[i];
+      const b = tIdx * 9;
+      for (let v = 0; v < 3; v++) {
+        const qx = Math.round(inPos[b + v * 3] * 100);
+        const qy = Math.round(inPos[b + v * 3 + 1] * 100);
+        const qz = Math.round(inPos[b + v * 3 + 2] * 100);
+        const key = `${qx},${qy},${qz}`;
+        let list = vertToTris.get(key);
+        if (!list) { list = []; vertToTris.set(key, list); }
+        list.push(i);
+      }
+    }
+
+    const parent = new Int32Array(n).map((_, idx) => idx);
+    function find(x) { while (x !== parent[x]) x = parent[x] = parent[parent[x]]; return x; }
+    function union(a, b) { parent[find(a)] = find(b); }
+
+    for (const list of vertToTris.values()) {
+      const first = list[0];
+      for (let k = 1; k < list.length; k++) {
+        union(first, list[k]);
+      }
+    }
+
+    const groups = new Map();
+    for (let i = 0; i < n; i++) {
+      const root = find(i);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root).push(tris[i]);
+    }
+
+    const currentLayerIslands = layerIslands[lay];
+    for (const group of groups.values()) {
+      let sumX = 0, sumY = 0, ptCount = 0;
+      for (const tIdx of group) {
+        const b = tIdx * 9;
+        for (let v = 0; v < 3; v++) {
+          sumX += inPos[b + v * 3];
+          sumY += inPos[b + v * 3 + 1];
+          ptCount++;
+        }
+      }
+      const cx = sumX / ptCount;
+      const cy = sumY / ptCount;
+      let sumR = 0;
+      for (const tIdx of group) {
+        const b = tIdx * 9;
+        for (let v = 0; v < 3; v++) {
+          sumR += Math.hypot(inPos[b + v * 3] - cx, inPos[b + v * 3 + 1] - cy);
+        }
+      }
+      const radius = Math.max(0.5, sumR / ptCount);
+      const waveCount = Math.max(1, Math.round((2.0 * Math.PI * radius) / pitch));
+      const island = { cx, cy, radius, waveCount };
+      currentLayerIslands.push(island);
+
+      for (const tIdx of group) {
+        triIslands[tIdx] = island;
+      }
+    }
+  }
+
+  return { triIslands, layerIslands };
+}
+
+function getNearestIsland(layerIslands, lay, x, y) {
+  if (!layerIslands || lay < 0 || lay >= layerIslands.length) return null;
+  const islands = layerIslands[lay];
+  if (!islands || islands.length === 0) return null;
+  if (islands.length === 1) return islands[0];
+  let best = islands[0];
+  let bestDistSq = (x - best.cx) ** 2 + (y - best.cy) ** 2;
+  for (let i = 1; i < islands.length; i++) {
+    const isl = islands[i];
+    const dSq = (x - isl.cx) ** 2 + (y - isl.cy) ** 2;
+    if (dSq < bestDistSq) {
+      bestDistSq = dSq;
+      best = isl;
+    }
+  }
+  return best;
 }
 
 /**
@@ -483,6 +684,16 @@ export function applyLayerAlignedDisplacement(
   let actualMaxLay = 0;
   for (let i = 0; i < inLay.length; i++) {
     if (inLay[i] > actualMaxLay) actualMaxLay = inLay[i];
+  }
+
+  // Precompute topological connected-component islands per layer for Profile 6
+  let triIslands = null;
+  let layerIslands = null;
+  if (profileMode === 6) {
+    const pitch = Math.max(0.2, weaveParams?.pitch ?? 1.60);
+    const islandData = buildLayerIslands(sliced, actualMaxLay, pitch);
+    triIslands = islandData.triIslands;
+    layerIslands = islandData.layerIslands;
   }
 
   // Pristine boundary protection with layer-based fade:
@@ -523,9 +734,14 @@ export function applyLayerAlignedDisplacement(
     x = 0,
     y = 0,
     nx = 0,
-    ny = 0
+    ny = 0,
+    u = null,
+    v = null,
+    island = null
   ) {
-    const weaveOptions = weaveParams ? { ...weaveParams, x, y, nx, ny } : { x, y, nx, ny };
+    const weaveOptions = weaveParams
+      ? { ...weaveParams, x, y, nx, ny, u, v, cx: island?.cx, cy: island?.cy, waveCount: island?.waveCount, radius: island?.radius }
+      : { x, y, nx, ny, u, v, cx: island?.cx, cy: island?.cy, waveCount: island?.waveCount, radius: island?.radius };
     if (isExcl) {
       if (exclMode === 1) {
         // Mode 2: OFF, ON - 指定ツールが出っ張り交互積層
@@ -606,7 +822,7 @@ export function applyLayerAlignedDisplacement(
     let fnz = e1x * e2y - e1y * e2x;
     const flen = Math.hypot(fnx, fny, fnz) || 1;
     fnx /= flen; fny /= flen; fnz /= flen;
-    const isHorizontalCap = Math.hypot(fnx, fny) < 0.15;
+    const isHorizontalCap = Math.hypot(fnx, fny) < 1e-4;
     const isExcluded = triExcluded ? Boolean(triExcluded[i]) : false;
 
     let assignedTool;
@@ -644,24 +860,28 @@ export function applyLayerAlignedDisplacement(
         outNrm[idx + 2] = nz;
       } else {
         // Vertical/perimeter sidewall: apply exact displacement
-        const unx = hlen >= 0.15 ? (nx / hlen) : (fhlen > 0 ? fnx / fhlen : 0);
-        const uny = hlen >= 0.15 ? (ny / hlen) : (fhlen > 0 ? fny / fhlen : 0);
+        const unx = hlen >= 1e-4 ? (nx / hlen) : (fhlen > 0 ? fnx / fhlen : 0);
+        const uny = hlen >= 1e-4 ? (ny / hlen) : (fhlen > 0 ? fny / fhlen : 0);
 
-        const { targetTool, blendWeight, multiColorInfo } = sampleFn(x, y, z, nx, ny, nz);
+        const s = sampleFn(x, y, z, nx, ny, nz);
+        const curIsland = triIslands ? triIslands[i] : null;
 
         let disp = computeDisplacement(
           activeTool,
-          targetTool,
-          blendWeight,
+          s.targetTool,
+          s.blendWeight,
           lay,
           z,
           isExcluded,
           exclusionMode,
-          multiColorInfo,
+          s.multiColorInfo,
           x,
           y,
           nx,
-          ny
+          ny,
+          s.u,
+          s.v,
+          curIsland
         );
         disp *= layerFade;
 
@@ -735,12 +955,12 @@ export function applyLayerAlignedDisplacement(
 
         const hlen0 = Math.hypot(n0[0], n0[1]);
         const hlen1 = Math.hypot(n1[0], n1[1]);
-        if (hlen0 < 0.15 && hlen1 < 0.15) continue; // skip horizontal caps
+        if (hlen0 < 1e-4 && hlen1 < 1e-4) continue; // skip horizontal caps
 
-        const unx0 = hlen0 >= 0.15 ? n0[0] / hlen0 : 0;
-        const uny0 = hlen0 >= 0.15 ? n0[1] / hlen0 : 0;
-        const unx1 = hlen1 >= 0.15 ? n1[0] / hlen1 : 0;
-        const uny1 = hlen1 >= 0.15 ? n1[1] / hlen1 : 0;
+        const unx0 = hlen0 >= 1e-4 ? n0[0] / hlen0 : 0;
+        const uny0 = hlen0 >= 1e-4 ? n0[1] / hlen0 : 0;
+        const unx1 = hlen1 >= 1e-4 ? n1[0] / hlen1 : 0;
+        const uny1 = hlen1 >= 1e-4 ? n1[1] / hlen1 : 0;
 
         const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
         const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
@@ -748,16 +968,31 @@ export function applyLayerAlignedDisplacement(
         const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
         const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
 
-        const dispBot0 = (hlen0 >= 0.15) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1]) * botFade : 0;
-        const dispBot1 = (hlen1 >= 0.15) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1]) * botFade : 0;
-        const dispTop0 = (hlen0 >= 0.15) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1]) * topFade : 0;
-        const dispTop1 = (hlen1 >= 0.15) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1]) * topFade : 0;
+        const midX = (p0[0] + p1[0]) * 0.5;
+        const midY = (p0[1] + p1[1]) * 0.5;
+        const botIsland = layerIslands ? getNearestIsland(layerIslands, botLay, midX, midY) : null;
+        const topIsland = layerIslands ? getNearestIsland(layerIslands, topLay, midX, midY) : null;
 
-        const diff0 = dispBot0 - dispTop0;
-        const diff1 = dispBot1 - dispTop1;
+        const dispBot0 = (hlen0 >= 1e-4) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1], s0.u, s0.v, botIsland) * botFade : 0;
+        const dispBot1 = (hlen1 >= 1e-4) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1], s1.u, s1.v, botIsland) * botFade : 0;
+        let dispTop0 = (hlen0 >= 1e-4) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1], s0.u, s0.v, topIsland) * topFade : 0;
+        let dispTop1 = (hlen1 >= 1e-4) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1], s1.u, s1.v, topIsland) * topFade : 0;
+
+        let diff0 = dispBot0 - dispTop0;
+        let diff1 = dispBot1 - dispTop1;
         const hasStep0 = Math.abs(diff0) >= 1e-4;
         const hasStep1 = Math.abs(diff1) >= 1e-4;
         if (!hasStep0 && !hasStep1) continue; // coplanar, no shelf needed
+
+        // Synchronize endpoints where step is sub-micron to avoid hairline gaps
+        if (!hasStep0) {
+          dispTop0 = dispBot0;
+          diff0 = 0;
+        }
+        if (!hasStep1) {
+          dispTop1 = dispBot1;
+          diff1 = 0;
+        }
 
         const p0_bot_x = Math.fround(p0[0] + dispBot0 * unx0);
         const p0_bot_y = Math.fround(p0[1] + dispBot0 * uny0);

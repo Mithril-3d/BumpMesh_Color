@@ -48,6 +48,7 @@ export function assignToolsToTriangles(
   layerBlendLayers = null
 ) {
   const posArr = geometry.attributes.position.array;
+  const uvAttr = geometry.getAttribute('uv');
   const faceMaskAttr = geometry.getAttribute('faceMask');
   const exclWeightAttr = geometry.getAttribute('excludeWeight');
   const triCount = (posArr.length / 9) | 0;
@@ -124,7 +125,13 @@ export function assignToolsToTriangles(
       toolId = untexturedToolId || 4;
     } else {
       const mode = settings.mappingMode ?? 5;
-      const uvResult = computeUV(tmpCentroid, tmpNormal, mode, settingsWithAspect, bounds);
+      const meshUV = (mode === 7 && uvAttr)
+        ? {
+            u: (uvAttr.getX(i * 3) + uvAttr.getX(i * 3 + 1) + uvAttr.getX(i * 3 + 2)) / 3,
+            v: (uvAttr.getY(i * 3) + uvAttr.getY(i * 3 + 1) + uvAttr.getY(i * 3 + 2)) / 3,
+          }
+        : null;
+      const uvResult = computeUV(tmpCentroid, tmpNormal, mode, settingsWithAspect, bounds, meshUV);
       let u = 0, v = 0;
       if (uvResult) {
         if (typeof uvResult.u === 'number') {

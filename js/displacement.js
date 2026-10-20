@@ -116,6 +116,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
   // Optional per-vertex exclusion weights threaded through by subdivision.js.
   // A face's user-exclusion flag = average of its 3 vertex weights > 0.99.
   const ewAttr = geometry.attributes.excludeWeight || null;
+  const uvAttr = geometry.attributes.uv || null;
   // Per-face user-exclusion flag: stored separately from maskedFrac so that
   // user-excluded faces do NOT bleed reduced displacement into adjacent faces
   // via shared vertices (maskedFrac is only for angle-based blending).
@@ -133,11 +134,11 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     vC.fromBufferAttribute(posAttr, t + 2);
     edge1.subVectors(vB, vA);
     edge2.subVectors(vC, vA);
-    faceNrm.crossVectors(edge1, edge2); // length = 2Ã— triangle area â†’ natural area weighting
+    faceNrm.crossVectors(edge1, edge2); // length = 2× triangle area → natural area weighting
 
     // Determine if this face is masked (used to build the per-vertex blend weight).
     // Combines angle-based masking with optional user-painted exclusion.
-    const faceArea   = faceNrm.length();                               // âˆ 2Ã— triangle area
+    const faceArea   = faceNrm.length();                               // ∝ 2× triangle area
     const faceNzNorm = faceArea > 1e-12 ? faceNrm.z / faceArea : 0;  // unit-normal Z component
     const faceAngle  = Math.acos(Math.abs(faceNzNorm)) * (180 / Math.PI);
     const angleMasked = faceNzNorm < 0
@@ -145,7 +146,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       : (settings.topAngleLimit    > 0 && faceAngle <= settings.topAngleLimit);
     // Threshold >0.99 (not 0.5) prevents shared-vertex MAX-propagation from
     // accidentally marking adjacent faces as excluded on closed meshes (e.g. a
-    // cube): adjacent faces have 2/3 vertices at weight 1.0 â†’ avg â‰ˆ 0.67 which
+    // cube): adjacent faces have 2/3 vertices at weight 1.0 → avg ≈ 0.67 which
     // would wrongly trigger the old 0.5 threshold.
     const userExcluded = ewAttr
       ? (ewAttr.getX(t) + ewAttr.getX(t + 1) + ewAttr.getX(t + 2)) / 3 > 0.99
@@ -180,7 +181,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
       if (userExcluded && excludedPos) excludedPos[vid] = 1;
       // Use the buffer normal (from subdivision) weighted by face area.
       // The subdivision pipeline splits indexed vertices at sharp dihedral
-      // edges (>30Â°), so the interpolated buffer normals are smooth across
+      // edges (>30°), so the interpolated buffer normals are smooth across
       // soft edges (cylinder, sphere) but sharp across hard edges (cube).
       // This eliminates visible faceting steps on round surfaces while still
       // preserving hard edges.
@@ -198,7 +199,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     }
   }
 
-  // Normalise each accumulated normal â€” also remember the pre-normalisation
+  // Normalise each accumulated normal — also remember the pre-normalisation
   // magnitude relative to the total face area at that position. A ratio near
   // 1 means all neighbouring face normals point the same way (the smooth
   // normal is a reliable surface direction); near 0 means opposing normals
@@ -214,27 +215,27 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     smoothNrmX[id] *= inv; smoothNrmY[id] *= inv; smoothNrmZ[id] *= inv;
   }
 
-  // â”€â”€ Pass 1.5: Laplacian-smoothed BLEND normal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pass 1.5: Laplacian-smoothed BLEND normal ─────────────────────────────
   // The displacement direction (Pass 3) must remain the accurate per-vertex
-  // smooth normal â€” otherwise watertight copies of the same position move
+  // smooth normal — otherwise watertight copies of the same position move
   // differently and you get cracks. But the normal used to derive
   // *projection-direction blend weights* only needs to vary slowly across
   // the surface. On organic / sculpted meshes the smooth normal still has
   // high-frequency jitter (a few degrees vertex-to-vertex). Inside the
-  // blend band (where âˆ‚w/âˆ‚n is largest) that jitter multiplies the
+  // blend band (where ∂w/∂n is largest) that jitter multiplies the
   // difference between two unrelated heightmap samples (hA - hB), producing
   // visible seam noise even when the underlying texture is not at fault.
   //
   // Smoothing the blend normal kills this amplification at the source. On a
   // sphere the smoothing is a no-op (already smooth); on a noisy surface it
-  // damps the jitter that drives âˆ‚w. Direction info is preserved because we
+  // damps the jitter that drives ∂w. Direction info is preserved because we
   // re-normalise after each iteration.
   const blendNrmIters = Math.max(0, Math.floor(settings.blendNormalSmoothing ?? 0));
   let blendNrmX = smoothNrmX, blendNrmY = smoothNrmY, blendNrmZ = smoothNrmZ;
   if (blendNrmIters > 0) {
     // Build dedup-graph adjacency in CSR form: each triangle contributes
     // 3 directed edges; we build a multigraph (duplicates keep their natural
-    // weight from how often two positions share an edge â€” i.e., shared
+    // weight from how often two positions share an edge — i.e., shared
     // surfaces accumulate higher coupling, which is what we want).
     // For each unique-vertex id, neighbors[csrStart[id]..csrStart[id+1])
     // is the contiguous slice of neighbour ids.
@@ -285,7 +286,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
           const r = 1 / len;
           nxtX[id] = sx * r; nxtY[id] = sy * r; nxtZ[id] = sz * r;
         } else {
-          // Neighbour normals cancelled (knife-edge) â€” keep current.
+          // Neighbour normals cancelled (knife-edge) — keep current.
           nxtX[id] = curX[id]; nxtY[id] = curY[id]; nxtZ[id] = curZ[id];
         }
       }
@@ -296,7 +297,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     blendNrmX = curX; blendNrmY = curY; blendNrmZ = curZ;
   }
 
-  // â”€â”€ Boundary falloff distance field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Boundary falloff distance field ──────────────────────────────────────────
   // When boundaryFalloff > 0, identify boundary positions (vertices adjacent to
   // both masked and unmasked faces, or on the user-exclusion seam) and compute
   // the Euclidean distance from every fully-textured vertex to its nearest
@@ -347,7 +348,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
 
       // CSR-style spatial grid: cellStart/cellIdx give each cell a contiguous
       // slice of boundary indices. Replaces per-cell JS arrays with flat typed
-      // arrays â€” no per-cell allocations, tight inner loop, better prefetching.
+      // arrays — no per-cell allocations, tight inner loop, better prefetching.
       const cellCount = new Uint32Array(gridSize);
       const bpCell = new Uint32Array(bpCount);
       for (let i = 0; i < bpCount; i++) {
@@ -422,7 +423,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     }
   }
 
-  // â”€â”€ Pass 2: sample displacement texture once per unique position â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pass 2: sample displacement texture once per unique position ──────────
 
   for (let i = 0; i < count; i++) {
     const vid = vertexId[i];
@@ -433,7 +434,7 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
 
     // Cubic: derive blend weights from the *smooth* per-vertex normal so that
     // adjacent vertices on a curved region (small fillets, rolled edges) see
-    // smoothly varying weights â€” this matches the per-fragment behaviour of
+    // smoothly varying weights — this matches the per-fragment behaviour of
     // the preview shader. The previous implementation summed per-face zone
     // weights into per-vertex zoneArea[X|Y|Z]; on small fillets those sums
     // change abruptly between neighbours because each face's dominant-axis
@@ -441,11 +442,11 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     //
     // The thin-plate edge case (top + bottom face normals cancel at a shared
     // knife-edge vertex, leaving the smooth normal nearly zero) still needs
-    // the per-face zoneArea path. We detect that via smoothNrmReliability â€”
+    // the per-face zoneArea path. We detect that via smoothNrmReliability —
     // length(rawSmoothNormal) / totalFaceArea, in [0, 1]. Surfaces with all
-    // normals broadly aligned read â‰ˆ1; perfectly cancelling pairs read 0.
-    // 0.5 is loose enough that a 90Â° cube edge (â‰ˆ0.71) still uses the smooth
-    // path, but a near-180Â° fold falls back to face-area zones.
+    // normals broadly aligned read ≈1; perfectly cancelling pairs read 0.
+    // 0.5 is loose enough that a 90° cube edge (≈0.71) still uses the smooth
+    // path, but a near-180° fold falls back to face-area zones.
     if (settings.mappingMode === 6 /* MODE_CUBIC */) {
       const md = Math.max(bounds.size.x, bounds.size.y, bounds.size.z, 1e-6);
       const relScale = scaleMmToRelative(6, settings, bounds);
@@ -466,12 +467,12 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
 
       if (wX + wY + wZ > 0) {
         let grey = 0;
-        // U-flip uses the *original* smoothNrm â€” it's a discrete sign decision
+        // U-flip uses the *original* smoothNrm — it's a discrete sign decision
         // about which face of the cube this vertex sits on. The smoothed blend
         // normal can have small components flip sign during Laplacian smoothing
-        // (e.g. for vertices near the equator xâ‰ˆ0), which would mirror their
+        // (e.g. for vertices near the equator x≈0), which would mirror their
         // texture sample relative to the true surface orientation.
-        if (wX > 0) { // X-dominant â†’ YZ projection
+        if (wX > 0) { // X-dominant → YZ projection
           let rawU = (tmpPos.y-bounds.min.y)/md;
           if (smoothNrmX[vid] < 0) rawU = -rawU;
           const uv = _cubicUV(rawU, (tmpPos.z-bounds.min.z)/md, relScale, settings, rotRad, aspectU, aspectV);
@@ -501,7 +502,10 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
     // smooth normal — only blend weights change here.
     tmpNrm.set(blendNrmX[vid], blendNrmY[vid], blendNrmZ[vid]);
 
-    const uvResult = computeUV(tmpPos, tmpNrm, settings.mappingMode, settingsWithAspect, bounds);
+    const meshUV = (settings.mappingMode === 7 && uvAttr)
+      ? { u: uvAttr.getX(i), v: uvAttr.getY(i) }
+      : null;
+    const uvResult = computeUV(tmpPos, tmpNrm, settings.mappingMode, settingsWithAspect, bounds, meshUV);
     if (settings.colorSubMode === 1) {
       let u = 0, v = 0;
       if (uvResult.triplanar) {
@@ -624,9 +628,9 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
 
     // Bottom-plane flat clamp: with overhang protection on, also clamp
     // upward motion when the original vertex sat on the print bottom plane.
-    // Without this, a downward-facing face (smoothNrm â‰ˆ (0,0,-1)) pulls UP
+    // Without this, a downward-facing face (smoothNrm ≈ (0,0,-1)) pulls UP
     // when the texture sample is below mid-grey (centeredGrey < 0 makes
-    // smoothNrm Ã— disp positive in Z), so adjacent bottom-face vertices
+    // smoothNrm × disp positive in Z), so adjacent bottom-face vertices
     // end up at slightly different heights and slicers render the now-
     // tilted triangles with visibly varying shading. The clamp keeps the
     // bed-contact surface a single Z value while leaving any vertex above
@@ -673,6 +677,9 @@ export function applyDisplacement(geometry, imageData, imgWidth, imgHeight, sett
   out.setAttribute('normal',   new THREE.BufferAttribute(newNrm, 3));
   if (ewAttr) {
     out.setAttribute('excludeWeight', ewAttr);
+  }
+  if (uvAttr) {
+    out.setAttribute('uv', uvAttr);
   }
   return out;
 }

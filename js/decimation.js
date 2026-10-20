@@ -115,11 +115,11 @@ function _yieldFrame() {
 
 export async function decimate(geometry, targetTriangles, onProgress, harvestFlat = true, harvestTol = DEFAULT_HARVEST_TOL, lockedFaces = null) {
   const inExcl = geometry.attributes.excludeWeight ? geometry.attributes.excludeWeight.array : null;
-  const { positions, faces, vertCount, faceCount } = buildIndexed(geometry);
+  const { positions, faces, vertCount, faceCount, uvs, uvSeamVert } = buildIndexed(geometry);
 
   // Already at/under the target: nothing to decimate. But if harvesting is on we
   // still run — there may be flat faces collapsible for free even below the limit.
-  if (faceCount <= targetTriangles && !harvestFlat) return buildOutput(positions, faces, faceCount, inExcl);
+  if (faceCount <= targetTriangles && !harvestFlat) return buildOutput(positions, faces, faceCount, inExcl, uvs);
 
   // Preserve-untextured (beta): a vertex touching any locked (untextured) face
   // may neither move nor be removed, so edges with a locked endpoint are never
@@ -128,14 +128,21 @@ export async function decimate(geometry, targetTriangles, onProgress, harvestFla
   // same face order as the non-indexed input geometry.
   let lockedVert = null;
   let lockedFaceCount = 0;
-  if (lockedFaces) {
+  if (lockedFaces || uvSeamVert) {
     lockedVert = new Uint8Array(vertCount);
-    for (let f = 0; f < faceCount; f++) {
-      if (!lockedFaces[f]) continue;
-      lockedFaceCount++;
-      lockedVert[faces[f * 3]]     = 1;
-      lockedVert[faces[f * 3 + 1]] = 1;
-      lockedVert[faces[f * 3 + 2]] = 1;
+    if (uvSeamVert) {
+      for (let v = 0; v < vertCount; v++) {
+        if (uvSeamVert[v]) lockedVert[v] = 1;
+      }
+    }
+    if (lockedFaces) {
+      for (let f = 0; f < faceCount; f++) {
+        if (!lockedFaces[f]) continue;
+        lockedFaceCount++;
+        lockedVert[faces[f * 3]]     = 1;
+        lockedVert[faces[f * 3 + 1]] = 1;
+        lockedVert[faces[f * 3 + 2]] = 1;
+      }
     }
   }
   // When the locked faces alone meet or exceed the triangle target, the target
@@ -143,11 +150,11 @@ export async function decimate(geometry, targetTriangles, onProgress, harvestFla
   // would grind the textured region down to its guard limit, so instead drop
   // straight to error-bounded harvesting (or bail entirely when harvesting is
   // off) and flag the overrun so the caller can warn the user.
-  const lockedOverBudget = lockedVert !== null && faceCount > targetTriangles
+  const lockedOverBudget = lockedFaces !== null && faceCount > targetTriangles
     && lockedFaceCount >= targetTriangles;
   if (lockedOverBudget && !harvestFlat) {
     if (onProgress) onProgress(1);
-    const out = buildOutput(positions, faces, faceCount);
+    const out = buildOutput(positions, faces, faceCount, inExcl, uvs);
     out.userData.lockedOverBudget = true;
     return out;
   }
@@ -251,6 +258,19 @@ export async function decimate(geometry, targetTriangles, onProgress, harvestFla
     if (checkFlipped(positions, vfHead, slotFace, slotNext, faces, v2, v1, px, py, pz)) continue; // Guard 3b
 
     // ── Collapse: keep v1 at new position, remove v2 ─────────────────────────
+    if (uvs) {
+      const dx = positions[v2*3]   - positions[v1*3];
+      const dy = positions[v2*3+1] - positions[v1*3+1];
+      const dz = positions[v2*3+2] - positions[v1*3+2];
+      const lenSq = dx*dx + dy*dy + dz*dz;
+      let t = 0.5;
+      if (lenSq > 1e-16) {
+        t = ((px - positions[v1*3])*dx + (py - positions[v1*3+1])*dy + (pz - positions[v1*3+2])*dz) / lenSq;
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+      }
+      uvs[v1 * 2]     = uvs[v1 * 2]     + t * (uvs[v2 * 2]     - uvs[v1 * 2]);
+      uvs[v1 * 2 + 1] = uvs[v1 * 2 + 1] + t * (uvs[v2 * 2 + 1] - uvs[v1 * 2 + 1]);
+    }
     positions[v1 * 3]     = px;
     positions[v1 * 3 + 1] = py;
     positions[v1 * 3 + 2] = pz;
@@ -304,7 +324,7 @@ export async function decimate(geometry, targetTriangles, onProgress, harvestFla
   }
 
   if (onProgress) onProgress(1);
-  const out = buildOutput(positions, faces, faceCount, inExcl);
+  const out = buildOutput(positions, faces, faceCount, inExcl, uvs);
   if (lockedOverBudget) out.userData.lockedOverBudget = true;
   return out;
 }
@@ -678,9 +698,12 @@ function pushEdge(heap, quadrics, positions, version, v1, v2) {
 function buildIndexed(geometry) {
   const QUANT = QUANT_DEFAULT;
   const posAttr = geometry.attributes.position;
+  const uvAttr  = geometry.attributes.uv || null;
   const n = posAttr.count;
 
   const positions  = new Float64Array(n * 3); // over-allocated, trimmed later
+  const uvs        = uvAttr ? new Float64Array(n * 2) : null;
+  const uvSeamVert = uvAttr ? new Uint8Array(n) : null;
   const indexRemap = new Int32Array(n);
   let   vertCount  = 0;
 
@@ -694,6 +717,15 @@ function buildIndexed(geometry) {
       positions[idx * 3]     = x;
       positions[idx * 3 + 1] = y;
       positions[idx * 3 + 2] = z;
+      if (uvs) {
+        uvs[idx * 2]     = uvAttr.getX(i);
+        uvs[idx * 2 + 1] = uvAttr.getY(i);
+      }
+    } else if (uvs && !uvSeamVert[idx]) {
+      const u = uvAttr.getX(i), v = uvAttr.getY(i);
+      if (Math.abs(uvs[idx * 2] - u) > 1e-4 || Math.abs(uvs[idx * 2 + 1] - v) > 1e-4) {
+        uvSeamVert[idx] = 1;
+      }
     }
     indexRemap[i] = idx;
   }
@@ -702,12 +734,19 @@ function buildIndexed(geometry) {
   const faces = new Int32Array(faceCount * 3);
   for (let i = 0; i < n; i++) faces[i] = indexRemap[i];
 
-  return { positions: positions.subarray(0, vertCount * 3), faces, vertCount, faceCount };
+  return {
+    positions: positions.subarray(0, vertCount * 3),
+    faces,
+    vertCount,
+    faceCount,
+    uvs: uvs ? uvs.subarray(0, vertCount * 2) : null,
+    uvSeamVert: uvSeamVert ? uvSeamVert.subarray(0, vertCount) : null,
+  };
 }
 
 // (adjacency helpers replaced by buildLinkedAdj and _unlinkSlot/_moveSlot above)
 
-function buildOutput(positions, faces, faceCount, inExcl = null) {
+function buildOutput(positions, faces, faceCount, inExcl = null, uvs = null) {
   let activeFaces = 0;
   for (let f = 0; f < faceCount; f++) {
     if (faces[f * 3] >= 0) activeFaces++;
@@ -715,8 +754,10 @@ function buildOutput(positions, faces, faceCount, inExcl = null) {
 
   const posArray = new Float32Array(activeFaces * 9);
   const exclArray = inExcl ? new Float32Array(activeFaces * 3) : null;
+  const uvArray = uvs ? new Float32Array(activeFaces * 6) : null;
   let out = 0;
   let outExcl = 0;
+  let outUV = 0;
   for (let f = 0; f < faceCount; f++) {
     if (faces[f * 3] < 0) continue;
     for (let v = 0; v < 3; v++) {
@@ -726,6 +767,10 @@ function buildOutput(positions, faces, faceCount, inExcl = null) {
       posArray[out++] = positions[vi * 3 + 2];
       if (exclArray) {
         exclArray[outExcl++] = inExcl[f * 3 + v];
+      }
+      if (uvArray) {
+        uvArray[outUV++] = uvs[vi * 2];
+        uvArray[outUV++] = uvs[vi * 2 + 1];
       }
     }
   }
@@ -752,6 +797,9 @@ function buildOutput(positions, faces, faceCount, inExcl = null) {
   geo.setAttribute('normal',   new THREE.BufferAttribute(nrmArray, 3));
   if (exclArray) {
     geo.setAttribute('excludeWeight', new THREE.BufferAttribute(exclArray, 1));
+  }
+  if (uvArray) {
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
   }
   return geo;
 }

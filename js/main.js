@@ -12,7 +12,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
          updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_130';
-import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl }  from './stlLoader.js?v=20261003_151';
+import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js?v=20261003_151';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
@@ -54,7 +54,7 @@ import {
   computeMultiColorBlend,
   generateInterleavedTable
 } from './layerBlending.js?v=20260929_130';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261004_157';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261019_2245';
 import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261004_1517';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
@@ -62,7 +62,7 @@ import { buildAdjacency, bucketFill,
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_130';
-import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL } from './mapping.js?v=20260908d';
+import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV } from './mapping.js?v=20260908d';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
 import { APP_VERSION } from './version.js?v=20261018_1600';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
@@ -1868,18 +1868,34 @@ function renderInterleavedUI() {
 
       // Weave / Flat toggle button (especially useful for Profile 5 Halftone and other weave modes)
       if (isWeaveMode) {
-        const isWeave = (interleavedSettings.toolWeaveModes[item.toolId] !== false);
+        let m = interleavedSettings.toolWeaveModes[item.toolId];
+        if (m === true || m === undefined) m = 'weave';
+        else if (m === false) m = 'flat';
+
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
         toggleBtn.className = 'tool-weave-toggle';
-        toggleBtn.style.cssText = isWeave
-          ? 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #2196f3;background:rgba(33,150,243,0.22);color:#90caf9;'
-          : 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #777;background:rgba(255,255,255,0.08);color:#aaa;';
-        toggleBtn.textContent = isWeave ? '〰️ 編み' : '━ フラット';
-        toggleBtn.title = isWeave ? '現在: 編み重ね(波打ち)。クリックでフラット(真円)に切替' : '現在: フラット(真円)。クリックで編み重ね(波打ち)に切替';
+        if (m === 'weave') {
+          toggleBtn.style.cssText = 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #7c3aed;background:rgba(124,58,237,0.22);color:#c084fc;';
+          toggleBtn.textContent = '〰️ 常時編み';
+          toggleBtn.title = '現在: 常時編み。クリックで露出比例(PWM)に切替';
+        } else if (m === 'pwm') {
+          toggleBtn.style.cssText = 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #0284c7;background:rgba(2,132,199,0.22);color:#38bdf8;';
+          toggleBtn.textContent = '🌊 露出比例';
+          toggleBtn.title = '現在: 露出比例PWM。クリックで完全フラットに切替';
+        } else {
+          toggleBtn.style.cssText = 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #777;background:rgba(255,255,255,0.08);color:#aaa;';
+          toggleBtn.textContent = '━ フラット';
+          toggleBtn.title = '現在: 完全フラット。クリックで常時編みに切替';
+        }
+
         toggleBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          interleavedSettings.toolWeaveModes[item.toolId] = !isWeave;
+          let nextM = 'weave';
+          if (m === 'weave') nextM = 'pwm';
+          else if (m === 'pwm') nextM = 'flat';
+          else nextM = 'weave';
+          interleavedSettings.toolWeaveModes[item.toolId] = nextM;
           renderInterleavedUI();
           updatePreview();
         });
@@ -1953,7 +1969,7 @@ function renderInterleavedUI() {
   }
 
   if (interleavedWeaveContainer) {
-    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
+    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5 || interleavedSettings.profileMode === 6);
     interleavedWeaveContainer.classList.toggle('hidden', !isWeaveMode);
     const nDia = interleavedSettings.nozzleDiameter || 0.40;
     const standardPresets = ['0.1', '0.2', '0.25', '0.4', '0.6', '0.8', '1.0', '1.2', '2.0'];
@@ -1979,24 +1995,41 @@ function renderInterleavedUI() {
       weaveToolModesContainer.innerHTML = '';
       if (!interleavedSettings.toolWeaveModes) interleavedSettings.toolWeaveModes = {};
       palette.forEach((item) => {
-        const isWeave = (interleavedSettings.toolWeaveModes[item.toolId] !== false);
+        let m = interleavedSettings.toolWeaveModes[item.toolId];
+        if (m === true || m === undefined) m = 'weave';
+        else if (m === false) m = 'flat';
+
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `weave-box-tool-toggle ${isWeave ? 'is-weave' : 'is-flat'}`;
+        const clsName = (m === 'flat') ? 'is-flat' : (m === 'pwm' ? 'is-pwm' : 'is-weave');
+        btn.className = `weave-box-tool-toggle ${clsName}`;
 
         const dot = document.createElement('span');
         dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);flex-shrink:0;`;
 
         const txt = document.createElement('span');
-        txt.textContent = `Tool ${item.toolId}: ` + (isWeave ? '〰️ 編み' : '━ フラット');
+        let labelText = '〰️ 常時編み';
+        let titleText = '現在: 常時編み（露出100%でも必ず波打つ）。クリックで露出比例(PWM)に切替';
+        if (m === 'pwm') {
+          labelText = '🌊 露出比例';
+          titleText = '現在: 露出比例PWM（露出100%はフラット・中間露出で編み）。クリックで完全フラットに切替';
+        } else if (m === 'flat') {
+          labelText = '━ フラット';
+          titleText = '現在: 完全フラット（波打たず直線）。クリックで常時編みに切替';
+        }
+        txt.textContent = `Tool ${item.toolId}: ` + labelText;
 
         btn.appendChild(dot);
         btn.appendChild(txt);
-        btn.title = isWeave ? `Tool ${item.toolId}: 編み重ね(波打ち)。クリックでフラット(真円)に切替` : `Tool ${item.toolId}: フラット(真円)。クリックで編み重ね(波打ち)に切替`;
+        btn.title = `Tool ${item.toolId}: ` + titleText;
 
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          interleavedSettings.toolWeaveModes[item.toolId] = !isWeave;
+          let nextM = 'weave';
+          if (m === 'weave') nextM = 'pwm';
+          else if (m === 'pwm') nextM = 'flat';
+          else nextM = 'weave';
+          interleavedSettings.toolWeaveModes[item.toolId] = nextM;
           renderPaletteUI();
           renderInterleavedUI();
           updatePreview();
@@ -2504,14 +2537,43 @@ function wireEvents() {
     dropZone.classList.add('drag-over');
   });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', (e) => {
+  dropZone.addEventListener('drop', async (e) => {
     e.preventDefault();
     dropZone.classList.remove('drag-over');
     const files = [...e.dataTransfer.files];
     const bmFile = files.find(f => /\.bumpmesh$/i.test(f.name));
     if (bmFile) { importProject(bmFile).catch(err => alert(t('alerts.importFailed', { msg: err.message }))); return; }
     const file = files.find(f => /\.(stl|obj|3mf|step|stp)$/i.test(f.name));
-    if (file) handleModelFile(file);
+    const imgFile = files.find(f => /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name));
+    if (file) {
+      await handleModelFile(file);
+    }
+    if (imgFile) {
+      try {
+        const entry = await loadCustomTexture(imgFile);
+        entry.isCustom = true;
+        if (currentGeometry?.attributes?.uv) {
+          settings.mappingMode = MODE_MESH_UV;
+          mappingSelect.value = String(MODE_MESH_UV);
+          settings.offsetU = 0; offsetUSlider.value = 0; offsetUVal.value = 0;
+          settings.offsetV = 0; offsetVSlider.value = 0; offsetVVal.value = 0;
+          if (colorModeToggle && !colorModeToggle.checked) {
+            colorModeToggle.checked = true;
+            colorModeToggle.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+        _useCustomMap(entry, true);
+        gallery.rememberUpload(imgFile, entry.fullCanvas).then((id) => {
+          if (id && activeMapEntry === entry) {
+            entry.customId = id;
+            gallery.markActiveCustom(id);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to load dropped texture:', err);
+        alert(t('alerts.textureLoadFailed', { name: imgFile.name }));
+      }
+    }
   });
 
   // STEP import dialog: preset radios drive the tolerance fields; Import
@@ -3979,6 +4041,12 @@ function refreshExclusionOverlay() {
 
 function autoMaskTopSurface() {
   if (!currentGeometry || !triangleCentroids || !triangleFaceNormals || !currentBounds) return;
+  // Do not auto-mask the top vertex of organic / UV-mapped models
+  if (currentGeometry.attributes.uv || currentPresetKey === 'suzanne' || currentPresetKey === 'spot') {
+    excludedFaces = new Set();
+    refreshExclusionOverlay();
+    return;
+  }
   const triCount = currentGeometry.attributes.position.count / 3;
   const maxZ = currentBounds.max.z;
   const zTol = Math.max(0.05, currentBounds.size.z * 0.002);
@@ -4270,7 +4338,7 @@ function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
   currentPoseRot   = new THREE.Quaternion(); // authored at the origin — nothing to restore
   currentPoseTrans = new THREE.Vector3();
   currentStlName   = modelName;
-  currentStlExt    = '.stl';
+  currentStlExt    = geo.attributes.uv ? '.obj' : '.stl';
 
   if (cylinderOptions) {
     settings.cylinderCenterX = cylinderOptions.centerX ?? 0;
@@ -4336,13 +4404,24 @@ function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
     const tileH = Math.max(0.1, dim.height);
     settings.scaleU = tileW; scaleUSlider.value = scaleToPos(tileW); scaleUVal.value = fmtScaleVal(tileW);
     settings.scaleV = tileH; scaleVSlider.value = scaleToPos(tileH); scaleVVal.value = fmtScaleVal(tileH);
+  } else if (geo.attributes.uv) {
+    settings.mappingMode = MODE_MESH_UV;
+    mappingSelect.value = String(MODE_MESH_UV);
+    const tileMm = _defaultTileMm();
+    settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
+    settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
   } else {
+    if (settings.mappingMode === MODE_MESH_UV) {
+      settings.mappingMode = 5; // Reset to Triplanar when switching to a non-UV preset
+      mappingSelect.value = '5';
+    }
     const tileMm = _defaultTileMm();
     settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
     settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
   }
   settings.offsetU = 0; offsetUSlider.value = 0; offsetUVal.value = 0;
   settings.offsetV = 0; offsetVSlider.value = 0; offsetVVal.value = 0;
+  settings.rotation = 0; rotationSlider.value = 0; rotationVal.value = 0;
   triLimitWarning.classList.add('hidden');
 
   const diag = Math.sqrt(currentBounds.size.x ** 2 + currentBounds.size.y ** 2 + currentBounds.size.z ** 2);
@@ -4377,6 +4456,39 @@ async function loadPresetModel(presetKey = 'cube') {
   document.querySelectorAll('#standard-preset-btns .model-preset-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.preset === presetKey);
   });
+
+  if (presetKey === 'spot') {
+    const objUrl = 'models/spot.obj';
+    const texUrl = 'models/spot_texture.png';
+    const modelName = 'spot_cow_60mm';
+    const texName = 'spot_texture.png';
+    try {
+      const [{ geometry }, texResp] = await Promise.all([
+        loadOBJFromUrl(objUrl),
+        fetch(texUrl),
+      ]);
+      _applyLoadedPresetGeometry(geometry, modelName, null);
+      if (texResp.ok) {
+        const blob = await texResp.blob();
+        const texFile = new File([blob], texName, { type: 'image/png' });
+        const entry = await loadCustomTexture(texFile);
+        entry.isCustom = true;
+        entry.name = texName;
+        if (colorModeToggle && !colorModeToggle.checked) {
+          colorModeToggle.checked = true;
+          colorModeToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        _useCustomMap(entry, true);
+      }
+      if (interleavedSettings.shadingSource === 'curvature') {
+        triggerCurvatureUpdate();
+        updatePreview();
+      }
+    } catch (err) {
+      console.error(`Failed to load ${presetKey} preset:`, err);
+    }
+    return;
+  }
 
   if (presetKey === 'suzanne') {
     try {
@@ -4493,12 +4605,14 @@ function unlockAutoFitMode() {
   autoFitUnlocked = true;
   if (secretModeTrigger) secretModeTrigger.classList.add('active');
   if (modelModeTabs) modelModeTabs.classList.remove('hidden');
+  document.querySelectorAll('.secret-preset-btn').forEach(btn => btn.classList.remove('hidden'));
 }
 
 function toggleSecretMode() {
   autoFitUnlocked = !autoFitUnlocked;
   if (secretModeTrigger) secretModeTrigger.classList.toggle('active', autoFitUnlocked);
   if (modelModeTabs) modelModeTabs.classList.toggle('hidden', !autoFitUnlocked);
+  document.querySelectorAll('.secret-preset-btn').forEach(btn => btn.classList.toggle('hidden', !autoFitUnlocked));
   if (!autoFitUnlocked && currentModelMode === 'autofit') {
     switchModelMode('preset');
   }
@@ -4639,6 +4753,14 @@ async function handleModelFile(file, stepSettings = null) {
         const swatches = document.querySelectorAll('.preset-swatch');
         if (swatches[idx]) selectPreset(idx, swatches[idx]);
       }
+    }
+    if (currentGeometry.attributes.uv) {
+      settings.mappingMode = MODE_MESH_UV;
+      settings.offsetU = 0; offsetUSlider.value = 0; offsetUVal.value = 0;
+      settings.offsetV = 0; offsetVSlider.value = 0; offsetVVal.value = 0;
+      settings.rotation = 0; rotationSlider.value = 0; rotationVal.value = 0;
+    } else if (settings.mappingMode === MODE_MESH_UV) {
+      settings.mappingMode = 5;
     }
     mappingSelect.value = String(settings.mappingMode);
     capAngleRow.style.display = settings.mappingMode === 3 ? '' : 'none';
@@ -5720,6 +5842,7 @@ function getFullPreviewSettings() {
   return {
     ...settings,
     bounds: currentBounds,
+    hasMeshUV: Boolean(currentGeometry?.attributes?.uv),
     textureAspectU: tmax / Math.max(tw, 1),
     textureAspectV: tmax / Math.max(th, 1),
     useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
@@ -6445,7 +6568,8 @@ async function handleExport(format = 'stl') {
     // to prevent multi-million triangle explosions and Out of Memory crashes while
     // maintaining sub-layer printer nozzle precision (>170 radial facets on cylinders).
     const isWeaveMode = isLayerBlendMode && (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
-    const effectiveRefineLength = isWeaveMode
+    const isModulatedMode = isLayerBlendMode && (interleavedSettings.profileMode === 6);
+    const effectiveRefineLength = (isWeaveMode || isModulatedMode)
       ? Math.max(0.18, Math.min(settings.refineLength, (interleavedSettings.weavePitch || 1.6) / 4.0))
       : (isLayerBlendMode ? Math.max(settings.refineLength, 0.6) : settings.refineLength);
 
@@ -6485,6 +6609,7 @@ async function handleExport(format = 'stl') {
     };
     const result = await runPipeline({
       positions: currentGeometry.attributes.position.array,
+      uvs: currentGeometry.attributes.uv ? currentGeometry.attributes.uv.array : null,
       faceWeights,
       imageData: exportEntry.imageData,
       imgWidth: exportEntry.width,
@@ -6637,6 +6762,54 @@ async function handleExport(format = 'stl') {
         const aspectV = tmax / Math.max(exportEntry.height, 1);
         const settingsWithAspect = { ...settings, textureAspectU: aspectU, textureAspectV: aspectV };
 
+        // Build 3D spatial grid for fast nearest-vertex UV lookup when Mesh UV mode is active
+        let uvGrid = null;
+        if (settingsWithAspect.mappingMode === MODE_MESH_UV && result.uvs) {
+          const uPos = pos; // grounded positions (z = workingZ - workingMinZ)
+          const uUV  = result.uvs;
+          const uCount = Math.min((uPos.length / 3) | 0, (uUV.length / 2) | 0);
+          if (uCount > 0) {
+            let minX = Infinity, minY = Infinity, minZ = Infinity;
+            let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+            for (let i = 0; i < uCount; i++) {
+              const px = uPos[i * 3], py = uPos[i * 3 + 1], pz = uPos[i * 3 + 2];
+              if (px < minX) minX = px; if (px > maxX) maxX = px;
+              if (py < minY) minY = py; if (py > maxY) maxY = py;
+              if (pz < minZ) minZ = pz; if (pz > maxZ) maxZ = pz;
+            }
+            const diag = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) || 100;
+            const CELL = Math.max(1.0, diag / 64);
+            const invCell = 1.0 / CELL;
+            const gMinX = Math.floor(minX * invCell) - 1;
+            const gMinY = Math.floor(minY * invCell) - 1;
+            const gMinZ = Math.floor(minZ * invCell) - 1;
+            const gMaxX = Math.floor(maxX * invCell) + 1;
+            const gMaxY = Math.floor(maxY * invCell) + 1;
+            const gMaxZ = Math.floor(maxZ * invCell) + 1;
+            const numX = gMaxX - gMinX + 1;
+            const numY = gMaxY - gMinY + 1;
+            const numZ = gMaxZ - gMinZ + 1;
+            const numXY = numX * numY;
+            const totalCells = numX * numY * numZ;
+            const head = new Int32Array(totalCells);
+            head.fill(-1);
+            const next = new Int32Array(uCount);
+            for (let i = 0; i < uCount; i++) {
+              const gx = Math.floor(uPos[i * 3] * invCell) - gMinX;
+              const gy = Math.floor(uPos[i * 3 + 1] * invCell) - gMinY;
+              const gz = Math.floor(uPos[i * 3 + 2] * invCell) - gMinZ;
+              if (gx >= 0 && gx < numX && gy >= 0 && gy < numY && gz >= 0 && gz < numZ) {
+                const cIdx = gx + gy * numX + gz * numXY;
+                next[i] = head[cIdx];
+                head[cIdx] = i;
+              } else {
+                next[i] = -1;
+              }
+            }
+            uvGrid = { uPos, uUV, head, next, invCell, gMinX, gMinY, gMinZ, numX, numY, numZ, numXY };
+          }
+        }
+
         const _sampleTmpP = new THREE.Vector3();
         const _sampleTmpN = new THREE.Vector3();
         const sampleFn = (x, y, z, nx, ny, nz) => {
@@ -6717,9 +6890,47 @@ async function handleExport(format = 'stl') {
             return { targetTool, blendWeight: lum, multiColorInfo: null };
           }
 
+          let meshUV = null;
+          if (uvGrid) {
+            const { uPos, uUV, head, next, invCell, gMinX, gMinY, gMinZ, numX, numY, numZ, numXY } = uvGrid;
+            const cx = Math.floor(x * invCell) - gMinX;
+            const cy = Math.floor(y * invCell) - gMinY;
+            const cz = Math.floor(z * invCell) - gMinZ;
+            let bestDistSq = 1e9;
+            let bestIdx = -1;
+            for (let rad = 1; rad <= 3 && bestIdx === -1; rad++) {
+              const minDX = Math.max(0, cx - rad), maxDX = Math.min(numX - 1, cx + rad);
+              const minDY = Math.max(0, cy - rad), maxDY = Math.min(numY - 1, cy + rad);
+              const minDZ = Math.max(0, cz - rad), maxDZ = Math.min(numZ - 1, cz + rad);
+              for (let gz = minDZ; gz <= maxDZ; gz++) {
+                const offsetZ = gz * numXY;
+                for (let gy = minDY; gy <= maxDY; gy++) {
+                  const cellBase = gy * numX + offsetZ;
+                  for (let gx = minDX; gx <= maxDX; gx++) {
+                    let idx = head[gx + cellBase];
+                    while (idx !== -1) {
+                      const ex = uPos[idx * 3] - x;
+                      const ey = uPos[idx * 3 + 1] - y;
+                      const ez = uPos[idx * 3 + 2] - z;
+                      const dSq = ex * ex + ey * ey + ez * ez;
+                      if (dSq < bestDistSq) {
+                        bestDistSq = dSq;
+                        bestIdx = idx;
+                      }
+                      idx = next[idx];
+                    }
+                  }
+                }
+              }
+            }
+            if (bestIdx >= 0) {
+              meshUV = { u: uUV[bestIdx * 2], v: uUV[bestIdx * 2 + 1] };
+            }
+          }
+
           _sampleTmpP.set(x, y, z + workingMinZ);
           _sampleTmpN.set(nx, ny, nz);
-          const uvResult = computeUV(_sampleTmpP, _sampleTmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds);
+          const uvResult = computeUV(_sampleTmpP, _sampleTmpN, settingsWithAspect.mappingMode, settingsWithAspect, currentBounds, meshUV);
           let u = 0, v = 0;
           if (uvResult && uvResult.triplanar) {
             let maxW = -1;
@@ -6747,7 +6958,7 @@ async function handleExport(format = 'stl') {
             blendWeight = multiColorInfo.t;
           }
 
-          return { targetTool, blendWeight, multiColorInfo };
+          return { targetTool, blendWeight, multiColorInfo, u, v };
         };
 
         const convexAmp = interleavedSettings.convexAmp ?? 0.35;
@@ -6812,7 +7023,13 @@ async function handleExport(format = 'stl') {
             sampleFn,
             untexturedTool,
             exclusionMode,
-            null
+            {
+              pitch: Math.max(0.2, effectiveSettings.interleavedWeavePitch ?? 1.60),
+              amp: Math.max(0.01, effectiveSettings.interleavedWeaveAmp ?? 0.60),
+              profileMode: effectiveSettings.interleavedProfileMode,
+              bounds: currentBounds,
+              toolWeaveModes: interleavedSettings.toolWeaveModes
+            }
           );
 
           finalPositions = aligned.positions;
@@ -6845,6 +7062,7 @@ async function handleExport(format = 'stl') {
         finalGeometry = new THREE.BufferGeometry();
         finalGeometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
         if (result.normals) finalGeometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+        if (result.uvs) finalGeometry.setAttribute('uv', new THREE.BufferAttribute(result.uvs, 2));
         if (result.excludeWeights) {
           finalGeometry.setAttribute('excludeWeight', new THREE.BufferAttribute(result.excludeWeights, 1));
         }
@@ -7159,6 +7377,7 @@ async function bakeTextures() {
     };
     const result = await runPipeline({
       positions: currentGeometry.attributes.position.array,
+      uvs: currentGeometry.attributes.uv ? currentGeometry.attributes.uv.array : null,
       faceWeights,
       imageData: exportEntry.imageData,
       imgWidth: exportEntry.width,
@@ -7174,6 +7393,7 @@ async function bakeTextures() {
     displaced = new THREE.BufferGeometry();
     displaced.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
     if (result.normals) displaced.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+    if (result.uvs) displaced.setAttribute('uv', new THREE.BufferAttribute(result.uvs, 2));
 
     setBakeProgress(0.90, t('progress.finalizing'));
     await yieldFrame();

@@ -16,6 +16,7 @@ export const MODE_CYLINDRICAL = 3;
 export const MODE_SPHERICAL   = 4;
 export const MODE_TRIPLANAR   = 5;
 export const MODE_CUBIC       = 6;
+export const MODE_MESH_UV     = 7;
 
 const TWO_PI = Math.PI * 2;
 
@@ -140,7 +141,7 @@ export function getCubicBlendWeights(normal, blend, seamBandWidth = 0.35) {
  * @param {{ min, max, center, size }} bounds           THREE.Vector3 fields
  * @returns {{ u:number, v:number }}                    tiled UV after scale+offset
  */
-export function computeUV(pos, normal, mode, settings, bounds) {
+export function computeUV(pos, normal, mode, settings, bounds, meshUV = null) {
   const { min, size, center } = bounds;
   // Compensate for non-square textures: divide scale by aspect correction
   // so equal world-space distances produce equal physical texture distances.
@@ -156,6 +157,10 @@ export function computeUV(pos, normal, mode, settings, bounds) {
   const cosR = Math.cos(rotRad);
   const sinR = Math.sin(rotRad);
   const md = Math.max(size.x, size.y, size.z, 1e-6);
+
+  if (mode === MODE_MESH_UV && meshUV) {
+    return applyTransform(meshUV.u, meshUV.v, 1, 1, offsetU, offsetV, cosR, sinR);
+  }
 
   let u = 0, v = 0;
 

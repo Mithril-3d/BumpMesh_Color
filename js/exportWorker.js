@@ -35,6 +35,7 @@ self.onmessage = async (e) => {
     const transfers = [result.positions.buffer];
     if (result.normals) transfers.push(result.normals.buffer);
     if (result.excludeWeights) transfers.push(result.excludeWeights.buffer);
+    if (result.uvs) transfers.push(result.uvs.buffer);
     if (result.faceParentId) transfers.push(result.faceParentId.buffer);
     self.postMessage({ type: 'done', result }, transfers);
   } catch (err) {

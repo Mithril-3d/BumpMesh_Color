@@ -89,6 +89,7 @@ export function resolveTJunctions(geometry, opts = {}) {
   const onTol2  = onTol * onTol;
 
   const pos  = geometry.attributes.position.array;
+  const uvIn = geometry.attributes.uv ? geometry.attributes.uv.array : null;
   const nTri = pos.length / 9;
 
   // ── Weld vertices at the export grid, SNAPPING coords onto that grid ─────────
@@ -122,7 +123,7 @@ export function resolveTJunctions(geometry, opts = {}) {
   //      the two — and since we output the snapped coords, the importer sees the
   //      identical geometry and finds nothing left to remove.
   const DEGEN_AREA2 = 1e-18;
-  let faces = [], droppedNeedles = 0;
+  let faces = [], faceUVs = uvIn ? [] : null, droppedNeedles = 0;
   for (let t = 0; t < nTri; t++) {
     const a = vid[t*3], b = vid[t*3+1], c = vid[t*3+2];
     if (a === b || b === c || a === c) continue;
@@ -131,6 +132,14 @@ export function resolveTJunctions(geometry, opts = {}) {
     const cx = uy*wz - uz*wy, cy = uz*wx - ux*wz, cz = ux*wy - uy*wx;
     if (cx*cx + cy*cy + cz*cz < DEGEN_AREA2) { droppedNeedles++; continue; }
     faces.push([a, b, c]);
+    if (faceUVs) {
+      const uBase = t * 6;
+      faceUVs.push([
+        uvIn[uBase], uvIn[uBase + 1],
+        uvIn[uBase + 2], uvIn[uBase + 3],
+        uvIn[uBase + 4], uvIn[uBase + 5],
+      ]);
+    }
   }
 
   const ekey = (a, b) => (a < b ? a * 4294967296 + b : b * 4294967296 + a);
@@ -153,7 +162,7 @@ export function resolveTJunctions(geometry, opts = {}) {
     const bvArr = [...bverts];
 
     // For each boundary edge, find boundary vertices lying on its segment.
-    const splits = new Map(); // faceIndex → { a, b, mids:[vertex…] }
+    const splits = new Map(); // faceIndex → { e, a, b, found:[[tp, vertex]…] }
     let didSplit = false;
     for (let fi = 0; fi < faces.length; fi++) {
       const f = faces[fi];
@@ -176,7 +185,7 @@ export function resolveTJunctions(geometry, opts = {}) {
         }
         if (found.length) {
           found.sort((p, q) => p[0] - q[0]);
-          splits.set(fi, { a, b, mids: found.map(m => m[1]) });
+          splits.set(fi, { e, a, b, found });
           didSplit = true;
           break; // one split site per face per pass; cascades handled by iteration
         }
@@ -186,31 +195,49 @@ export function resolveTJunctions(geometry, opts = {}) {
 
     // Apply: replace each split face with a fan from its apex over the split edge.
     const next = [];
+    const nextUVs = faceUVs ? [] : null;
     for (let fi = 0; fi < faces.length; fi++) {
       const sp = splits.get(fi);
-      if (!sp) { next.push(faces[fi]); continue; }
-      const f = faces[fi], { a, b, mids } = sp;
-      const apex = f[0] !== a && f[0] !== b ? f[0] : f[1] !== a && f[1] !== b ? f[1] : f[2];
-      // Preserve winding: walk the base in the direction the face traverses it.
-      let dirAB = false;
-      for (let e = 0; e < 3; e++) if (f[e] === a && f[(e+1)%3] === b) { dirAB = true; break; }
-      const seq = dirAB ? [a, ...mids, b] : [b, ...mids.slice().reverse(), a];
+      if (!sp) {
+        next.push(faces[fi]);
+        if (nextUVs) nextUVs.push(faceUVs[fi]);
+        continue;
+      }
+      const f = faces[fi], { e, a, b, found } = sp;
+      const apexIdx = (e + 2) % 3;
+      const apex = f[apexIdx];
+      const seq = [a, ...found.map(m => m[1]), b];
+      const fuv = faceUVs ? faceUVs[fi] : null;
+      const uA = fuv ? fuv[e * 2] : 0, vA = fuv ? fuv[e * 2 + 1] : 0;
+      const uB = fuv ? fuv[((e + 1) % 3) * 2] : 0, vB = fuv ? fuv[((e + 1) % 3) * 2 + 1] : 0;
+      const uApex = fuv ? fuv[apexIdx * 2] : 0, vApex = fuv ? fuv[apexIdx * 2 + 1] : 0;
+      const seqT = [0, ...found.map(m => m[0]), 1];
       for (let s = 0; s < seq.length - 1; s++) {
-        const vA = seq[s], vB = seq[s+1], vC = apex;
-        if (vA === vB || vB === vC || vA === vC) continue;
-        const ux = vx[vB]-vx[vA], uy = vy[vB]-vy[vA], uz = vz[vB]-vz[vA];
-        const wx = vx[vC]-vx[vA], wy = vy[vC]-vy[vA], wz = vz[vC]-vz[vA];
+        const vA_id = seq[s], vB_id = seq[s+1], vC_id = apex;
+        if (vA_id === vB_id || vB_id === vC_id || vA_id === vC_id) continue;
+        const ux = vx[vB_id]-vx[vA_id], uy = vy[vB_id]-vy[vA_id], uz = vz[vB_id]-vz[vA_id];
+        const wx = vx[vC_id]-vx[vA_id], wy = vy[vC_id]-vy[vA_id], wz = vz[vC_id]-vz[vA_id];
         const cx = uy*wz - uz*wy, cy = uz*wx - ux*wz, cz = ux*wy - uy*wx;
         if (cx*cx + cy*cy + cz*cz < DEGEN_AREA2) continue;
-        next.push([vA, vB, vC]);
+        next.push([vA_id, vB_id, vC_id]);
+        if (nextUVs) {
+          const t0 = seqT[s], t1 = seqT[s + 1];
+          nextUVs.push([
+            uA + t0 * (uB - uA), vA + t0 * (vB - vA),
+            uA + t1 * (uB - uA), vA + t1 * (vB - vA),
+            uApex, vApex,
+          ]);
+        }
       }
     }
     faces = next;
+    faceUVs = nextUVs;
   }
 
   // ── Rebuild non-indexed soup with flat normals ──────────────────────────────
   const out = new Float32Array(faces.length * 9);
   const nrm = new Float32Array(faces.length * 9);
+  const outUV = faceUVs ? new Float32Array(faces.length * 6) : null;
   for (let i = 0; i < faces.length; i++) {
     const f = faces[i];
     const ax = vx[f[0]], ay = vy[f[0]], az = vz[f[0]];
@@ -224,9 +251,17 @@ export function resolveTJunctions(geometry, opts = {}) {
     const len = Math.sqrt(nxx*nxx + nyy*nyy + nzz*nzz) || 1;
     nxx /= len; nyy /= len; nzz /= len;
     for (let k = 0; k < 3; k++) { nrm[i*9+k*3] = nxx; nrm[i*9+k*3+1] = nyy; nrm[i*9+k*3+2] = nzz; }
+    if (outUV) {
+      const fuv = faceUVs[i];
+      const uBase = i * 6;
+      outUV[uBase]     = fuv[0]; outUV[uBase + 1] = fuv[1];
+      outUV[uBase + 2] = fuv[2]; outUV[uBase + 3] = fuv[3];
+      outUV[uBase + 4] = fuv[4]; outUV[uBase + 5] = fuv[5];
+    }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(out, 3));
   g.setAttribute('normal',   new THREE.BufferAttribute(nrm, 3));
+  if (outUV) g.setAttribute('uv', new THREE.BufferAttribute(outUV, 2));
   return g;
 }
