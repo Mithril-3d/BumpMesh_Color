@@ -302,6 +302,23 @@ export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLa
     triOffset += count;
   }
 
+  // Deduplicate boundary cut edges per cut-plane to guarantee zero redundant shelf quads
+  // and maintain strict manifold topology with zero open or non-manifold edges.
+  for (let c = 0; c < cutEdgesPerCut.length; c++) {
+    const rawEdges = cutEdgesPerCut[c];
+    if (!rawEdges || rawEdges.length <= 1) continue;
+    const seen = new Set();
+    const deduped = [];
+    for (const [id0, id1] of rawEdges) {
+      if (id0 === id1) continue;
+      const key = `${id0},${id1}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push([id0, id1]);
+    }
+    cutEdgesPerCut[c] = deduped;
+  }
+
   return {
     positions: outPos,
     normals: outNrm,

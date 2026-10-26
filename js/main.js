@@ -165,7 +165,7 @@ const settings = {
   lockScale:     true,
   untexturedToolId: 4,
   bottomAngleLimit: 5,
-  topAngleLimit:    0,
+  topAngleLimit:    20,
   mappingBlend:     1,
   seamBandWidth:    0.5,
   textureSmoothing: 0,
@@ -502,7 +502,10 @@ const colorMultitoolSection  = document.getElementById('color-multitool-section'
 const colorModeToggle        = document.getElementById('color-mode-toggle');
 const colorCountSlider       = document.getElementById('color-count-slider');
 const colorCountVal          = document.getElementById('color-count-val');
+const quantizeModeSelect     = document.getElementById('quantize-mode-select');
 const colorPreviewToggle     = document.getElementById('color-preview-toggle');
+const colorFlatTopToggle     = document.getElementById('color-flat-top-toggle');
+let lastNonZeroTopAngle      = 20;
 const untexturedToolSelect   = document.getElementById('untextured-tool-select');
 const paletteList            = document.getElementById('palette-list');
 
@@ -1676,7 +1679,8 @@ function runColorQuantization() {
   if (interleavedColorCountSlider && interleavedColorCountSlider.value != k) interleavedColorCountSlider.value = k;
 
   // Perform k-means++ clustering on the texture
-  currentQuantizedResult = quantizeImage(activeMapEntry.imageData, k);
+  const quantMode = quantizeModeSelect ? quantizeModeSelect.value : (settings.quantizeMode || 'area');
+  currentQuantizedResult = quantizeImage(activeMapEntry.imageData, k, 20000, quantMode);
   currentColorPalette = currentQuantizedResult.palette;
 
   // Restore remembered user tool assignments across texture loads
@@ -2543,7 +2547,7 @@ function wireEvents() {
     const files = [...e.dataTransfer.files];
     const bmFile = files.find(f => /\.bumpmesh$/i.test(f.name));
     if (bmFile) { importProject(bmFile).catch(err => alert(t('alerts.importFailed', { msg: err.message }))); return; }
-    const file = files.find(f => /\.(stl|obj|3mf|step|stp)$/i.test(f.name));
+    const file = files.find(f => /\.(stl|obj|3mf|step|stp|zip)$/i.test(f.name));
     const imgFile = files.find(f => /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name));
     if (file) {
       await handleModelFile(file);
@@ -2773,7 +2777,13 @@ function wireEvents() {
   refineLenVal.addEventListener('change', checkResolutionWarning);
   linkSlider(maxTriSlider, maxTriVal, v => { settings.maxTriangles = v; return formatM(v); }, false);
   linkSlider(bottomAngleLimitSlider, bottomAngleLimitVal, v => { settings.bottomAngleLimit = v; _falloffDirty = true; return v; });
-  linkSlider(topAngleLimitSlider,    topAngleLimitVal,    v => { settings.topAngleLimit    = v; _falloffDirty = true; return v; });
+  linkSlider(topAngleLimitSlider,    topAngleLimitVal,    v => {
+    settings.topAngleLimit = v;
+    if (v > 0) lastNonZeroTopAngle = v;
+    if (colorFlatTopToggle) colorFlatTopToggle.checked = (v > 0);
+    _falloffDirty = true;
+    return v;
+  });
   linkSlider(seamBlendSlider,        seamBlendVal,        v => { settings.mappingBlend     = v; return v.toFixed(2); });
   linkSlider(seamBandWidthSlider,    seamBandWidthVal,    v => { settings.seamBandWidth    = v; return v.toFixed(2); });
   linkSlider(textureSmoothingSlider, textureSmoothingVal, v => { settings.textureSmoothing = v; return v.toFixed(1); });
@@ -2969,6 +2979,14 @@ function wireEvents() {
     });
   }
 
+  if (quantizeModeSelect) {
+    quantizeModeSelect.addEventListener('change', () => {
+      settings.quantizeMode = quantizeModeSelect.value;
+      runColorQuantization();
+      updatePreview();
+    });
+  }
+
   if (colorModeToggle) {
     colorModeToggle.addEventListener('change', () => {
       const isEnabled = colorModeToggle.checked;
@@ -2986,6 +3004,23 @@ function wireEvents() {
 
   if (colorPreviewToggle) {
     colorPreviewToggle.addEventListener('change', () => {
+      updatePreview();
+    });
+  }
+
+  if (colorFlatTopToggle) {
+    colorFlatTopToggle.checked = settings.topAngleLimit > 0;
+    colorFlatTopToggle.addEventListener('change', () => {
+      if (colorFlatTopToggle.checked) {
+        settings.topAngleLimit = lastNonZeroTopAngle > 0 ? lastNonZeroTopAngle : 20;
+      } else {
+        if (settings.topAngleLimit > 0) lastNonZeroTopAngle = settings.topAngleLimit;
+        settings.topAngleLimit = 0;
+      }
+      if (topAngleLimitSlider) topAngleLimitSlider.value = settings.topAngleLimit;
+      if (topAngleLimitVal) topAngleLimitVal.value = settings.topAngleLimit;
+      _falloffDirty = true;
+      updateMaterial();
       updatePreview();
     });
   }
@@ -4704,8 +4739,7 @@ async function handleModelFile(file, stepSettings = null) {
     importProgress.classList.remove('hidden');
   }
   try {
-    const { geometry, bounds, nanCount, degenerateCount, originOffset, step } =
-      await loadModelFile(file, { settings: stepSettings, onProgress: _setImportProgress });
+    const { geometry, bounds, nanCount, degenerateCount, originOffset, step, textureEntry, modelName } = await loadModelFile(file, { settings: stepSettings, onProgress: _setImportProgress });
 
     // Invalidate any in-flight async operations tied to the previous model
     precisionToken++;
@@ -4719,8 +4753,8 @@ async function handleModelFile(file, stepSettings = null) {
     currentBounds   = bounds;
     currentPoseRot   = new THREE.Quaternion();
     currentPoseTrans = originOffset ? originOffset.clone().negate() : new THREE.Vector3(); // mem = orig − centre
-    currentStlName  = file.name.replace(/\.(stl|obj|3mf|step|stp)$/i, '');
-    const _extMatch = file.name.match(/\.(stl|obj|3mf|step|stp)$/i);
+    currentStlName = modelName || file.name.replace(/\.(stl|obj|3mf|step|stp|zip)$/i, '');
+    const _extMatch = file.name.match(/\.(stl|obj|3mf|step|stp|zip)$/i);
     currentStlExt   = _extMatch ? _extMatch[0].toLowerCase() : '';
     checkAmplitudeWarning();
 
@@ -4744,6 +4778,20 @@ async function handleModelFile(file, stepSettings = null) {
     if (previewMaterial) {
       previewMaterial.dispose();
       previewMaterial = null;
+    }
+
+    // If model came from a zip archive with bundled texture, auto-activate it
+    if (textureEntry) {
+      _useCustomMap(textureEntry, true);
+      gallery.rememberUpload(file, textureEntry.fullCanvas).catch(() => {});
+      if (colorModeToggle && !colorModeToggle.checked) {
+        colorModeToggle.checked = true;
+        colorModeToggle.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (colorPreviewToggle && !colorPreviewToggle.checked) {
+        colorPreviewToggle.checked = true;
+        colorPreviewToggle.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     }
 
     // Auto-select first preset on first load
@@ -7143,6 +7191,10 @@ async function handleExport(format = 'stl') {
     // Hide progress immediately on error or stale abort; success hides it after 1500 ms.
     if (!exportSucceeded) exportProgress.classList.add('hidden');
     isExporting = false;
+    // Ensure user's selected color sub-mode (Interleaved vs Quantize) is strictly preserved
+    if (currentColorSubMode === 1 && tabColorLayerBlend && !tabColorLayerBlend.classList.contains('active')) {
+      switchColorSubMode(1, false);
+    }
     exportBtn.classList.remove('busy');
     export3mfBtn.classList.remove('busy');
     if (exportMultiColor3mfBtn) exportMultiColor3mfBtn.classList.remove('busy');
@@ -7666,6 +7718,7 @@ function getSettingsSnapshot() {
   snap.colorModeEnabled    = Boolean(colorModeToggle?.checked);
   snap.colorPreviewEnabled = Boolean(colorPreviewToggle?.checked);
   snap.colorCount          = colorCountSlider ? parseInt(colorCountSlider.value, 10) : 4;
+  snap.quantizeMode        = quantizeModeSelect ? quantizeModeSelect.value : 'area';
   snap.colorSubMode        = currentColorSubMode;
   snap.untexturedToolId    = settings.untexturedToolId ?? 1;
   snap.palette             = currentColorPalette ? currentColorPalette.map(p => ({ ...p })) : [];
@@ -7850,10 +7903,18 @@ function applySettingsSnapshot(snap) {
     colorPreviewToggle.checked = !!snap.colorPreviewEnabled;
     colorPreviewToggle.dispatchEvent(new Event('change', { bubbles: true }));
   }
+  if (snap.topAngleLimit != null && colorFlatTopToggle) {
+    colorFlatTopToggle.checked = snap.topAngleLimit > 0;
+    if (snap.topAngleLimit > 0) lastNonZeroTopAngle = snap.topAngleLimit;
+  }
   if (snap.colorCount != null && colorCountSlider) {
     colorCountSlider.value = snap.colorCount;
     colorCountSlider.dispatchEvent(new Event('input', { bubbles: true }));
     colorCountSlider.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  if (snap.quantizeMode != null && quantizeModeSelect) {
+    quantizeModeSelect.value = snap.quantizeMode;
+    settings.quantizeMode = snap.quantizeMode;
   }
   if (snap.colorSubMode != null) {
     switchColorSubMode(snap.colorSubMode, false);
@@ -8109,7 +8170,7 @@ const DEFAULT_SETTINGS_SNAPSHOT = Object.freeze({
   symmetricDisplacement: false, noDownwardZ: false, smoothBottom: true, harvestFlatFaces: true, harvestTol: 0.005, preserveUntextured: true, textureSmoothing: 0,
   mappingBlend: 1, seamBandWidth: 0.5, capAngle: 20, boundaryFalloff: 0,
   boundaryFalloffCurve: 'ease',
-  bottomAngleLimit: 5, topAngleLimit: 0,
+  bottomAngleLimit: 5, topAngleLimit: 20,
   refineLength: 1, maxTriangles: 750000,
   snapSeamlessWrap: true,
   cylinderCenterX: null, cylinderCenterY: null, cylinderRadius: null,

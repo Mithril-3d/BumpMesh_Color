@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.6.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.7.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,28 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v1.7.0 (Major Release - 2026-10-26)**:
+  - **100% Watertight Manifold Slicing & Zero Open Edges**:
+    - Eliminated duplicate cut-boundary edge registration across slice planes, resolving the root cause of overlapping shelf quads and non-manifold edges in slicers (PrusaSlicer, Bambu Studio).
+    - Upgraded 3MF exporter face deduplication to directed cyclic matching, preventing accidental face dropping.
+    - Achieved **0 open edges, 0 non-manifold edges, and 0 inverted edges** for flawless slicing.
+  - **Direct Color 3D Model Zip Import (.zip)**:
+    - Drag and drop or browse zipped 3D model packages containing OBJ, DAE, 3MF, or STL alongside PNG/JPG/WebP texture maps.
+    - Automatic MTL parsing (`map_Kd`) and intelligent texture heuristics (`diffuse`, `_tex`, `_co`, `body`, etc.) to automatically bind the primary color map, activate `Mesh UV` mapping mode, and enable 3D color preview in one step.
+    - Collada (`.dae`) meshes are automatically parsed and displayed via dynamic loader integration.
+  - **Clean Off-Screen 3MF Thumbnail Generation**:
+    - Moved 3MF preview thumbnail capture to an isolated GPU off-screen render target (`WebGLRenderTarget`).
+    - The active viewport, main scene, camera, and materials are never hijacked, eliminating the brief flicker into flat vertex-color preview during export.
+    - Guaranteed state preservation for active sub-modes (Interleaved Layers vs. Quantize).
+  - **Flat Top Surface (Disable Top Texture) Toggle**:
+    - Added a convenient toggle in the Color & Multi-Tool panel to suppress textures and relief on upward-facing horizontal surfaces, ensuring smooth, clean top infill printing on FDM printers.
+    - Bidirectionally synchronized with the Masking section's `Top faces` angle slider.
+  - **Gamut Basis Palette Extraction Mode**:
+    - Introduced a Gamut Basis extraction option utilizing simplex orthogonal distance to prioritize shadow, highlight, and high-chroma corner colors. Small-area accent colors (eyes, markings) are preserved for vibrant multi-color gradient mixing.
+  - **5° Snap Rotation Gizmo (PrusaSlicer Style)**:
+    - Viewport rotation gizmo snaps to 5° increments when dragging inside the ring/protractor dial, and provides 0.1° fine precision when dragging outside.
+  - **Full 14-Language Localization Synchronization**:
+    - Synchronized all newly introduced UI labels and tooltips across all 14 supported languages with zero missing keys.
 - **v1.6.0 (Major Release - 2026-10-18)**:
   - **Flat Amplitude Scale & Prominent Profile Mode Selection**:
     - Added independent amplitude scaling (0.00x - 2.00x) for tools configured in Flat (━) mode under Profile 5 (Halftone Weave).
@@ -460,6 +482,25 @@ python -m http.server 8080
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
 
+- **v1.7.0 (メジャーリリース - 2026-10-26)**:
+  - **水密スライス完全閉鎖＆オープンエッジの完全根絶**:
+    - 層の切断境界エッジが二重登録されていた問題を解消し、水平棚面（Quad）の重複生成による非多様体（Non-manifold）・オープンエッジバグを根本解決。
+    - 3MFエクスポーターの重複判定を有向サイクル判定へ改修し、裏表の面の欠落を防止。Bambu Studio や PrusaSlicer でのオープンエッジ 0 を達成。
+  - **カラー3Dモデル入りZipアーカイブ（.zip）直接インポート機能**:
+    - OBJ / DAE / 3MF / STL とテクスチャ画像（PNG / JPG / WebP 等）を含む Zip ファイルを画面に直接ドラッグ＆ドロップまたはファイル選択で読み込み可能に。
+    - MTLファイル（`map_Kd`）の自動解析、またはファイル名ヒューリスティクス（`diffuse`, `_tex`, `_co`, `body` 等）によりメインテクスチャを自動検出し、自動で `Mesh UV` マッピングとカラープレビューを有効化。
+    - Collada（`.dae`）形式のモデルも動的ローダーによりそのまま読み込み可能。
+  - **オフスクリーン3MFサムネイル生成（画面ハイジャックの解消）**:
+    - 3MFエクスポート中のサムネイル生成を GPU オフスクリーンレンダーターゲット（`WebGLRenderTarget`）で独立処理するように改修。
+    - エクスポート中にメイン画面のモデルが一瞬カラー量子化のベタ塗りに化ける現象を根絶し、カメラやビューポートを乱さず高速・高品質にサムネイルを生成。
+  - **天井面フラット化（テクスチャ無効・推奨）トグルの新設**:
+    - FDM 3Dプリンターで綺麗なトップソリッドインフィルで印刷できるよう、上向き水平面（天井）へのテクスチャ適用および凹凸段差をワンクリックで抑制する設定を追加。
+  - **混色基底パレット抽出モード（Gamut Basis）の実装**:
+    - 減色抽出方式に「✨ 混色基底 (グラデーション)」を追加。凸包直交基底選択により、アクセント色や鮮やかな差し色を埋もれさせず確実に抽出し、交互積層による美しい混色表現が可能に。
+  - **5°スナップ付き回転ギズモ（PrusaSlicerスタイル）の実装**:
+    - ビューポートの回転リングにおいて、リング内側（分度器上）をドラッグした際に5°刻みでスナップし、外側ドラッグで0.1°精密微調整に切り替わるプロトラクター式ギズモを実装。
+  - **全14言語の完全同期ローカライズ**:
+    - 新設UIキーをサポートする全14言語で100%同期（未翻訳キー 0件）。
 - **v1.6.0 (メジャーリリース - 2026-10-18)**:
   - **ハーフトーン編み（Profile 5）におけるフラットツールの振幅倍率調整機能（フラット振幅倍率）**:
     - 断面プロファイル「🎭 ハーフトーン編み」において、フラット（━）に設定したツールの突出量倍率を自由に調整できるスライダー（0.00〜2.00倍）を追加。

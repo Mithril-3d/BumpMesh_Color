@@ -99,7 +99,7 @@
       <div class="logo-text">
         <div class="logo-title">
           <span>BumpMesh_Color</span>
-          <span id="app-version" class="app-version">v1.6.0</span>
+          <span id="app-version" class="app-version">v1.7.0</span>
         </div>
         <div class="logo-subtitle">
           by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener noreferrer">@Mithril_MEX</a>
@@ -167,7 +167,7 @@
             <path d="M2 12L12 17L22 12" stroke="#555" stroke-width="1.2" stroke-linejoin="round"/>
           </svg>
           <p data-i18n-html="dropHint.text">Drop an <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> or <strong>.step</strong> file here<br/>or <label for="stl-file-input" class="link-label">click to browse</label></p>
-          <input type="file" id="stl-file-input" accept=".stl,.obj,.3mf,.step,.stp" hidden />
+          <input type="file" id="stl-file-input" accept=".stl,.obj,.3mf,.step,.stp,.zip" hidden />
         </div>
         <canvas id="viewport" role="img" aria-label="3D model preview"></canvas>
         <div id="brush-cursor"></div>
@@ -478,19 +478,45 @@
             <button type="button" id="tab-color-layerblend" class="color-tab-btn" style="flex:1;" data-i18n="color.tabLayerBlend">交互積層 (振り重ね)</button>
           </div>
 
-          <div class="form-row" style="margin-top:2px;margin-bottom:8px;">
+          <div class="form-row" style="margin-top:2px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
             <label class="checkbox-label" for="color-preview-toggle" style="font-size:11px;cursor:pointer;">
               <input type="checkbox" id="color-preview-toggle" checked />
               <span data-i18n="color.show3DPreview">3Dプレビューで色を表示</span>
+            </label>
+            <label class="checkbox-label" for="color-flat-top-toggle" style="font-size:11px;cursor:pointer;" data-i18n-title="color.flatTopTitle" title="上向き水平面（天井）へのテクスチャ適用と段差を無効化し、滑らかな天面インフィルで印刷します。">
+              <input type="checkbox" id="color-flat-top-toggle" checked />
+              <span data-i18n="color.flatTop">天井面フラット化 (推奨)</span>
             </label>
           </div>
 
           <!-- Extruder Count (Top & Prominent) -->
           <div class="form-row slider-row" style="margin-top:4px;margin-bottom:8px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:6px;padding:8px 10px;">
+
             <label for="color-count-slider" data-i18n="color.extruderCount" data-i18n-title="color.extruderCountTitle" title="減色する代表色の数（Extruder数）" style="font-weight:700;color:var(--accent,#38bdf8);">Extruder数 (色数)</label>
+
             <input type="range" id="color-count-slider" min="2" max="8" step="1" value="4" />
+
             <span class="val" id="color-count-val" style="font-weight:700;font-size:13px;color:var(--accent,#38bdf8);">4</span>
+
           </div>
+
+          <!-- Palette Extraction Mode (Area vs Gamut Basis) -->
+
+          <div class="form-row" style="margin-top:2px;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+
+            <label for="quantize-mode-select" data-i18n="color.quantizeMode" data-i18n-title="color.quantizeModeTitle" title="パレット色の抽出アルゴリズム。面積優先はベタ塗り向け、混色基底は交互積層のグラデーション向けです。" style="flex:0 0 auto;font-size:12px;color:var(--text);white-space:nowrap;margin:0;">抽出方式</label>
+
+            <select id="quantize-mode-select" class="interleaved-select" style="flex:1;min-width:0;width:0;box-sizing:border-box;font-size:11.5px;padding:3px 6px;height:26px;">
+
+              <option value="area" selected data-i18n-opt="color.quantizeModeArea">面積優先 (標準)</option>
+
+              <option value="gamut" data-i18n-opt="color.quantizeModeGamut">✨ 混色基底 (グラデーション)</option>
+
+            </select>
+
+          </div>
+
+
 
           <!-- Color Palette List (Shared across both Quantize and Interleaved tabs) -->
           <div class="palette-container" id="palette-list" style="margin-bottom:10px;">
@@ -848,8 +874,8 @@
         </div>
         <div class="form-row slider-row">
           <label for="top-angle-limit" data-i18n="labels.topFaces" data-i18n-title="tooltips.topFaces" title="Suppress texture on upward-facing surfaces within this angle of horizontal">Top faces</label>
-          <input type="range" id="top-angle-limit" min="0" max="90" step="1" value="0" />
-          <input type="number" class="val" id="top-angle-limit-val" value="0" min="0" max="90" step="1" />
+          <input type="range" id="top-angle-limit" min="0" max="90" step="1" value="20" />
+          <input type="number" class="val" id="top-angle-limit-val" value="20" min="0" max="90" step="1" />
         </div>
 
         <!-- By Surface -->

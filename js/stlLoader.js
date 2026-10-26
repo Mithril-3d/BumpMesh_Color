@@ -307,7 +307,7 @@ const MAX_3MF_DEPTH     = 32;
 
 // ── Custom 3MF parser ────────────────────────────────────────────────────────
 
-function parse3MF(data) {
+export function parse3MF(data) {
   const files = unzipSync(data);
   const decoder = new TextDecoder();
   const parser  = new DOMParser();
@@ -530,6 +530,9 @@ function parse3MF(data) {
  */
 export function loadModelFile(file, opts) {
   const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'zip') {
+    return import('./zipModelLoader.js').then((m) => m.loadZipModelFile(file, opts));
+  }
   if (ext === 'obj') return loadOBJFile(file);
   if (ext === '3mf') return load3MFFile(file);
   if (ext === 'step' || ext === 'stp') {
@@ -542,7 +545,7 @@ export function loadModelFile(file, opts) {
  * Extract and merge all mesh geometries from a Group (OBJ/3MF) into a single
  * non-indexed BufferGeometry suitable for the texturizer pipeline.
  */
-function mergeGroupGeometries(group) {
+export function mergeGroupGeometries(group) {
   const geometries = [];
   group.traverse((child) => {
     if (child.isMesh && child.geometry) {

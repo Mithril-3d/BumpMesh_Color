@@ -221,12 +221,11 @@ export async function export3MF(geometry, filename = 'textured.3mf', thumbnailDa
     const v3 = triIdx[i * 3 + 2];
     if (v1 === v2 || v2 === v3 || v3 === v1) continue;
 
-    let lo = Math.min(v1, v2, v3);
-    let hi = Math.max(v1, v2, v3);
-    let mid = v1 + v2 + v3 - lo - hi;
-    if (mid > hi) { const t = mid; mid = hi; hi = t; }
-    if (lo > mid) { const t = lo; lo = mid; mid = t; }
-    const faceKey = `${lo},${mid},${hi}`;
+    // Directed cyclic deduplication: preserves legitimate back-to-back opposite facing triangles
+    let a = v1, b = v2, c = v3;
+    if (b < a && b < c) { const t = a; a = b; b = c; c = t; }
+    else if (c < a && c < b) { const t = c; c = b; b = a; a = t; }
+    const faceKey = `${a},${b},${c}`;
     if (seenFaces.has(faceKey)) continue;
     seenFaces.add(faceKey);
 
@@ -446,14 +445,13 @@ export async function exportMultiColor3MF(geometry, triTools, palette, filename 
     const v3 = triIdx[i * 3 + 2];
     if (v1 === v2 || v2 === v3 || v3 === v1) continue;
 
-    let lo = Math.min(v1, v2, v3);
-    let hi = Math.max(v1, v2, v3);
-    let mid = v1 + v2 + v3 - lo - hi;
-    if (mid > hi) { const t = mid; mid = hi; hi = t; }
-    if (lo > mid) { const t = lo; lo = mid; mid = t; }
+    // Directed cyclic deduplication: preserves legitimate back-to-back opposite facing triangles
+    let a = v1, b = v2, c = v3;
+    if (b < a && b < c) { const t = a; a = b; b = c; c = t; }
+    else if (c < a && c < b) { const t = c; c = b; b = a; a = t; }
     const faceKey = canBitPack
-      ? ((BigInt(lo) << 42n) | (BigInt(mid) << 21n) | BigInt(hi))
-      : `${lo},${mid},${hi}`;
+      ? ((BigInt(a) << 42n) | (BigInt(b) << 21n) | BigInt(c))
+      : `${a},${b},${c}`;
     if (seenFacesMulti.has(faceKey)) continue;
     seenFacesMulti.add(faceKey);
 

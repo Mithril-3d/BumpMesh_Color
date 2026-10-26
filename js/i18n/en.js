@@ -324,10 +324,20 @@ export default {
   "color.tabQuantize": "Color Quantization",
   "color.tabLayerBlend": "Interleaved Layers",
   "color.show3DPreview": "Show colors in 3D preview",
+  "color.flatTop": "Flat Top Surface (Recommended)",
+  "color.flatTopTitle": "Disable texture and displacement on upward-facing horizontal surfaces for clean top infill printing.",
   "color.untexturedTool": "Untextured Tool",
   "color.untexturedToolTitle": "Tool assigned to masked areas or untextured faces (bottom, etc.)",
   "color.extruderCount": "Extruders (Colors)",
   "color.extruderCountTitle": "Number of dominant colors to extract (Extruder count)",
+
+  "color.quantizeMode": "Palette Mode",
+
+  "color.quantizeModeTitle": "Palette extraction algorithm. Area-dominant suits solid color printing; Gamut basis suits interleaved layer gradient mixing.",
+
+  "color.quantizeModeArea": "Area-Dominant (Standard)",
+
+  "color.quantizeModeGamut": "✨ Gamut Basis (Gradation)",
   "color.assignLabel": "Tool:",
   "color.interleavedDesc": "Alternates layers for each quantized color tool; extrudes convex features on matching colors and indents on non-matching colors.",
   "color.layerThickness": "Layer Thickness (mm)",

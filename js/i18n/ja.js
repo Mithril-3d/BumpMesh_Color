@@ -326,10 +326,20 @@ export default {
   "color.tabQuantize": "カラー量子化",
   "color.tabLayerBlend": "交互積層 (振り重ね)",
   "color.show3DPreview": "3Dプレビューで色を表示",
+  "color.flatTop": "天井面フラット化 (推奨)",
+  "color.flatTopTitle": "上向きの水平面（天井）へのテクスチャ適用と段差を無効化し、綺麗な天面インフィルで印刷できるようにします。",
   "color.untexturedTool": "非テクスチャ部ツール",
   "color.untexturedToolTitle": "マスク領域やテクスチャを適用しない面（底面など）に割り当てるツール",
   "color.extruderCount": "Extruder数 (色数)",
   "color.extruderCountTitle": "減色する代表色の数（Extruder数）",
+
+  "color.quantizeMode": "抽出方式",
+
+  "color.quantizeModeTitle": "パレット色の抽出アルゴリズム。面積優先はベタ塗り向け、混色基底は交互積層のグラデーション向けです。",
+
+  "color.quantizeModeArea": "面積優先 (標準)",
+
+  "color.quantizeModeGamut": "✨ 混色基底 (グラデーション)",
   "color.assignLabel": "割当:",
   "color.interleavedDesc": "カラー量子化の各ツールを一定厚みで交互に積層し、目的色の領域で凸、非目的色の領域で凹を生成します。",
   "color.layerThickness": "積層厚み (mm)",
