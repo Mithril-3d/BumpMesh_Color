@@ -8,7 +8,7 @@ export default {
   "theme.light": "Lyst tema",
   "theme.toggleTitle": "Skift mellem lyst / mørkt tema",
   "theme.toggleAriaLabel": "Skift lyst/mørkt tema",
-  "dropHint.text": "Drop en <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> eller <strong>.step</strong> fil her<br/>eller <label for=\"stl-file-input\" class=\"link-label\">klik for at vælge</label>",
+  "dropHint.text": "Drop en <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> <strong>.step</strong> eller <strong>.zip</strong> fil her<br/>eller <label for=\"stl-file-input\" class=\"link-label\">klik for at vælge</label>",
   "step.dialogTitle": "STEP-import",
   "step.modelSize": "Modelstørrelse: {d} mm",
   "step.custom": "Brugerdefineret",

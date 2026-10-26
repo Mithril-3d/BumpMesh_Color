@@ -970,14 +970,26 @@ export function applyLayerAlignedDisplacement(
         const n0 = uniqueNorms[id0];
         const n1 = uniqueNorms[id1];
 
+        // Robust outward normal: derive directly from the directed cut edge (p0 -> p1)
+        // on the counter-clockwise perimeter loop. This guarantees 100% correct outward horizontal
+        // displacement even when vertex normals are contaminated by horizontal cap vertices (issue #82).
+        const edx = p1[0] - p0[0];
+        const edy = p1[1] - p0[1];
+        const elen = Math.hypot(edx, edy);
+        if (elen < 1e-6) continue; // degenerate micro-edge
+
+        // Geometric outward normal for CCW edge in XY plane: (edy / elen, -edx / elen)
+        const geoNx = edy / elen;
+        const geoNy = -edx / elen;
+
         const hlen0 = Math.hypot(n0[0], n0[1]);
         const hlen1 = Math.hypot(n1[0], n1[1]);
-        if (hlen0 < 1e-4 && hlen1 < 1e-4) continue; // skip horizontal caps
 
-        const unx0 = hlen0 >= 1e-4 ? n0[0] / hlen0 : 0;
-        const uny0 = hlen0 >= 1e-4 ? n0[1] / hlen0 : 0;
-        const unx1 = hlen1 >= 1e-4 ? n1[0] / hlen1 : 0;
-        const uny1 = hlen1 >= 1e-4 ? n1[1] / hlen1 : 0;
+        // Use vertex normal if horizontal, otherwise fallback to exact geometric edge normal
+        const unx0 = hlen0 >= 1e-4 ? (n0[0] / hlen0) : geoNx;
+        const uny0 = hlen0 >= 1e-4 ? (n0[1] / hlen0) : geoNy;
+        const unx1 = hlen1 >= 1e-4 ? (n1[0] / hlen1) : geoNx;
+        const uny1 = hlen1 >= 1e-4 ? (n1[1] / hlen1) : geoNy;
 
         const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
         const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
@@ -1035,15 +1047,16 @@ export function applyLayerAlignedDisplacement(
         // This guarantees 100% strict single-color per slice layer with zero cross-layer tool bleed!
         const shelfTool = (shelfNz > 0) ? botTool : topTool;
 
-        // Output non-degenerate shelf geometry with mathematically correct manifold winding order:
-        // Lower triangle edge is p1_bot -> p0_bot, so shelf must have opposite directed edge p0_bot -> p1_bot.
-        // Upper triangle edge is p0_top -> p1_top, so shelf must have opposite directed edge p1_top -> p0_top.
+        // Mathematically exact manifold winding:
+        // Lower polygon has edge p1_bot -> p0_bot, so shelf MUST have opposite directed edge p0_bot -> p1_bot.
+        // Upper polygon has edge p0_top -> p1_top, so shelf MUST have opposite directed edge p1_top -> p0_top.
+        // CCW perimeter quad is: p0_bot -> p1_bot -> p1_top -> p0_top.
         if (!hasStep0) {
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
+          emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, shelfNz, shelfTool);
         } else if (!hasStep1) {
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
+          emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
         } else {
-          emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, p0_bot_x, p0_bot_y, p0_bot_z, shelfNz, shelfTool);
+          emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
           emitShelfTriangle(p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
         }
       }

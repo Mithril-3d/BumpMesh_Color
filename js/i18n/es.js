@@ -8,7 +8,7 @@ export default {
   "theme.light": "Tema Claro",
   "theme.toggleTitle": "Alternar modo claro / oscuro",
   "theme.toggleAriaLabel": "Alternar modo claro/oscuro",
-  "dropHint.text": "Arrastra aquí un archivo <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> o <strong>.step</strong><br/>o <label for=\"stl-file-input\" class=\"link-label\">haz clic para explorar</label>",
+  "dropHint.text": "Arrastra aquí un archivo <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> <strong>.step</strong> o <strong>.zip</strong><br/>o <label for=\"stl-file-input\" class=\"link-label\">haz clic para explorar</label>",
   "step.dialogTitle": "Importar STEP",
   "step.modelSize": "Tamaño del modelo: {d} mm",
   "step.custom": "Personalizada",

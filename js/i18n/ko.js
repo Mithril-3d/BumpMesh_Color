@@ -8,7 +8,7 @@ export default {
   "theme.light": "라이트 테마",
   "theme.toggleTitle": "라이트 / 다크 모드 전환",
   "theme.toggleAriaLabel": "라이트/다크 모드 전환",
-  "dropHint.text": "여기에 <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> 또는 <strong>.step</strong> 파일을 놓거나<br/><label for=\"stl-file-input\" class=\"link-label\">클릭해서 선택</label>",
+  "dropHint.text": "여기에 <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> <strong>.step</strong> 또는 <strong>.zip</strong> 파일을 놓거나<br/><label for=\"stl-file-input\" class=\"link-label\">클릭해서 선택</label>",
   "step.dialogTitle": "STEP 가져오기",
   "step.modelSize": "모델 크기: {d} mm",
   "step.custom": "사용자 지정",

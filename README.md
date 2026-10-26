@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.7.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v1.7.1-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -193,6 +193,18 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 ---
 
 ## 🌟 What's New in Recent Updates
+
+- **v1.7.1 (Patch Release - 2026-10-26)**:
+  - **100% Watertight Manifold Shelf Generation & Zero Open Edges**:
+    - Mathematically exact geometric outward normal calculation for sliced boundary edges, ensuring shelf polygons are never skipped on low horizontal-normal slopes.
+    - Strict triangle winding inversion for downward shelves (`shelfNz < 0`), completely eliminating inverted faces and open-edge defects in PrusaSlicer and Bambu Studio.
+  - **Gamut Basis Auto-Switch & Export Sub-Mode Preservation**:
+    - Selecting `Gamut Basis (Gradation)` automatically activates Interleaved Layer mode and strictly preserves multi-tool gradient slicing during export without accidental reverts to flat quantization.
+  - **Enhanced Zipped 3D Model Archive Import (.zip)**:
+    - Smart model ranking preferring clean static meshes (`NoMorphs`) and primary character body textures (`cr_`, `body`, `diffuse`).
+    - Added `.zip` to the dropzone hint text across all 14 languages.
+  - **Spot Cow Model Preset**:
+    - Configured git repository tracking for bundled test model assets (`models/spot.obj`, `models/spot_texture.png`) resolving preset 404 load errors.
 
 - **v1.7.0 (Major Release - 2026-10-26)**:
   - **100% Watertight Manifold Slicing & Zero Open Edges**:

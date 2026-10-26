@@ -8,7 +8,7 @@ export default {
   "theme.light": "Helles Design",
   "theme.toggleTitle": "Hell/Dunkel-Modus wechseln",
   "theme.toggleAriaLabel": "Hell/Dunkel-Modus wechseln",
-  "dropHint.text": "<strong>.stl</strong>-, <strong>.obj</strong>-, <strong>.3mf</strong>- oder <strong>.step</strong>-Datei hier ablegen<br/>oder <label for=\"stl-file-input\" class=\"link-label\">zum Durchsuchen klicken</label>",
+  "dropHint.text": "<strong>.stl</strong>-, <strong>.obj</strong>-, <strong>.3mf</strong>- <strong>.step</strong>- oder <strong>.zip</strong>-Datei hier ablegen<br/>oder <label for=\"stl-file-input\" class=\"link-label\">zum Durchsuchen klicken</label>",
   "step.dialogTitle": "STEP-Import",
   "step.modelSize": "Modellgröße: {d} mm",
   "step.custom": "Individuell",

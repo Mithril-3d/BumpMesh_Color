@@ -8,7 +8,7 @@ export default {
   "theme.light": "Aydınlık Tema",
   "theme.toggleTitle": "Değiştir: aydınlık / karanlık mod",
   "theme.toggleAriaLabel": "Değiştir: aydınlık / karanlık mod",
-  "dropHint.text": "<strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> ya da <strong>.step</strong> dosyasını buraya sürükleyin<br/>ya da <label for=\"stl-file-input\" class=\"link-label\">tıklayıp yükleyin</label>",
+  "dropHint.text": "<strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> ya da <strong>.zip</strong> dosyasını buraya sürükleyin<br/>ya da <label for=\"stl-file-input\" class=\"link-label\">tıklayıp yükleyin</label>",
   "step.dialogTitle": "STEP İçe Aktarma",
   "step.modelSize": "Model boyutu: {d} mm",
   "step.custom": "Özel",

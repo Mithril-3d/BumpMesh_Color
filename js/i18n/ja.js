@@ -8,7 +8,7 @@ export default {
   "theme.light": "ライトテーマ",
   "theme.toggleTitle": "ライト/ダークモードを切り替え",
   "theme.toggleAriaLabel": "ライト/ダークモードを切り替え",
-  "dropHint.text": "<strong>.stl</strong>、<strong>.obj</strong>、<strong>.3mf</strong>、<strong>.step</strong> ファイルをここにドロップ<br/>または <label for=\"stl-file-input\" class=\"link-label\">クリックして参照</label>",
+  "dropHint.text": "<strong>.stl</strong>、<strong>.obj</strong>、<strong>.3mf</strong>、<strong>.step</strong>、<strong>.zip</strong> ファイルをここにドロップ<br/>または <label for=\"stl-file-input\" class=\"link-label\">クリックして参照</label>",
   "step.dialogTitle": "STEPインポート",
   "step.modelSize": "モデルサイズ: {d} mm",
   "step.custom": "カスタム",

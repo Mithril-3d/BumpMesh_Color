@@ -2982,6 +2982,10 @@ function wireEvents() {
   if (quantizeModeSelect) {
     quantizeModeSelect.addEventListener('change', () => {
       settings.quantizeMode = quantizeModeSelect.value;
+      // If user chooses gamut basis (gradation mixing), switch to Interleaved Layer mode
+      if (quantizeModeSelect.value === 'gamut') {
+        switchColorSubMode(1, false);
+      }
       runColorQuantization();
       updatePreview();
     });
@@ -6609,7 +6613,7 @@ async function handleExport(format = 'stl') {
     // bottom snaps → repair), preferably in the export worker so the UI stays
     // responsive and background-tab throttling can't stall it. Falls back to
     // running inline if the worker can't initialise. See exportPipeline.js.
-    const isLayerBlendMode = (format === 'multicolor-3mf' && (currentColorSubMode === 1 || settings.colorSubMode === 1));
+    const isLayerBlendMode = (format === 'multicolor-3mf' && (currentColorSubMode === 1 || settings.colorSubMode === 1 || settings.quantizeMode === 'gamut'));
     // In interleaved layer mode, Z resolution is directly determined by the slicer
     // (e.g. 0.20mm cut planes). Base mesh subdivision only needs to provide horizontal
     // (circumference / XY) detail. Enforce a safe refineLength lower bound (>= 1.0mm)
@@ -7191,10 +7195,9 @@ async function handleExport(format = 'stl') {
     // Hide progress immediately on error or stale abort; success hides it after 1500 ms.
     if (!exportSucceeded) exportProgress.classList.add('hidden');
     isExporting = false;
-    // Ensure user's selected color sub-mode (Interleaved vs Quantize) is strictly preserved
-    if (currentColorSubMode === 1 && tabColorLayerBlend && !tabColorLayerBlend.classList.contains('active')) {
-      switchColorSubMode(1, false);
-    }
+    // Strictly preserve user's chosen sub-mode (Interleaved vs Quantize)
+    const targetSubMode = (settings.quantizeMode === 'gamut') ? 1 : currentColorSubMode;
+    switchColorSubMode(targetSubMode, false);
     exportBtn.classList.remove('busy');
     export3mfBtn.classList.remove('busy');
     if (exportMultiColor3mfBtn) exportMultiColor3mfBtn.classList.remove('busy');

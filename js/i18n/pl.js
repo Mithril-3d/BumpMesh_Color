@@ -3,7 +3,7 @@ export default {
   "theme.light": "Jasny motyw",
   "theme.toggleTitle": "Przełącz tryb jasny / ciemny",
   "theme.toggleAriaLabel": "Przełącz tryb jasny/ciemny",
-  "dropHint.text": "Upuść plik <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> lub <strong>.step</strong> tutaj<br/>lub <label for=\"stl-file-input\" class=\"link-label\">kliknij aby wyszukać</label>",
+  "dropHint.text": "Upuść plik <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> <strong>.step</strong> lub <strong>.zip</strong> tutaj<br/>lub <label for=\"stl-file-input\" class=\"link-label\">kliknij aby wyszukać</label>",
   "step.dialogTitle": "Import STEP",
   "step.modelSize": "Rozmiar modelu: {d} mm",
   "step.custom": "Niestandardowa",

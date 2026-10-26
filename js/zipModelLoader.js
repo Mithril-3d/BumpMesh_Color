@@ -35,54 +35,70 @@ export async function loadZipModelFile(file, opts = {}) {
     throw new Error('No 3D model found in zip archive (supported: OBJ, DAE, 3MF, STL)');
   }
 
-  // Model selection priority: OBJ is most stable & standard; otherwise largest model file
-  const objs = modelCandidates.filter(f => /\.obj$/i.test(f));
-  let selectedModel;
-  if (objs.length > 0 && (unzipped[objs[0]].length > 10000 || modelCandidates.length === 1)) {
-    // Pick largest OBJ if multiple
-    objs.sort((a, b) => unzipped[b].length - unzipped[a].length);
-    selectedModel = objs[0];
-  } else {
-    // Pick largest model among all formats (e.g. main character DAE vs tiny accessory DAE)
-    modelCandidates.sort((a, b) => unzipped[b].length - unzipped[a].length);
-    selectedModel = modelCandidates[0];
-  }
+  // Model selection priority:
+  // - Prefer OBJ > DAE > 3MF > STL
+  // - Prefer non-accessory models (filter out items/, objects/, weapons/)
+  // - Prefer clean static versions (e.g. "NoMorphs") over multi-tens-of-megabytes raw morph DAEs
+  const scoreModel = (path) => {
+    const lower = path.toLowerCase();
+    const ext = lower.split('.').pop();
+    let s = 0;
+    if (ext === 'obj') s += 1000;
+    else if (ext === 'dae') s += 500;
+    else if (ext === '3mf') s += 300;
+    else if (ext === 'stl') s += 200;
+
+    if (lower.includes('objects/') || lower.includes('items/') || lower.includes('weapon') || lower.includes('accessory')) {
+      s -= 800;
+    }
+    if (lower.includes('nomorph')) s += 400; // Prefer clean static mesh for 3D printing
+    if (lower.includes('main') || lower.includes('body')) s += 100;
+
+    // Size score: prefer moderate size models (penalize extreme >30MB giant XML DAEs)
+    const len = unzipped[path].length;
+    if (len > 30_000_000) s -= 300;
+    else s += Math.min(len / 100000, 100);
+    return s;
+  };
+
+  modelCandidates.sort((a, b) => scoreModel(b) - scoreModel(a));
+  const selectedModel = modelCandidates[0];
 
   const imgFiles = fileNames.filter(f => /\.(png|jpe?g|webp|bmp)$/i.test(f));
   const mtlFiles = fileNames.filter(f => /\.mtl$/i.test(f));
 
   // 2. Identify diffuse/color texture
   let matchedTexFile = null;
-
-  // Strategy A: Parse MTL map_Kd
+  const mtlCandidates = [];
   for (const mtlPath of mtlFiles) {
     try {
       const mtlText = strFromU8(unzipped[mtlPath]);
-      const m = mtlText.match(/map_Kd\s+([^\r\n]+)/i);
-      if (m) {
+      const matches = mtlText.matchAll(/map_Kd\s+([^\r\n]+)/gi);
+      for (const m of matches) {
         const texName = m[1].trim().replace(/^.*[\\\/]/, '').toLowerCase();
         const found = imgFiles.find(f => f.replace(/^.*[\\\/]/, '').toLowerCase() === texName);
-        if (found) {
-          matchedTexFile = found;
-          break;
+        if (found && !mtlCandidates.includes(found)) {
+          mtlCandidates.push(found);
         }
       }
     } catch { /* ignore mtl decode error */ }
   }
 
-  // Strategy B: Name heuristics & file size ranking
-  if (!matchedTexFile && imgFiles.length > 0) {
-    const scoreImage = (path) => {
-      const lower = path.toLowerCase();
-      let s = 0;
-      if (lower.includes('diffuse') || lower.includes('_diff_') || lower.includes('_diff.') || lower.includes('_tex') || lower.includes('_co.') || lower.includes('_co_') || lower.includes('_d.') || lower.includes('_d_')) s += 60;
-      if (lower.includes('body') || lower.includes('main') || lower.includes('color') || lower.includes('colour') || lower.includes('albedo')) s += 30;
-      if (lower.includes('ao') || lower.includes('alpha') || lower.includes('normal') || lower.includes('norm') || lower.includes('spm') || lower.includes('spec') || lower.includes('metal') || lower.includes('rough') || lower.includes('lightmap') || lower.includes('shadow') || lower.includes('ramp')) s -= 50;
-      // Bonus for file size (main high-res texture is usually largest)
-      s += unzipped[path].length / 100000;
-      return s;
-    };
-    imgFiles.sort((a, b) => scoreImage(b) - scoreImage(a));
+  const scoreImage = (path, fromMtl = false) => {
+    const lower = path.toLowerCase();
+    let s = fromMtl ? 500 : 0;
+    if (lower.includes('diffuse') || lower.includes('_diff_') || lower.includes('_diff.') || lower.includes('_tex') || lower.includes('_co.') || lower.includes('_co_') || lower.includes('_d.') || lower.includes('_d_')) s += 60;
+    if (lower.includes('body') || lower.includes('main') || lower.includes('color') || lower.includes('colour') || lower.includes('albedo')) s += 120;
+    if (lower.includes('ao') || lower.includes('alpha') || lower.includes('normal') || lower.includes('norm') || lower.includes('spm') || lower.includes('spec') || lower.includes('metal') || lower.includes('rough') || lower.includes('lightmap') || lower.includes('shadow') || lower.includes('ramp') || lower.includes('iris') || lower.includes('noise')) s -= 150;
+    s += Math.min(unzipped[path].length / 100000, 50);
+    return s;
+  };
+
+  if (mtlCandidates.length > 0) {
+    mtlCandidates.sort((a, b) => scoreImage(b, true) - scoreImage(a, true));
+    matchedTexFile = mtlCandidates[0];
+  } else if (imgFiles.length > 0) {
+    imgFiles.sort((a, b) => scoreImage(b, false) - scoreImage(a, false));
     matchedTexFile = imgFiles[0];
   }
 

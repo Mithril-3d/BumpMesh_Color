@@ -8,7 +8,7 @@ export default {
   "theme.light": "Світла тема",
   "theme.toggleTitle": "Перемкнути світлу / темну тему",
   "theme.toggleAriaLabel": "Перемкнути світлу/темну тему",
-  "dropHint.text": "Перетягніть файл <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> або <strong>.step</strong> сюди<br/>або <label for=\"stl-file-input\" class=\"link-label\">натисніть, щоб вибрати</label>",
+  "dropHint.text": "Перетягніть файл <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> <strong>.step</strong> або <strong>.zip</strong> сюди<br/>або <label for=\"stl-file-input\" class=\"link-label\">натисніть, щоб вибрати</label>",
   "step.dialogTitle": "Імпорт STEP",
   "step.modelSize": "Розмір моделі: {d} мм",
   "step.custom": "Користувацька",

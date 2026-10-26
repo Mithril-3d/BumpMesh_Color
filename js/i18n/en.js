@@ -8,7 +8,7 @@ export default {
   "theme.light": "Light Theme",
   "theme.toggleTitle": "Toggle light / dark mode",
   "theme.toggleAriaLabel": "Toggle light/dark mode",
-  "dropHint.text": "Drop an <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong> or <strong>.step</strong> file here<br/>or <label for=\"stl-file-input\" class=\"link-label\">click to browse</label>",
+  "dropHint.text": "Drop an <strong>.stl</strong>, <strong>.obj</strong>, <strong>.3mf</strong>, <strong>.step</strong> or <strong>.zip</strong> file here<br/>or <label for=\"stl-file-input\" class=\"link-label\">click to browse</label>",
   "step.dialogTitle": "STEP Import",
   "step.modelSize": "Model size: {d} mm",
   "step.custom": "Custom",

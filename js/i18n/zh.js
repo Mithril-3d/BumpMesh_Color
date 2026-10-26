@@ -8,7 +8,7 @@ export default {
   "theme.light": "浅色主题",
   "theme.toggleTitle": "切换浅色/深色模式",
   "theme.toggleAriaLabel": "切换浅色/深色模式",
-  "dropHint.text": "将 <strong>.stl</strong>、<strong>.obj</strong>、<strong>.3mf</strong> 或 <strong>.step</strong> 文件拖放到此处<br/>或<label for=\"stl-file-input\" class=\"link-label\">点击浏览</label>",
+  "dropHint.text": "将 <strong>.stl</strong>、<strong>.obj</strong>、<strong>.3mf</strong> <strong>.step</strong> 或 <strong>.zip</strong> 文件拖放到此处<br/>或<label for=\"stl-file-input\" class=\"link-label\">点击浏览</label>",
   "step.dialogTitle": "STEP 导入",
   "step.modelSize": "模型尺寸：{d} mm",
   "step.custom": "自定义",
