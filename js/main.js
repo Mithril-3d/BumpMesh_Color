@@ -505,6 +505,7 @@ const colorCountVal          = document.getElementById('color-count-val');
 const quantizeModeSelect     = document.getElementById('quantize-mode-select');
 const colorPreviewToggle     = document.getElementById('color-preview-toggle');
 const colorFlatTopToggle     = document.getElementById('color-flat-top-toggle');
+const maskingTopAngleToggle  = document.getElementById('masking-top-angle-toggle');
 let lastNonZeroTopAngle      = 20;
 const untexturedToolSelect   = document.getElementById('untextured-tool-select');
 const paletteList            = document.getElementById('palette-list');
@@ -2781,6 +2782,7 @@ function wireEvents() {
     settings.topAngleLimit = v;
     if (v > 0) lastNonZeroTopAngle = v;
     if (colorFlatTopToggle) colorFlatTopToggle.checked = (v > 0);
+    if (maskingTopAngleToggle) maskingTopAngleToggle.checked = (v > 0);
     _falloffDirty = true;
     return v;
   });
@@ -3012,21 +3014,29 @@ function wireEvents() {
     });
   }
 
+  const syncTopAngleToggles = (isChecked) => {
+    if (colorFlatTopToggle) colorFlatTopToggle.checked = isChecked;
+    if (maskingTopAngleToggle) maskingTopAngleToggle.checked = isChecked;
+    if (isChecked) {
+      settings.topAngleLimit = lastNonZeroTopAngle > 0 ? lastNonZeroTopAngle : 20;
+    } else {
+      if (settings.topAngleLimit > 0) lastNonZeroTopAngle = settings.topAngleLimit;
+      settings.topAngleLimit = 0;
+    }
+    if (topAngleLimitSlider) topAngleLimitSlider.value = settings.topAngleLimit;
+    if (topAngleLimitVal) topAngleLimitVal.value = settings.topAngleLimit;
+    _falloffDirty = true;
+    updateMaterial();
+    updatePreview();
+  };
+
   if (colorFlatTopToggle) {
     colorFlatTopToggle.checked = settings.topAngleLimit > 0;
-    colorFlatTopToggle.addEventListener('change', () => {
-      if (colorFlatTopToggle.checked) {
-        settings.topAngleLimit = lastNonZeroTopAngle > 0 ? lastNonZeroTopAngle : 20;
-      } else {
-        if (settings.topAngleLimit > 0) lastNonZeroTopAngle = settings.topAngleLimit;
-        settings.topAngleLimit = 0;
-      }
-      if (topAngleLimitSlider) topAngleLimitSlider.value = settings.topAngleLimit;
-      if (topAngleLimitVal) topAngleLimitVal.value = settings.topAngleLimit;
-      _falloffDirty = true;
-      updateMaterial();
-      updatePreview();
-    });
+    colorFlatTopToggle.addEventListener('change', () => syncTopAngleToggles(colorFlatTopToggle.checked));
+  }
+  if (maskingTopAngleToggle) {
+    maskingTopAngleToggle.checked = settings.topAngleLimit > 0;
+    maskingTopAngleToggle.addEventListener('change', () => syncTopAngleToggles(maskingTopAngleToggle.checked));
   }
 
   if (untexturedToolSelect) {
@@ -7906,8 +7916,9 @@ function applySettingsSnapshot(snap) {
     colorPreviewToggle.checked = !!snap.colorPreviewEnabled;
     colorPreviewToggle.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  if (snap.topAngleLimit != null && colorFlatTopToggle) {
-    colorFlatTopToggle.checked = snap.topAngleLimit > 0;
+  if (snap.topAngleLimit != null) {
+    if (colorFlatTopToggle) colorFlatTopToggle.checked = snap.topAngleLimit > 0;
+    if (maskingTopAngleToggle) maskingTopAngleToggle.checked = snap.topAngleLimit > 0;
     if (snap.topAngleLimit > 0) lastNonZeroTopAngle = snap.topAngleLimit;
   }
   if (snap.colorCount != null && colorCountSlider) {
