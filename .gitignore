@@ -6,6 +6,9 @@ package-lock.json
 debug_out/
 *.stl
 !models/*.stl
+!models/*.obj
+!models/spot.obj
+!models/spot_texture.png
 *.3mf
 test-*.mjs
 test-fixtures/
