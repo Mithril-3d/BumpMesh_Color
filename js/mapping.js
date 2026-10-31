@@ -45,6 +45,8 @@ export function getScaleReferenceLengths(mode, settings, bounds) {
       const R = Math.max(0.5 * md, 1e-6);
       return { refU: TWO_PI * R, refV: Math.PI * R };
     }
+    case MODE_MESH_UV:
+      return { refU: md, refV: md };
     default:
       return { refU: md, refV: md };
   }
@@ -159,7 +161,7 @@ export function computeUV(pos, normal, mode, settings, bounds, meshUV = null) {
   const md = Math.max(size.x, size.y, size.z, 1e-6);
 
   if (mode === MODE_MESH_UV && meshUV) {
-    return applyTransform(meshUV.u, meshUV.v, 1, 1, offsetU, offsetV, cosR, sinR);
+    return applyTransform(meshUV.u, meshUV.v, scaleU, scaleV, offsetU, offsetV, cosR, sinR);
   }
 
   let u = 0, v = 0;

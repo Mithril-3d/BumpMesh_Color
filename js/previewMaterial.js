@@ -142,9 +142,9 @@ const sharedGLSL = /* glsl */`
     return texture2D(colorMap, uv).rgb;
   }
 
-  // Sample native Mesh UV (1:1 UV space, with offset and rotation)
+  // Sample native Mesh UV (aspect and scale corrected, with offset and rotation)
   float sampleMeshUVMap(vec2 rawUV) {
-    vec2 uv = rawUV + offsetUV;
+    vec2 uv = (rawUV * textureAspect) / scaleUV + offsetUV;
     float c = cos(rotation); float s = sin(rotation);
     uv -= 0.5;
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
@@ -153,7 +153,7 @@ const sharedGLSL = /* glsl */`
   }
 
   vec3 sampleMeshUVMapColor(vec2 rawUV) {
-    vec2 uv = rawUV + offsetUV;
+    vec2 uv = (rawUV * textureAspect) / scaleUV + offsetUV;
     float c = cos(rotation); float s = sin(rotation);
     uv -= 0.5;
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);

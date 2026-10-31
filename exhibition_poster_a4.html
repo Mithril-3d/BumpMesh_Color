@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>BumpMesh_Color - 展示用卓上POP (A4)</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* A4シート定義 (印刷時は210mm x 297mm) */
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      height: 297mm;
+      background: #ffffff;
+      padding: 13mm 14mm 12mm 14mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media print {
+      body {
+        background: transparent;
+        padding: 0;
+      }
+      .sheet {
+        box-shadow: none;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        padding: 5mm 8mm;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    /* 操作バー（画面確認用） */
+    .no-print-bar {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      z-index: 1000;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .print-btn {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .print-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    /* ヘッダー */
+    .header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-img {
+      height: 58px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .title-group h1 {
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: -0.8px;
+      color: #0f172a;
+      line-height: 1.1;
+    }
+
+    .title-group p {
+      font-size: 12.5px;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 700;
+      letter-spacing: 0.1px;
+    }
+
+    .header-badge {
+      text-align: right;
+    }
+
+    .badge-tag {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1.5px solid #bfdbfe;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .badge-sub {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 5px;
+      font-weight: 600;
+    }
+
+    /* メインキャッチ（ライトテーマ・高品位強調） */
+    .catchphrase-box {
+      margin-top: 14px;
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      padding: 14px 18px;
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.05);
+    }
+
+    .catchphrase-text h2 {
+      font-size: 18px;
+      font-weight: 900;
+      color: #1e40af;
+      letter-spacing: 0.2px;
+    }
+
+    .catchphrase-text p {
+      font-size: 12.5px;
+      color: #334155;
+      margin-top: 4px;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .catchphrase-pill {
+      background: #ffffff;
+      border: 1.5px solid #2563eb;
+      color: #1d4ed8;
+      padding: 8px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.1);
+    }
+
+    /* 3つの特徴カラム */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .feature-card {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      border-top: 4px solid #2563eb;
+    }
+
+    .feature-card:nth-child(2) {
+      border-top-color: #2563eb;
+    }
+
+    .feature-card:nth-child(3) {
+      border-top-color: #2563eb;
+    }
+
+    .feature-card h3 {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .feature-card p {
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .feature-tags {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .f-tag {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #e2e8f0;
+      color: #1e40af;
+    }
+
+    /* ビジュアルギャラリー */
+    .visual-section {
+      margin-top: 14px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 900;
+      color: #1e293b;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::after {
+      content: "";
+      flex: 1;
+      height: 1.5px;
+      background: #cbd5e1;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .gallery-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+    }
+
+    .gallery-card-img-wrap {
+      width: 100%;
+      height: 155px;
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .gallery-card-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .gallery-card-info {
+      padding: 9px 11px;
+      background: #ffffff;
+      flex: 1;
+    }
+
+    .gallery-tag {
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #2563eb;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .gallery-card-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-top: 2px;
+    }
+
+    .gallery-card-desc {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
+    /* 実演＆機能詳細ハイライト（ライトブルー統一） */
+    .highlight-box {
+      margin-top: 14px;
+      background: #f8fafc;
+      border: 1.5px solid #93c5fd;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .highlight-badge {
+      background: #2563eb;
+      color: white;
+      font-weight: 900;
+      font-size: 12px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+    }
+
+    .highlight-body {
+      flex: 1;
+    }
+
+    .highlight-body h4 {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #1e3a8a;
+    }
+
+    .highlight-body p {
+      font-size: 11px;
+      color: #334155;
+      margin-top: 3px;
+      line-height: 1.45;
+    }
+
+    /* フッター：QRコード & 誘導 */
+    .footer-cta {
+      margin-top: 14px;
+      border-top: 2px solid #e2e8f0;
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .cta-left {
+      flex: 1;
+    }
+
+    .cta-badges-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .cta-badge {
+      display: inline-block;
+      background: #1e40af;
+      color: white;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 5px;
+      letter-spacing: 0.3px;
+    }
+
+    .cta-badge-sub {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .cta-heading {
+      font-size: 17px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.3;
+    }
+
+    .cta-subtext {
+      font-size: 11.5px;
+      color: #475569;
+      margin-top: 5px;
+      line-height: 1.45;
+    }
+
+    .author-info {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #475569;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      background: #f1f5f9;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+
+    .author-info span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      padding: 10px 14px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+
+    .qr-image {
+      width: 96px;
+      height: 96px;
+      display: block;
+    }
+
+    .qr-label {
+      font-size: 11px;
+      font-weight: 900;
+      color: #0f172a;
+      margin-top: 5px;
+      text-align: center;
+    }
+
+    .qr-sublabel {
+      font-size: 9px;
+      font-weight: 600;
+      color: #2563eb;
+      text-align: center;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 画面プレビュー時の操作バー (印刷時は自動非表示) -->
+  <div class="no-print-bar no-print">
+    <span>📄 A4卓上POPプレビュー</span>
+    <button class="print-btn" onclick="window.print()">今すぐ印刷 (Cmd+P)</button>
+  </div>
+
+  <div class="sheet">
+    
+    <!-- ヘッダー -->
+    <div>
+      <div class="header">
+        <div class="brand-wrap">
+          <img src="logo.png" alt="BumpMesh_Color Logo" class="logo-img">
+          <div class="title-group">
+            <h1>BumpMesh_Color</h1>
+            <p>ブラウザで動く！3Dプリント特化型 凹凸テクスチャ＆マルチカラー変換ツール</p>
+          </div>
+        </div>
+        <div class="header-badge">
+          <div class="badge-tag">オープンソース / 完全無料</div>
+          <div class="badge-sub">インストール不要（クライアント完結）</div>
+        </div>
+      </div>
+
+      <!-- メインキャッチ -->
+      <div class="catchphrase-box">
+        <div class="catchphrase-text">
+          <h2>「画像を貼るだけ」で、立体エンボス ＆ マルチカラー3MFへ！</h2>
+          <p>重たいCADやBlenderのディスプレイスメントは不要。ブラウザだけで3Dプリント最適化。</p>
+        </div>
+        <div class="catchphrase-pill">Bambu / Orca / Prusa 対応</div>
+      </div>
+
+      <!-- 3つの大きな特徴 -->
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>⚡️ 1. ブラウザで即座に完結</h3>
+          <p>STL / OBJ / 3MF / STEP をドラッグ＆ドロップ。PCへのソフト導入不要。100%クライアント側GPUで超高速処理。</p>
+          <div class="feature-tags">
+            <span class="f-tag">インストール不要</span>
+            <span class="f-tag">STL/OBJ/3MF/STEP</span>
+          </div>
+        </div>
+        <div class="feature-card">
+          <h3>🎨 2. 画像から色＆凹凸を自動抽出</h3>
+          <p>画像の濃淡から立体凹凸を生成。K-meansカラー量子化で主要色を抽出し、AMSやマルチツール（1〜8色）に自動割当。</p>
+          <div class="feature-tags">
+            <span class="f-tag">K-means自動パレット</span>
+            <span class="f-tag">最大8ツール割当</span>
+          </div>
+        </div>
+        <div class="feature-card">
+          <h3>🧵 3. 織物(Weave)＆交互積層モード</h3>
+          <p>層ごとの交互積層（インターリーブ、層厚0.08〜1.0mm）や波形織物パターン。マルチカラー印刷の表現力を最大化。</p>
+          <div class="feature-tags">
+            <span class="f-tag">Interleaved層スライス</span>
+            <span class="f-tag">チューリング模様</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ビジュアルセクション（写真・スライサー・UI） -->
+      <div class="visual-section">
+        <div class="section-title">Visual Showcase & Workflow</div>
+        <div class="gallery-grid">
+          
+          <!-- 1. 実際のプリントサンプル -->
+          <div class="gallery-card">
+            <div class="gallery-card-img-wrap">
+              <img src="docs/images/interleaved_print_sample.jpg" alt="Actual 3D Print Sample">
+            </div>
+            <div class="gallery-card-info">
+              <div class="gallery-tag">Actual Print</div>
+              <div class="gallery-card-title">実際のプリント造形例</div>
+              <div class="gallery-card-desc">層ごとに色が交互に現れるインターリーブ積層で、繊細な凹凸とグラフィックを両立。</div>
+            </div>
+          </div>
+
+          <!-- 2. スライサー連携プレビュー -->
+          <div class="gallery-card">
+            <div class="gallery-card-img-wrap">
+              <img src="docs/images/interleaved_slicer_sliced.jpg" alt="Slicer Preview">
+            </div>
+            <div class="gallery-card-info">
+              <div class="gallery-tag">Slicer Ready</div>
+              <div class="gallery-card-title">スライサー即対応 (3MF)</div>
+              <div class="gallery-card-desc">Bambu StudioやOrcaSlicerでそのままマルチカラー印刷できる最適化3MFをワンクリック出力。</div>
+            </div>
+          </div>
+
+          <!-- 3. アプリケーション画面 -->
+          <div class="gallery-card">
+            <div class="gallery-card-img-wrap">
+              <img src="docs/images/overview_hero.png" alt="App UI & Texture">
+            </div>
+            <div class="gallery-card-info">
+              <div class="gallery-tag">Intuitive UI</div>
+              <div class="gallery-card-title">リアルタイムGPUビュー</div>
+              <div class="gallery-card-desc">和柄・幾何学・反応拡散などのプロシージャル生成対応。直感的なスライダー操作。</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 実演案内ハイライト -->
+      <div class="highlight-box">
+        <div class="highlight-badge">実演中！</div>
+        <div class="highlight-body">
+          <h4>お好きな画像でその場で立体化できます！お気軽に声をかけてください</h4>
+          <p>「スマホに入っているイラスト・ロゴ・愛車・ペットの写真」などをお見せいただければ、その場でメッシュにテクスチャ＆カラーを適用して3Dプレビューをお見せします！</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- フッター：QRコード & アクション誘導 -->
+    <div class="footer-cta">
+      <div class="cta-left">
+        <div class="cta-badges-row">
+          <span class="cta-badge">FREE & OPEN SOURCE</span>
+          <span class="cta-badge-sub">商用・非商用問わず誰でも利用可能</span>
+        </div>
+        <div class="cta-heading">今すぐ手元のスマホやPCで試せます！</div>
+        <div class="cta-subtext">
+          右のQRコードからWebアプリに直接アクセスできます。<br>
+          アカウント登録不要・完全無料。ブラウザを開くだけですぐに触っていただけます。
+        </div>
+        <div class="author-info">
+          <span>👤 Author: <strong>@Mithril_MEX</strong></span>
+          <span>💻 GitHub: <strong>Mithril-3d/BumpMesh_Color</strong></span>
+          <span>🛠️ Forked from: <strong>CNC Kitchen (stlTexturizer)</strong></span>
+        </div>
+      </div>
+      <div class="qr-container">
+        <img src="docs/images/qr_bumpmesh.png" alt="Web App QR Code" class="qr-image">
+        <div class="qr-label">Webアプリを開く</div>
+        <div class="qr-sublabel">mithril-3d.github.io</div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

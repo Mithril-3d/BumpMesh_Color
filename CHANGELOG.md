@@ -2,6 +2,14 @@
 
 `BumpMesh_Color` の各バージョンにおける機能追加・変更・不具合修正の記録です。
 
+## [v1.7.2] - 2026-10-31 (🔧 ネイティブメッシュUVモードにおけるサイズスライダー無効化バグ修正)
+### 🧩 修正・改善 (Bug Fixes & Refinements)
+- **Native Mesh UV（OBJ / 3MF / Zipカラーモデル等）でのサイズスライダー無効化の修正**:
+  - `previewMaterial.js` の `sampleMeshUVMap` / `sampleMeshUVMapColor` シェーダー関数で欠落していた `scaleUV` および `textureAspect` のサンプリング計算を追加し、画面上の「サイズ U / サイズ V」スライダーでテクスチャの拡大・縮小・タイリングがリアルタイムに反映されるよう修正。
+  - `mapping.js` の `computeUV` 関数で、`MODE_MESH_UV` 時にハードコードされていたスケール値（1, 1）を計算値（`scaleU, scaleV`）に修正し、スライスおよび3MF/STLエクスポート時にも指定したサイズが正確に反映されるよう修正。
+  - UV付きモデル読み込み時の初期スケール値をモデル最大寸法（`_scaleAnchorMm()`）に設定し、ロード直後に等倍（1:1、テクスチャ全体がぴったり収まる）で初期化されるよう改良。
+
+
 ## [v1.7.1] - 2026-10-26 (🧩 交互積層オープンエッジ完全根絶・混色基底連動・Zipカラーモデル自動抽出強化)
 ### 🧩 修正・改善 (Bug Fixes & Refinements)
 - **交互積層シェルフ生成のオープンエッジ完全根絶 (0 open edges, 0 non-manifold, 0 reversed)**:

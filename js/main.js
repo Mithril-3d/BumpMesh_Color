@@ -39,7 +39,7 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20261004_159';
+import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20261031_2115';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20261005_1520';
@@ -62,9 +62,9 @@ import { buildAdjacency, bucketFill,
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
 import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_130';
-import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV } from './mapping.js?v=20260908d';
+import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV } from './mapping.js?v=20261031_2115';
 import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
-import { APP_VERSION } from './version.js?v=20261018_1600';
+import { APP_VERSION } from './version.js?v=20261031_2115';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -2560,8 +2560,12 @@ function wireEvents() {
         if (currentGeometry?.attributes?.uv) {
           settings.mappingMode = MODE_MESH_UV;
           mappingSelect.value = String(MODE_MESH_UV);
+          const tileMm = _scaleAnchorMm();
+          settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
+          settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
           settings.offsetU = 0; offsetUSlider.value = 0; offsetUVal.value = 0;
           settings.offsetV = 0; offsetVSlider.value = 0; offsetVVal.value = 0;
+          settings.rotation = 0; rotationSlider.value = 0; rotationVal.value = 0;
           if (colorModeToggle && !colorModeToggle.checked) {
             colorModeToggle.checked = true;
             colorModeToggle.dispatchEvent(new Event('change', { bubbles: true }));
@@ -4456,7 +4460,7 @@ function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
   } else if (geo.attributes.uv) {
     settings.mappingMode = MODE_MESH_UV;
     mappingSelect.value = String(MODE_MESH_UV);
-    const tileMm = _defaultTileMm();
+    const tileMm = _scaleAnchorMm();
     settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
     settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
   } else {
@@ -4818,6 +4822,9 @@ async function handleModelFile(file, stepSettings = null) {
     }
     if (currentGeometry.attributes.uv) {
       settings.mappingMode = MODE_MESH_UV;
+      const tileMm = _scaleAnchorMm();
+      settings.scaleU  = tileMm; scaleUSlider.value = scaleToPos(tileMm); scaleUVal.value = fmtScaleVal(tileMm);
+      settings.scaleV  = tileMm; scaleVSlider.value = scaleToPos(tileMm); scaleVVal.value = fmtScaleVal(tileMm);
       settings.offsetU = 0; offsetUSlider.value = 0; offsetUVal.value = 0;
       settings.offsetV = 0; offsetVSlider.value = 0; offsetVVal.value = 0;
       settings.rotation = 0; rotationSlider.value = 0; rotationVal.value = 0;
