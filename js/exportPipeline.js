@@ -40,7 +40,8 @@ import { THREE } from './threeCompat.js';
 import { QuantizedPointMap } from './meshIndex.js';
 import { subdivide } from './subdivision.js';
 import { regularizeMesh } from './regularize.js';
-import { applyDisplacement } from './displacement.js';
+import { applyDisplacement, applyDisplacementLayers } from './displacement.js';
+import { interpolateFromParents } from './softMask.js';
 import { decimate } from './decimation.js';
 import { resolveTJunctions, countEdgeDefects, countAreaSlivers } from './meshRepair.js';
 
@@ -223,13 +224,15 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     ));
     if (shouldAbort()) return null;
 
+    const layers = Array.isArray(input.layers) && input.layers.length ? input.layers : null;
+    const trackParents = mode === 'bake' || !!input.softExclude || !!layers;
+
     // Regularize sub-slivers, then re-subdivide stretched edges. Skipped when
-    // the Advanced toggle is off. Export mode passes a zero parent map (it
-    // doesn't consume parents); bake mode threads + composes the real one.
+    // the Advanced toggle is off.
     if (settings.regularizeEnabled) {
       onEvent('regularize', 0);
       await yieldFrame();
-      const regParents = mode === 'bake'
+      const regParents = trackParents
         ? faceParentId
         : new Int32Array(subdivided.attributes.position.count / 3);
       const reg = regularizeMesh(subdivided, regParents, settings.refineLength, regularizeOpts);
@@ -242,7 +245,7 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
         secondPassWeights, { fast: false }
       );
       reg.geometry.dispose();
-      if (mode === 'bake') {
+      if (trackParents) {
         const composed = new Int32Array(resubParents.length);
         for (let i = 0; i < resubParents.length; i++) {
           composed[i] = reg.faceParentId[resubParents[i]];

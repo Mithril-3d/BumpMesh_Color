@@ -39,7 +39,8 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial } from './previewMaterial.js?v=20261031_2115';
+import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261101_0740';
+import { PaintTree } from './paintTree.js';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20261005_1520';
@@ -120,7 +121,16 @@ let _boundaryEdgeCount = 0;
 let _falloffDirty      = true;   // recompute falloff on next updateFaceMask
 let _falloffGeometry   = null;   // geometry the falloff was last computed for
 
-// ── Exclusion state ───────────────────────────────────────────────────────────
+// ── Surface paint state ───────────────────────────────────────────────────────
+// All layers' surface masks live in one PaintTree over currentGeometry
+// (js/paintTree.js): triangles split adaptively under the brush, paint per
+// layer. The viewer shows the flattened tree (paintGeometry) whenever a face
+// is split, the base mesh otherwise.
+let paintTree          = null;
+let paintGeometry      = null;        // flattened tree mesh, or null when no face is split
+let paintFlat          = null;        // paintTree.flatten() result behind paintGeometry
+let _paintStructureVersion = -1;
+let _paintCoverCache   = new Map();   // per (slot, geometry): paint arrays for the current paintVersion
 let excludedFaces      = new Set();   // triangle indices in currentGeometry
 let triangleAdjacency  = null;        // Array from buildAdjacency
 let triangleCentroids  = null;        // Float32Array from buildAdjacency
@@ -213,6 +223,512 @@ const settings = {
   regularizeAggressiveNormalDeg: 25,
   regularizeSecondPassMul:   1.1,
 };
+
+// ── Texture layers ────────────────────────────────────────────────────────────
+// A layer is a texture plus its own projection/displacement settings
+// (LAYER_KEYS) and its own surface mask. The ACTIVE layer lives in the
+// existing globals — settings.*, activeMapEntry, excludedFaces, softPaint,
+// selectionMode, maskModeChosen and the precision state — so the sidebar
+// edits it exactly as it always did; the other layers are kept as plain data
+// in `layers` and only feed the preview shader and the export pipeline.
+// Switching layers stores the live state into layers[activeLayer] and
+// materialises the new one through the same code path a project load uses.
+// Everything else in `settings` (resolution, triangle limit, angle masks,
+// bottom handling, regularize knobs) stays global.
+const LAYER_KEYS = [
+  'mappingMode', 'scaleU', 'scaleV', 'lockScale',
+  'offsetU', 'offsetV', 'rotation',
+  'amplitude', 'textureHeight', 'invertDisplacement', 'invertTexture', 'textureSmoothing',
+  'symmetricDisplacement', 'mappingBlend', 'seamBandWidth', 'capAngle',
+  'boundaryFalloff', 'boundaryFalloffCurve',
+  'snapSeamlessWrap', 'cylinderCenterX', 'cylinderCenterY', 'cylinderRadius',
+];
+let layers = [];        // layer records, composition order (first = bottom); see _newLayer
+let activeLayer = 0;    // index into `layers` of the layer the sidebar edits
+let _layerSeq = 0;
+
+// ── Texture layers: data model & helpers ──────────────────────────────────────
+
+function _ensureAttr(geometry, name, count, itemSize, fillVal = 0.0) {
+  let attr = geometry.getAttribute(name);
+  if (!attr || attr.count !== count || attr.itemSize !== itemSize) {
+    const arr = new Float32Array(count * itemSize);
+    if (fillVal !== 0.0) arr.fill(fillVal);
+    attr = new THREE.BufferAttribute(arr, itemSize);
+    geometry.setAttribute(name, attr);
+  }
+  return attr;
+}
+
+function _createPaintTree(adjData) {
+  if (!adjData || !currentGeometry) return;
+  paintTree = new PaintTree({
+    positions: currentGeometry.attributes.position.array,
+    vertId: adjData.vertId, vertCount: adjData.vertCount,
+    adjacency: adjData.adjacency, faceNormals: adjData.faceNormals,
+  });
+  for (const L of layers) paintTree.addLayer(L.id);
+  _dropPaintGeometry();
+}
+
+function _syncTreeLayers() {
+  if (!paintTree) return;
+  const ids = new Set(layers.map(L => L.id));
+  for (const tl of [...paintTree.layers]) if (!ids.has(tl.id)) paintTree.removeLayer(tl.id);
+  for (const L of layers) paintTree.addLayer(L.id);
+}
+
+function _activeSlot() { return paintTree && layers[activeLayer] ? paintTree.layerSlot(layers[activeLayer].id) : -1; }
+function _slotOf(i)    { return paintTree && layers[i] ? paintTree.layerSlot(layers[i].id) : -1; }
+
+function _dropPaintGeometry() {
+  if (paintGeometry) paintGeometry.dispose();
+  paintGeometry = null;
+  paintFlat = null;
+  _paintStructureVersion = -1;
+  _paintCoverCache = new Map();
+}
+
+function _paintDisplayGeometry() { return paintGeometry || currentGeometry; }
+
+function _displayGeometry() {
+  return (settings.useDisplacement && dispPreviewGeometry) ? dispPreviewGeometry : _paintDisplayGeometry();
+}
+
+function _refreshPaintGeometry() {
+  if (!paintTree || !currentGeometry) return false;
+  if (paintTree.structureVersion === _paintStructureVersion) return false;
+  _paintStructureVersion = paintTree.structureVersion;
+  _paintCoverCache = new Map();
+  if (paintTree.isFlat) {
+    if (paintGeometry) paintGeometry.dispose();
+    paintGeometry = null;
+    paintFlat = null;
+  } else {
+    const flat = paintTree.flatten(currentGeometry.attributes.normal ? currentGeometry.attributes.normal.array : null);
+    paintFlat = flat;
+    if (paintGeometry) paintGeometry.dispose();
+    paintGeometry = new THREE.BufferGeometry();
+    paintGeometry.setAttribute('position', new THREE.BufferAttribute(flat.positions, 3));
+    if (flat.normals) paintGeometry.setAttribute('normal', new THREE.BufferAttribute(flat.normals, 3));
+  }
+  _falloffDirty = true;
+  if (!(settings.useDisplacement && dispPreviewGeometry)) setMeshGeometry(_paintDisplayGeometry());
+  return true;
+}
+
+function _layerPaintOn(slot, geometry) {
+  if (!paintTree || slot < 0 || !geometry) return { paint: null, hard: null };
+  const key = slot + ':' + (geometry === currentGeometry ? 'base' : geometry === paintGeometry ? 'paint' : geometry === dispPreviewGeometry ? 'disp' : 'x');
+  const hit = _paintCoverCache.get(key);
+  const version = slot === _activeSlot() ? paintTree.paintVersion : -1 - paintTree.structureVersion;
+  if (hit && hit.version === version && hit.geometry === geometry) return hit;
+  let r;
+  if (geometry === paintGeometry && paintFlat) r = paintTree.flatPaint(slot, paintFlat);
+  else if (geometry === currentGeometry) r = paintTree.basePaint(slot);
+  else if (geometry === dispPreviewGeometry && dispPreviewParentMap) r = _sampledPaint(slot, geometry, dispPreviewParentMap);
+  else r = { paint: null, hard: null };
+  r.version = version;
+  r.geometry = geometry;
+  _paintCoverCache.set(key, r);
+  return r;
+}
+
+function _sampledPaint(slot, geometry, parentMap) {
+  const pos = geometry.attributes.position.array;
+  const triCount = parentMap.length;
+  const paint = new Float32Array(triCount * 3);
+  const hard = new Uint8Array(triCount);
+  for (let t = 0; t < triCount; t++) {
+    const f = parentMap[t];
+    let allHard = true;
+    for (let k = 0; k < 3; k++) {
+      const i = t * 3 + k;
+      const v = paintTree.samplePaint(slot, f, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+      paint[i] = v;
+      if (v < 1) allHard = false;
+    }
+    hard[t] = allHard ? 1 : 0;
+  }
+  return { paint, hard };
+}
+
+function _layerCoverOn(i, geometry) {
+  const includeOnly = i === activeLayer ? selectionMode : !!layers[i]?.includeOnly;
+  const src = _layerPaintOn(_slotOf(i), geometry);
+  if (src.coverFor === includeOnly && src.cover !== undefined) return { cover: src.cover, hardMasked: src.hardMasked };
+  const { paint, hard } = src;
+  const triCount = geometry.attributes.position.count / 3;
+  if (!paint) {
+    src.coverFor = includeOnly;
+    src.cover = includeOnly ? new Float32Array(triCount * 3) : null;
+    src.hardMasked = includeOnly ? new Uint8Array(triCount).fill(1) : null;
+    return { cover: src.cover, hardMasked: src.hardMasked };
+  }
+  const cover = new Float32Array(paint.length);
+  const hardMasked = new Uint8Array(triCount);
+  if (includeOnly) {
+    for (let k = 0; k < paint.length; k++) cover[k] = paint[k];
+    for (let t = 0; t < triCount; t++) {
+      hardMasked[t] = (!hard[t] && paint[t * 3] === 0 && paint[t * 3 + 1] === 0 && paint[t * 3 + 2] === 0) ? 1 : 0;
+    }
+  } else {
+    for (let k = 0; k < paint.length; k++) cover[k] = 1 - paint[k];
+    hardMasked.set(hard);
+  }
+  src.coverFor = includeOnly; src.cover = cover; src.hardMasked = hardMasked;
+  return { cover, hardMasked };
+}
+
+function _layerSettingsSnapshot() {
+  const o = {};
+  for (const k of LAYER_KEYS) o[k] = settings[k];
+  o.scaleUnit = 'mm';
+  return o;
+}
+
+function _newLayer(opts = {}) {
+  return {
+    id: ++_layerSeq,
+    settings: _layerSettingsSnapshot(),
+    mapName:  activeMapEntry?.name ?? null,
+    customId: activeMapEntry?.customId ?? null,
+    mapEntry: activeMapEntry,
+    includeOnly: false,
+    maskModeChosen: false,
+    visible: true,
+    blendAdd: false,
+    ...opts,
+  };
+}
+
+function _storeActiveLayer() {
+  const L = layers[activeLayer];
+  if (!L) return;
+  L.settings = _layerSettingsSnapshot();
+  L.mapEntry = activeMapEntry;
+  L.mapName  = activeMapEntry?.name ?? null;
+  L.customId = activeMapEntry?.customId ?? null;
+  L.includeOnly = selectionMode;
+  L.maskModeChosen = maskModeChosen;
+}
+
+function _mapEntryInUse(entry) {
+  if (!entry) return false;
+  return layers.some((L, i) => i !== activeLayer && L.mapEntry === entry);
+}
+
+function _activateLayer(idx, { commitUndo = true } = {}) {
+  if (idx === activeLayer || idx < 0 || idx >= layers.length) return;
+  if (exclusionTool) setExclusionTool(null);
+  _storeActiveLayer();
+  activeLayer = idx;
+  _materialiseActiveLayer();
+  _renderLayerStrip();
+  updatePreview();
+  _autoSaveSettings();
+}
+
+function _materialiseActiveLayer() {
+  const L = layers[activeLayer];
+  if (!L) return;
+  const pausedBefore = _autoSavePaused;
+  _autoSavePaused = true;
+  try {
+    applySettingsSnapshot(L.settings);
+    _applyLayerMap(L);
+    setSelectionMode(!!L.includeOnly, { clear: false });
+    maskModeChosen = !!L.maskModeChosen || selectionMode;
+    updateMaskModeButtons();
+    _falloffDirty = true;
+    refreshExclusionOverlay();
+  } finally {
+    _autoSavePaused = pausedBefore;
+  }
+}
+
+function _applyLayerMap(L) {
+  if (L.mapEntry && L.mapEntry.texture) {
+    if (L.mapEntry.isCustom) { _useCustomMap(L.mapEntry, false); return; }
+    if (_selectPresetByName(L.mapEntry.name)) return;
+  }
+  if (L.customId) { selectCustomTexture(L.customId, false); return; }
+  if (L.mapName && _selectPresetByName(L.mapName)) return;
+  activeMapEntry = null;
+  updatePreview();
+}
+
+function _addLayer() {
+  if (layers.length >= MAX_LAYERS) return;
+  if (exclusionTool) setExclusionTool(null);
+  _storeActiveLayer();
+  layers.push(_newLayer({ includeOnly: true, maskModeChosen: true }));
+  activeLayer = layers.length - 1;
+  _syncTreeLayers();
+  _materialiseActiveLayer();
+  maskModeChosen = true;
+  updateMaskModeButtons();
+  if (!exclusionTool) setExclusionTool('bucket');
+  _renderLayerStrip();
+  updatePreview();
+  _autoSaveSettings();
+}
+
+function _removeLayer(idx) {
+  if (layers.length <= 1 || idx < 0 || idx >= layers.length) return;
+  if (idx === activeLayer) {
+    if (exclusionTool) setExclusionTool(null);
+    layers.splice(idx, 1);
+    activeLayer = Math.min(idx, layers.length - 1);
+    _syncTreeLayers();
+    _materialiseActiveLayer();
+  } else {
+    layers.splice(idx, 1);
+    if (idx < activeLayer) activeLayer--;
+    _syncTreeLayers();
+  }
+  _refreshPaintGeometry();
+  _renderLayerStrip();
+  updatePreview();
+  _autoSaveSettings();
+}
+
+function _setLayerVisible(idx, visible) {
+  const L = layers[idx];
+  if (!L || L.visible === visible) return;
+  L.visible = visible;
+  _falloffDirty = true;
+  _renderLayerStrip();
+  updatePreview();
+  _autoSaveSettings();
+}
+
+function _setLayerBlendAdd(idx, blendAdd) {
+  const L = layers[idx];
+  if (!L || L.blendAdd === blendAdd) return;
+  L.blendAdd = blendAdd;
+  _renderLayerStrip();
+  updatePreview();
+  _autoSaveSettings();
+}
+
+function _hasTexturedLayer() {
+  if (activeMapEntry) return true;
+  return layers.some((L, i) => i !== activeLayer && L.visible && L.mapEntry);
+}
+
+function _layerSlots() {
+  const slots = [];
+  for (let i = 0; i < layers.length && slots.length < MAX_LAYERS; i++) {
+    const isActive = i === activeLayer;
+    if (!layers[i].visible && !isActive) continue;
+    slots.push({ index: i, isActive });
+  }
+  return slots;
+}
+
+function _effectiveMapFor(entry, smoothing, invert) {
+  if (!entry) return null;
+  // If active entry, use effectiveMapCache
+  if (entry === activeMapEntry) return getEffectiveMapEntry();
+  // Otherwise render offscreen if needed
+  return entry;
+}
+
+function _previewLayers() {
+  const slots = _layerSlots();
+  const list = [];
+  let activeIdx = -1;
+  for (const { index, isActive } of slots) {
+    const L = layers[index];
+    const s = isActive ? settings : L.settings;
+    const entry = isActive ? getEffectiveMapEntry() : (L.mapEntry || null);
+    const tw = entry?.width ?? 1, th = entry?.height ?? 1;
+    const tmax = Math.max(tw, th, 1);
+    if (isActive) activeIdx = list.length;
+    list.push({
+      texture: entry?.texture ?? null,
+      mappingMode: s.mappingMode, scaleU: s.scaleU, scaleV: s.scaleV,
+      offsetU: s.offsetU, offsetV: s.offsetV, rotation: s.rotation,
+      amplitude: (L.visible && entry) ? s.amplitude : 0,
+      symmetricDisplacement: s.symmetricDisplacement,
+      mappingBlend: s.mappingBlend, seamBandWidth: s.seamBandWidth, capAngle: s.capAngle,
+      cylinderCenterX: s.cylinderCenterX, cylinderCenterY: s.cylinderCenterY, cylinderRadius: s.cylinderRadius,
+      textureAspectU: tmax / Math.max(tw, 1), textureAspectV: tmax / Math.max(th, 1),
+      blendAdd: index > 0 && L.blendAdd,
+      stampOnce: s.stampOnce, stampSide: s.stampSide,
+      stampCenterX: s.stampCenterX, stampCenterY: s.stampCenterY, stampCenterZ: s.stampCenterZ,
+      stampNormalX: s.stampNormalX, stampNormalY: s.stampNormalY, stampNormalZ: s.stampNormalZ,
+      mapWidth: tw, mapHeight: th,
+      boundaryFalloff: s.boundaryFalloff, boundaryFalloffCurve: s.boundaryFalloffCurve,
+    });
+  }
+  return { list, activeIdx, count: slots.length };
+}
+
+
+function _unionFaceWeights(hardFlags, geometry, withAngle) {
+  const triCount = geometry.attributes.position.count / 3;
+  const excluded = new Set();
+  if (hardFlags.length && hardFlags.every(h => h)) {
+    for (let t = 0; t < triCount; t++) {
+      let all = true;
+      for (const h of hardFlags) { if (!h[t]) { all = false; break; } }
+      if (all) excluded.add(t);
+    }
+  }
+  if (!withAngle) return excluded;
+  const hasAngleMask = settings.bottomAngleLimit > 0 || settings.topAngleLimit > 0;
+  if (excluded.size === 0 && !hasAngleMask) return null;
+  return buildFaceWeights(geometry, excluded, false, settings);
+}
+
+function _mapLabel(entry) {
+  if (!entry) return 'texture';
+  return entry.isCustom ? 'custom' : String(entry.name).replace(/\s+/g, '-');
+}
+
+function _pipelineInputs() {
+  const parts = [];
+  for (let i = 0; i < layers.length; i++) {
+    const L = layers[i];
+    if (!L.visible) continue;
+    const isActive = i === activeLayer;
+    const s = isActive ? settings : L.settings;
+    const entry = isActive ? getEffectiveMapEntry()
+                           : _effectiveMapFor(L.mapEntry, s.textureSmoothing, s.invertTexture);
+    if (!entry || !entry.imageData) continue;
+    parts.push({ L, i, isActive, s, entry });
+  }
+  _refreshPaintGeometry();
+  const split = !!(paintTree && !paintTree.isFlat && paintFlat);
+  const positions = split ? paintFlat.positions : currentGeometry.attributes.position.array;
+  const geometry = split ? paintGeometry : currentGeometry;
+
+  if (!split && parts.length === 1 && parts[0].isActive) {
+    const e = parts[0].entry;
+    return {
+      positions,
+      faceWeights: null,
+      softExclude: null,
+      imageData: e.imageData,
+      imgWidth: e.width,
+      imgHeight: e.height,
+      layers: null,
+      label: _mapLabel(activeMapEntry),
+    };
+  }
+
+  const hardFlags = [];
+  const out = [];
+  for (const { L, i, s, entry } of parts) {
+    const coverOn = _layerCoverOn(i, geometry);
+    const cover = coverOn.cover;
+    let hardMasked = coverOn.hardMasked;
+    hardFlags.push(hardMasked);
+    let exclude = null;
+    if (cover) {
+      exclude = new Float32Array(cover.length);
+      for (let k = 0; k < cover.length; k++) exclude[k] = 1 - cover[k];
+    }
+    out.push({
+      imageData: entry.imageData, imgWidth: entry.width, imgHeight: entry.height,
+      settings: { ...settings, ...s },
+      exclude, hardFaces: hardMasked,
+      blendAdd: L !== layers[0] && L.blendAdd,
+      stampDepth: null,
+    });
+  }
+  const faceWeights = _unionFaceWeights(hardFlags, geometry, true);
+  return {
+    positions, faceWeights, softExclude: null,
+    imageData: null, imgWidth: 0, imgHeight: 0,
+    layers: out,
+    label: parts.length ? (parts.length === 1 ? _mapLabel(parts[0].entry) : `${parts.length}layers`) : 'layers',
+  };
+}
+
+function _renderLayerStrip() {
+  if (!layerList) return;
+  const sig = layers.map((L, i) => {
+    const entry = i === activeLayer ? activeMapEntry : L.mapEntry;
+    return `${L.id}:${entry?.name ?? ''}:${entry?.customId ?? ''}:${L.visible ? 1 : 0}:${L.blendAdd ? 1 : 0}`;
+  }).join('|') + `#${activeLayer}#${getLang()}`;
+  if (sig === _layerStripSig) return;
+  _layerStripSig = sig;
+
+  layerList.innerHTML = '';
+  layers.forEach((L, i) => {
+    const isActive = i === activeLayer;
+    const entry = isActive ? activeMapEntry : L.mapEntry;
+    const row = document.createElement('div');
+    row.className = 'layer-row' + (isActive ? ' active' : '') + (L.visible ? '' : ' hidden-layer');
+    row.dataset.idx = String(i);
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.title = t('layers.rowTitle', { n: i + 1 });
+
+    const thumb = document.createElement('canvas');
+    thumb.className = 'layer-thumb';
+    thumb.width = thumb.height = 28;
+    if (entry?.fullCanvas) {
+      const ctx = thumb.getContext('2d');
+      const sw = entry.fullCanvas.width, sh = entry.fullCanvas.height;
+      const sc = Math.max(28 / sw, 28 / sh);
+      const dw = sw * sc, dh = sh * sc;
+      ctx.drawImage(entry.fullCanvas, (28 - dw) / 2, (28 - dh) / 2, dw, dh);
+    }
+    row.appendChild(thumb);
+
+    const name = document.createElement('span');
+    name.className = 'layer-name';
+    name.textContent = entry?.name ? `${i + 1} · ${entry.name}` : t('layers.name', { n: i + 1 });
+    row.appendChild(name);
+
+    if (i > 0) {
+      const blend = document.createElement('button');
+      blend.type = 'button';
+      blend.className = 'layer-btn layer-blend' + (L.blendAdd ? ' add' : '');
+      blend.textContent = L.blendAdd ? t('layers.blendAdd') : t('layers.blendCover');
+      blend.title = L.blendAdd ? t('layers.blendAddTitle') : t('layers.blendCoverTitle');
+      blend.addEventListener('click', (e) => { e.stopPropagation(); _setLayerBlendAdd(i, !L.blendAdd); });
+      row.appendChild(blend);
+    }
+
+    const eye = document.createElement('button');
+    eye.type = 'button';
+    eye.className = 'layer-btn layer-eye';
+    eye.setAttribute('aria-pressed', String(L.visible));
+    eye.title = L.visible ? t('layers.hide') : t('layers.show');
+    eye.innerHTML = L.visible
+      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>'
+      : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.9 10.9 0 0 1 12 19c-7 0-11-7-11-7a20 20 0 0 1 5.1-5.9M9.9 4.2A10 10 0 0 1 12 4c7 0 11 7 11 7a20 20 0 0 1-3.2 4.2"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    eye.addEventListener('click', (e) => { e.stopPropagation(); _setLayerVisible(i, !L.visible); });
+    row.appendChild(eye);
+
+    if (layers.length > 1) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'layer-btn layer-del';
+      del.title = t('layers.remove');
+      del.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      del.addEventListener('click', (e) => { e.stopPropagation(); _removeLayer(i); });
+      row.appendChild(del);
+    }
+
+    row.addEventListener('click', () => _activateLayer(i));
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _activateLayer(i); }
+    });
+    layerList.appendChild(row);
+  });
+  if (layerAddBtn) {
+    const full = layers.length >= MAX_LAYERS;
+    layerAddBtn.disabled = full;
+    layerAddBtn.title = full ? t('layers.max', { n: MAX_LAYERS }) : t('layers.addTitle');
+  }
+}
+
 
 // ── Canvas filter support (Safari / iOS WebView don't support ctx.filter) ────
 const CANVAS_FILTER_SUPPORTED = 'filter' in CanvasRenderingContext2D.prototype;
@@ -331,6 +847,10 @@ const autofitNgonInput   = document.getElementById('autofit-ngon-input');
 const autofitNgonField   = document.getElementById('autofit-ngon-field');
 const autofitInfoBox     = document.getElementById('autofit-info-box');
 const textureInput   = document.getElementById('texture-file-input');
+// ── Texture layer strip DOM refs ──────────────────────────────────────────────
+const layerList   = document.getElementById('layer-list');
+const layerAddBtn = document.getElementById('layer-add-btn');
+let _layerStripSig = '';
 const presetGrid     = document.getElementById('preset-grid');
 const activeMapName  = document.getElementById('active-map-name');
 const customMapRow      = document.getElementById('custom-map-row');
@@ -1402,6 +1922,8 @@ const gallery = initTextureGallery({
   setTurntable,
 });
 gallery.refreshText();
+layers = [_newLayer()];
+_renderLayerStrip();
 initSidebarToggle();
 
 let _initialModelPromise = null;
@@ -3060,6 +3582,9 @@ function wireEvents() {
   });
   bakeBtn.addEventListener('click', bakeTextures);
 
+  // ── Texture layers ──
+  if (layerAddBtn) layerAddBtn.addEventListener('click', _addLayer);
+
   // ── Wireframe ──
   wireframeToggle.addEventListener('change', () => setWireframe(wireframeToggle.checked));
 
@@ -3150,6 +3675,7 @@ function wireEvents() {
   });
 
   exclClearBtn.addEventListener('click', () => {
+    if (paintTree) paintTree.clearLayer(_activeSlot());
     excludedFaces = new Set();
     precisionExcludedFaces = new Set();
     refreshExclusionOverlay();
@@ -3207,6 +3733,9 @@ function wireEvents() {
       const triIdx = pickTriangle(e);
       if (triIdx >= 0) {
         const filled = bucketFill(triIdx, triangleAdjacency, bucketThreshold);
+        if (paintTree) {
+          paintTree.paintFaces(_activeSlot(), filled, eraseMode);
+        }
         // Bucket fill always uses original face indices
         for (const t of filled) {
           if (eraseMode) excludedFaces.delete(t); else excludedFaces.add(t);
@@ -3313,7 +3842,7 @@ function wireEvents() {
 
 // ── Exclusion helpers ─────────────────────────────────────────────────────────
 
-function setSelectionMode(include) {
+function setSelectionMode(include, { clear = true } = {}) {
   if (selectionMode === include) return;
   selectionMode = include;
   // Include-only is never the implicit default, so entering it always counts
@@ -3326,9 +3855,11 @@ function setSelectionMode(include) {
   exclHint.textContent = selectionMode
     ? t('excl.hintInclude')
     : t('excl.hintExclude');
-  // Clear the painted set — faces had opposite semantics in the previous mode
-  excludedFaces = new Set();
-  precisionExcludedFaces = new Set();
+  if (clear) {
+    if (paintTree) paintTree.clearLayer(_activeSlot());
+    excludedFaces = new Set();
+    precisionExcludedFaces = new Set();
+  }
   refreshExclusionOverlay();
 }
 
@@ -3620,7 +4151,39 @@ function _viewDirFor(hitPt) {
   return _viewDirScratch.subVectors(hitPt, getCamera().position).normalize();
 }
 
-function _paintSingleHit(hit, mesh) {
+function _brushEdgeLimit() {
+  let edge = brushRadius / 5;
+  if (brushHardness < 1) {
+    const band = (1 - brushHardness) * brushRadius;
+    edge = Math.min(edge, Math.max(band / 3, brushRadius / 10));
+  }
+  return Math.max(0.02, edge);
+}
+
+/** Map a face of whatever mesh the viewer shows back to its base face. */
+function _baseFaceOf(faceIndex, geometry) {
+  if (geometry === dispPreviewGeometry && dispPreviewParentMap) return dispPreviewParentMap[faceIndex];
+  if (geometry === paintGeometry && paintFlat) return paintFlat.faceParentId[faceIndex];
+  return faceIndex;
+}
+
+function _paintSingleHit(hit, mesh, strokeFrom = null) {
+  if (paintTree) {
+    const slot = _activeSlot();
+    const seedFace = _baseFaceOf(hit.faceIndex, mesh.geometry);
+    if (brushIsRadius) {
+      paintTree.paintStroke({
+        slot, seedFace,
+        from: strokeFrom || hit.point, to: hit.point,
+        radius: brushRadius, view: _viewDirFor(hit.point),
+        hardness: brushHardness, erase: eraseMode,
+        edgeLimit: _brushEdgeLimit(), whole: !brushPrecision,
+      });
+    } else {
+      paintTree.paintFaces(slot, [seedFace], eraseMode);
+    }
+  }
+
   const usePrecision = precisionMaskingEnabled && precisionGeometry && precisionParentMap;
   if (usePrecision) {
     if (brushIsRadius) {
@@ -3667,23 +4230,26 @@ function _paintLineBetween(from, to, mesh) {
   }
 }
 
+let _strokeLastPoint = null;
+
 function paintAt(e) {
   const mesh = getCurrentMesh();
   if (!mesh) return;
   _raycaster.setFromCamera(_canvasNDC(e), getCamera());
   const hits = _raycaster.intersectObject(mesh);
   const hit = getFrontFaceHit(hits, mesh);
-  if (!hit) return;
+  if (!hit) { _strokeLastPoint = null; return; }
 
   // Shift+click: draw line from last paint point to current
   if (e.ctrlKey && _lastPaintHitPoint) {
     _paintLineBetween(_lastPaintHitPoint, hit.point, mesh);
     _clearShiftLinePreview();
   } else {
-    _paintSingleHit(hit, mesh);
+    _paintSingleHit(hit, mesh, _strokeLastPoint);
   }
 
   _lastPaintHitPoint = hit.point.clone();
+  _strokeLastPoint = _lastPaintHitPoint;
   refreshExclusionOverlay();
 }
 
@@ -3865,6 +4431,7 @@ function handlePlaceOnFaceClick(e) {
   triangleAdjacency = adjData.adjacency;
   triangleCentroids = adjData.centroids;
   triangleFaceNormals = adjData.faceNormals;
+  _createPaintTree(adjData);
 
   // Update edge length for new bounds
   const diag = Math.sqrt(currentBounds.size.x ** 2 + currentBounds.size.y ** 2 + currentBounds.size.z ** 2);
@@ -4068,28 +4635,28 @@ function _rotateFinalize() {
 function refreshExclusionOverlay() {
   if (!currentGeometry) return;
 
-  // Choose which geometry and face set to build the overlay from
-  const usePrecision = precisionMaskingEnabled && precisionGeometry;
-  const overlayGeo = usePrecision ? precisionGeometry : currentGeometry;
-  const overlayFaceSet = usePrecision ? precisionExcludedFaces : excludedFaces;
-
   _falloffDirty = true;
-
-  // Never show the flat-coloured MeshLambertMaterial overlay — the custom
-  // shader handles mask visualisation with smooth, view-dependent shading.
   setExclusionOverlay(null);
-  const n = usePrecision ? precisionExcludedFaces.size : excludedFaces.size;
-  exclCount.textContent = selectionMode
-    ? t(n === 1 ? 'excl.faceSelected' : 'excl.facesSelected', { n: n.toLocaleString() })
-    : t(n === 1 ? 'excl.faceExcluded' : 'excl.facesExcluded', { n: n.toLocaleString() });
 
-  // Update the faceMask attribute on the active preview geometry so the shader
-  // reflects user-painted exclusions in real time.
-  const activeGeo = usePrecision
-    ? precisionGeometry
-    : (settings.useDisplacement && dispPreviewGeometry)
-      ? dispPreviewGeometry : currentGeometry;
+  if (paintTree) {
+    const { faces: n, softVertices } = paintTree.countPainted(_activeSlot());
+    let countText = selectionMode
+      ? t(n === 1 ? 'excl.faceSelected' : 'excl.facesSelected', { n: n.toLocaleString() })
+      : t(n === 1 ? 'excl.faceExcluded' : 'excl.facesExcluded', { n: n.toLocaleString() });
+    if (softVertices > 0) countText += ' · ' + t('excl.softVertices', { n: softVertices.toLocaleString() });
+    exclCount.textContent = countText;
+    _refreshPaintGeometry();
+  } else {
+    const usePrecision = precisionMaskingEnabled && precisionGeometry;
+    const n = usePrecision ? precisionExcludedFaces.size : excludedFaces.size;
+    exclCount.textContent = selectionMode
+      ? t(n === 1 ? 'excl.faceSelected' : 'excl.facesSelected', { n: n.toLocaleString() })
+      : t(n === 1 ? 'excl.faceExcluded' : 'excl.facesExcluded', { n: n.toLocaleString() });
+  }
+
+  const activeGeo = _displayGeometry();
   updateFaceMask(activeGeo);
+  requestRender();
 }
 
 function autoMaskTopSurface() {
@@ -4118,6 +4685,11 @@ function autoMaskTopSurface() {
   if (excludedFaces.size > 0) {
     maskModeChosen = true;
     updateMaskModeButtons();
+  }
+  if (paintTree) {
+    paintTree.clearLayer(0);
+    const topFaces = Array.from(excludedFaces);
+    if (topFaces.length) paintTree.paintFaces(0, topFaces, false);
   }
   refreshExclusionOverlay();
 }
@@ -4444,6 +5016,7 @@ function _applyLoadedPresetGeometry(geo, modelName, cylinderOptions = null) {
   triangleAdjacency = adjData.adjacency;
   triangleCentroids = adjData.centroids;
   triangleFaceNormals = adjData.faceNormals;
+  _createPaintTree(adjData);
   autoMaskTopSurface();
 
   // Initial tile size / mapping configuration
@@ -5198,10 +5771,33 @@ if (smartResBtn) smartResBtn.addEventListener('click', applySmartResolution);
  * caching issues where in-place array edits + needsUpdate could keep stale
  * GPU data on some drivers.
  */
-function updateFaceMask(geometry) {
+function updateFaceMask(geometry, { forceFalloff = false } = {}) {
   if (!geometry) return;
   const posCount = geometry.attributes.position.count;
   const triCount = posCount / 3;
+
+  // Multi-layer mask setup (layerMask: vec4)
+  const slots = _layerSlots();
+  const covers = [], hards = [];
+  let actSlot = -1;
+  for (const { index, isActive } of slots) {
+    if (isActive) actSlot = covers.length;
+    const r = _layerCoverOn(index, geometry);
+    covers.push(r.cover);
+    hards.push(r.hardMasked);
+  }
+  const maskAttr4 = _ensureAttr(geometry, 'layerMask', posCount, 4, 0.0);
+  const m4 = maskAttr4.array;
+  const nSlots = covers.length;
+  for (let i = 0; i < posCount; i++) {
+    const o = i * 4;
+    for (let k = 0; k < 4; k++) {
+      const c = covers[k];
+      m4[o + k] = k < nSlots ? (c ? c[i] : 1.0) : 0.0;
+    }
+  }
+  maskAttr4.needsUpdate = true;
+  _ensureAttr(geometry, 'layerFalloff', posCount, 4, 1.0);
 
   // Reuse existing buffer if length matches exactly, otherwise allocate new
   const existing = geometry.getAttribute('faceMask');
@@ -5914,6 +6510,7 @@ function getFullPreviewSettings() {
     hasMeshUV: Boolean(currentGeometry?.attributes?.uv),
     textureAspectU: tmax / Math.max(tw, 1),
     textureAspectV: tmax / Math.max(th, 1),
+    colorTexture: getPreviewColorTexture(),
     useColorTexture: Boolean(colorModeToggle?.checked && colorPreviewToggle?.checked),
     colorSubMode: currentColorSubMode,
     interleavedThickness: interleavedSettings.layerThickness || 0.20,
@@ -5952,12 +6549,11 @@ function updatePreview() {
     return;
   }
 
-  // Choose geometry: precision mode → subdivided preview → original
+  // Choose geometry: precision mode → subdivided preview → painted / original
+  _refreshPaintGeometry();
   const activeGeo = (precisionMaskingEnabled && precisionGeometry)
     ? precisionGeometry
-    : (settings.useDisplacement && dispPreviewGeometry)
-      ? dispPreviewGeometry
-      : currentGeometry;
+    : _displayGeometry();
 
   // Ensure faceMask attribute is current before rendering
   updateFaceMask(activeGeo);
@@ -5965,12 +6561,14 @@ function updatePreview() {
   const effectiveEntry = getEffectiveMapEntry();
   const colorTex = getPreviewColorTexture();
 
+  const preview = _previewLayers();
   if (!previewMaterial) {
-    previewMaterial = createPreviewMaterial(effectiveEntry.texture, fullSettings, colorTex);
+    previewMaterial = createPreviewMaterial(preview.list, fullSettings);
     loadGeometry(activeGeo, previewMaterial);
   } else {
-    updateMaterial(previewMaterial, effectiveEntry.texture, fullSettings, colorTex);
+    updateMaterial(previewMaterial, preview.list, fullSettings);
   }
+  _renderLayerStrip();
   window.__previewMaterial = previewMaterial;
   window.__effectiveEntry = effectiveEntry;
   window.__fullSettings = fullSettings;
@@ -6676,13 +7274,15 @@ async function handleExport(format = 'stl') {
         maxTriangles: 1000000
       } : {})
     };
+    const pipeInputs = (!isLayerBlendMode && _pipelineInputs) ? _pipelineInputs() : null;
     const result = await runPipeline({
-      positions: currentGeometry.attributes.position.array,
+      positions: pipeInputs ? pipeInputs.positions : currentGeometry.attributes.position.array,
       uvs: currentGeometry.attributes.uv ? currentGeometry.attributes.uv.array : null,
-      faceWeights,
-      imageData: exportEntry.imageData,
-      imgWidth: exportEntry.width,
-      imgHeight: exportEntry.height,
+      faceWeights: pipeInputs ? (pipeInputs.faceWeights || faceWeights) : faceWeights,
+      imageData: pipeInputs?.layers ? null : exportEntry.imageData,
+      imgWidth: pipeInputs?.layers ? 0 : exportEntry.width,
+      imgHeight: pipeInputs?.layers ? 0 : exportEntry.height,
+      layers: pipeInputs?.layers || null,
       settings: effectiveSettings,
       bounds: currentBounds,
       regularizeOpts: _regularizeOpts(),
