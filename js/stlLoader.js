@@ -531,7 +531,7 @@ export function parse3MF(data) {
 export function loadModelFile(file, opts) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'zip') {
-    return import('./zipModelLoader.js').then((m) => m.loadZipModelFile(file, opts));
+    return import('./zipModelLoader.js?v=20261121_10').then((m) => m.loadZipModelFile(file, opts));
   }
   if (ext === 'obj') return loadOBJFile(file);
   if (ext === '3mf') return load3MFFile(file);

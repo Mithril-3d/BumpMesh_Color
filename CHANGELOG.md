@@ -2,6 +2,13 @@
 
 `BumpMesh_Color` の各バージョンにおける機能追加・変更・不具合修正の記録です。
 
+## [v2.0.3] - 2026-11-21 (🔧 Zipモデル同梱テクスチャ／カスタムマップの再選択復帰バグ修正パッチリリース)
+### 🧩 修正・改善 (Bug Fixes & Refinements)
+- **プリセット切り替え後にZip同梱テクスチャやカスタムマップのサムネイルをクリックしても戻せない不具合の修正 (`main.js`, `zipModelLoader.js`)**:
+  - マルチレイヤーUI導入時に廃止された旧DOM要素 `#active-map-name` への参照が `_activateCustomMap()` 内に残存しており、カスタムマップのサムネイル（`#custom-map-swatch`）クリック時に `TypeError: Cannot set properties of null (reading 'textContent')` で処理が中断していた問題を修正。
+  - `_activateCustomMap()` から `_useCustomMap(_lastCustomMap, false)` を呼び出すように統一し、プリセットのアクティブ状態解除・レイヤーストリップ表示更新・カラー量子化再計算・3Dプレビュー更新・Undo履歴保存が確実に実行されるよう改善。
+  - Zipモデル読み込み時に、Zipアーカイブ本体ではなく展開されたテクスチャ画像ファイル（`File` オブジェクト）をローカルギャラリー（IndexedDB）へ登録するよう改善し、ギャラリー内の「マイテクスチャ」一覧からの再選択にも完全対応。
+
 ## [v2.0.2] - 2026-11-21 (🚀 WebGLシェーダーバリアント分割高速化 ＆ プリセット4096pxフル解像度対応・0ms即時プレビュー)
 ### 🧩 修正・改善 (Bug Fixes & Refinements)
 - **WebGLシェーダーバリアント分割による初回コンパイルの4.3倍高速化 (`previewMaterial.js`)**:

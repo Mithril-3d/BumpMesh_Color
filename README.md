@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v2.0.2-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.0.3-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,12 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v2.0.3 (Patch Release - 2026-11-21)**:
+  - **Zip Bundle Texture & Custom Map Swatch Re-Selection Fix (`main.js`, `zipModelLoader.js`)**:
+    - Fixed a `TypeError` on the deprecated `#active-map-name` element inside `_activateCustomMap()` that prevented clicking the custom map thumbnail (`#custom-map-swatch`) from switching back to a `.zip` model's bundled texture (or uploaded custom texture) after selecting a preset.
+    - Unified `_activateCustomMap()` with `_useCustomMap(_lastCustomMap, false)` so re-selecting the custom swatch properly updates the layer strip (`#layer-strip`), clears active preset highlights, recalculates color quantization, refreshes the 3D preview, and records Undo state.
+    - Stored the extracted texture `File` object (rather than the parent `.zip` archive) in the local texture library (`rememberUpload`), allowing `.zip`-bundled textures to be re-selected from the Texture Gallery's *Your textures* section as well.
+
 - **v2.0.2 (Patch Release - 2026-11-21)**:
   - **4.3x Faster Startup & WebGL Shader Compilation (`SINGLE_LAYER` / `USE_COLOR` / `USE_INTERLEAVED` / `USE_DISP`)**:
     - Split `previewMaterial.js` into lightweight `ShaderMaterial.defines` variants so ANGLE Direct3D 11 compiles only the active feature path instead of unrolling 4-layer color/weave loops at startup, cutting initial texture compilation freeze from `5.63 s` down to `1.30 s`.
@@ -329,7 +335,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.2--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.3--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -523,6 +529,12 @@ python -m http.server 8080
 ---
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v2.0.3 (パッチリリース - 2026-11-21)**:
+  - **Zip同梱テクスチャおよびカスタムマップサムネイルの再選択復帰バグ修正 (`main.js`, `zipModelLoader.js`)**:
+    - Zipでカラーモデルを読み込んだ後にプリセットテクスチャへ切り替えると、カスタムマップサムネイル（`#custom-map-swatch`）をクリックしても元の同梱テクスチャへ戻せなかった不具合（マルチレイヤーUI導入時に廃止された旧 `#active-map-name` 要素への参照による `TypeError`）を解消。
+    - `_activateCustomMap()` を `_useCustomMap(_lastCustomMap, false)` 呼び出しへ統一し、レイヤーストリップ表示更新・プリセット選択枠の解除・カラー量子化再計算・3Dプレビュー更新・Undo履歴保存が確実に動作するよう改善。
+    - Zipモデル読み込み時に、Zipファイル本体ではなく展開後のテクスチャ画像ファイル（`File`）をローカルギャラリー（IndexedDB）へ保存するように修正し、テクスチャギャラリー内の「マイテクスチャ」からの再選択にも対応。
 
 - **v2.0.2 (パッチリリース - 2026-11-21)**:
   - **WebGLシェーダーバリアント分割による初回テクスチャ表示の大幅高速化（5.63秒 → 1.30秒）**:

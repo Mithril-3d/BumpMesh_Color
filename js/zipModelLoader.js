@@ -164,9 +164,11 @@ export async function loadZipModelFile(file, opts = {}) {
       texture.wrapT = THREE.RepeatWrapping;
       const baseTexName = matchedTexFile.replace(/^.*[\\\/]/, '');
       texture.name = baseTexName;
+      const texFile = new File([imgBytes], baseTexName, { type: mime });
 
       textureEntry = {
         name: baseTexName,
+        file: texFile,
         fullCanvas: canvas,
         texture,
         imageData: imgData,

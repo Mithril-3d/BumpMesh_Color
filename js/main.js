@@ -12,7 +12,7 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
          updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_130';
-import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js';
+import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js?v=20261121_10';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
@@ -68,7 +68,7 @@ import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV, MO
          isStampActive, stampFrame, stampUV, stampUntouchedFaces, buildStampDepth,
          STAMP_DEPTH_RES, stampAxes, stampSurfaceAt } from './mapping.js?v=20261031_2115';
 import { QuantizedPointMap } from './meshIndex.js';
-import { APP_VERSION } from './version.js?v=20261121_09';
+import { APP_VERSION } from './version.js?v=20261121_10';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -2330,12 +2330,9 @@ function _hideCustomMapThumb() {
 /** Promote the kept-aside custom map back to the active map. No defaults reset. */
 function _activateCustomMap() {
   if (!_lastCustomMap) return;
-  activeMapEntry = _lastCustomMap;
-  document.querySelectorAll('.preset-swatch').forEach(s => s.classList.remove('active'));
-  customMapSwatch.classList.add('active');
-  activeMapName.textContent = _lastCustomMap.name;
-  runColorQuantization();
-  updatePreview();
+  if (activeMapName) activeMapName.textContent = _lastCustomMap.name;
+  _useCustomMap(_lastCustomMap, false);
+  _scheduleUndoCapture();
 }
 
 if (customMapSwatch) {
@@ -6240,7 +6237,13 @@ async function handleModelFile(file, stepSettings = null) {
     // so previewMaterial is created and bound onto the final mesh without being overwritten.
     if (textureEntry) {
       _useCustomMap(textureEntry, true);
-      gallery.rememberUpload(file, textureEntry.fullCanvas).catch(() => {});
+      const texFile = textureEntry.file || file;
+      gallery.rememberUpload(texFile, textureEntry.fullCanvas).then((id) => {
+        if (id) {
+          textureEntry.customId = id;
+          if (activeMapEntry === textureEntry) gallery.markActiveCustom(id);
+        }
+      }).catch(() => {});
       if (colorModeToggle && !colorModeToggle.checked) {
         colorModeToggle.checked = true;
         colorModeToggle.dispatchEvent(new Event('change', { bubbles: true }));
