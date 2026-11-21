@@ -155,12 +155,16 @@ const sharedGLSL = /* glsl */`
 
 
   float sampleTex(int l, vec2 uv) {
+  #if SINGLE_LAYER == 1
+    return texture2D(map0, uv).r;
+  #else
     float h = 0.0;
     if      (l == 0) h = texture2D(map0, uv).r;
     else if (l == 1) h = texture2D(map1, uv).r;
     else if (l == 2) h = texture2D(map2, uv).r;
     else             h = texture2D(map3, uv).r;
     return h;
+  #endif
   }
 
   vec2 gMeshUV;
@@ -238,12 +242,16 @@ const sharedGLSL = /* glsl */`
   }
   // Explicit LOD: looked up inside branches, where implicit derivatives are undefined.
   float stampDepthAt(int l, vec2 tc) {
+  #if SINGLE_LAYER == 1
+    return textureLod(stampDepth0, tc, 0.0).r;
+  #else
     float d;
     if      (l == 0) d = textureLod(stampDepth0, tc, 0.0).r;
     else if (l == 1) d = textureLod(stampDepth1, tc, 0.0).r;
     else if (l == 2) d = textureLod(stampDepth2, tc, 0.0).r;
     else             d = textureLod(stampDepth3, tc, 0.0).r;
     return d;
+  #endif
   }
   // f = stampFrame(): true when a surface nearer the stamp side hides pos.
   bool stampOccluded(int l, vec3 pos, vec3 f) {
@@ -404,6 +412,10 @@ const sharedGLSL = /* glsl */`
   // angle mask, times a stamp's coverage): later layers cover the ones
   // below, or add to them.
   float compositeHeight(vec3 pos, vec3 projN, vec3 blendN, vec4 w) {
+  #if SINGLE_LAYER == 1
+    float wl = w.x * stampCover(0, pos, projN);
+    return layerHeightMm(0, pos, projN, blendN) * wl;
+  #else
     float H = 0.0;
     for (int l = 0; l < MAX_LAYERS; l++) {
       if (l >= layerCount) break;
@@ -413,17 +425,22 @@ const sharedGLSL = /* glsl */`
       else H = H * (1.0 - wl) + hl;
     }
     return H;
+  #endif
   }
 
   // ── Color Mode Helper Functions ──────────────────────────────────────────────
-
+#if USE_COLOR == 1
   vec3 sampleColorTex(int l, vec2 uv) {
+  #if SINGLE_LAYER == 1
+    return texture2D(colorMap0, uv).rgb;
+  #else
     vec3 col = vec3(0.5);
     if      (l == 0) col = texture2D(colorMap0, uv).rgb;
     else if (l == 1) col = texture2D(colorMap1, uv).rgb;
     else if (l == 2) col = texture2D(colorMap2, uv).rgb;
     else             col = texture2D(colorMap3, uv).rgb;
     return col;
+  #endif
   }
 
   vec3 sampleMapColor(int l, vec2 rawUV) {
@@ -537,6 +554,11 @@ const sharedGLSL = /* glsl */`
 
   // Composite visible layers' colors using each layer's mask × falloff × angle × stamp coverage
   vec3 compositeRawColor(vec3 pos, vec3 projN, vec3 blendN, vec4 w) {
+  #if SINGLE_LAYER == 1
+    float wl = clamp(w.x * stampCover(0, pos, projN), 0.0, 1.0);
+    if (wl <= 0.001) return untexturedColor;
+    return mix(untexturedColor, computeLayerColorAtPoint(0, pos, projN, blendN), wl);
+  #else
     vec3 col = untexturedColor;
     bool any = false;
     for (int l = 0; l < MAX_LAYERS; l++) {
@@ -552,8 +574,10 @@ const sharedGLSL = /* glsl */`
       }
     }
     return col;
+  #endif
   }
 
+#if USE_INTERLEAVED == 1
   // Evaluate 3+ color clamped segment-projection blend and brightness-consistent gamma
   void evalMultiColorBlend(
     vec3 targetCol,
@@ -604,9 +628,12 @@ const sharedGLSL = /* glsl */`
       }
     }
   }
+#endif
+#endif
 `;
 
 const vertexColorGLSL = /* glsl */`
+#if USE_DISP == 1 && USE_COLOR == 1 && USE_INTERLEAVED == 1
   // Compute displacement height for color mode (vertex shader only)
   float computeColorHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
     if (colorSubMode == 1) {
@@ -782,14 +809,17 @@ const vertexColorGLSL = /* glsl */`
 
     return computeHeightAtPoint(0, pos, projN, blendN);
   }
+#endif
 `;
 
 const fragmentColorGLSL = /* glsl */`
+#if USE_COLOR == 1
   // Compute final surface color at a world-space point (fragment shader only)
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
     vec3 rawCol = (colorSubMode == 1 && shadingSource == 1)
       ? vec3(0.0)
       : compositeRawColor(pos, projN, blendN, w);
+  #if USE_INTERLEAVED == 1
     if (colorSubMode == 1) {
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
@@ -886,8 +916,10 @@ const fragmentColorGLSL = /* glsl */`
 
       return mix(baseCol, interleavedPalette[activeK], 0.35);
     }
+  #endif
     return rawCol;
   }
+#endif
 `;
 
 const vertexShader = /* glsl */`
@@ -935,14 +967,19 @@ const vertexShader = /* glsl */`
     vAngleMask    = angleMask;
     vMaskType     = boundaryMaskTypeAttr;
 
+#if USE_DISP == 1
     if (useDisplacement == 1) {
       vec4 wDisp = layerMask * layerFalloff * angleMask;
       float h;
+    #if USE_COLOR == 1 && USE_INTERLEAVED == 1
       if (colorSubMode == 1) {
         h = computeColorHeightAtPoint(position, safeN, safeN, 0.0, wDisp);
       } else {
         h = compositeHeight(position, safeN, safeN, wDisp);
       }
+    #else
+      h = compositeHeight(position, safeN, safeN, wDisp);
+    #endif
 
       // Displace along smooth normal so all copies of the same position
       // arrive at the same point (watertight, no cracks).
@@ -951,6 +988,7 @@ const vertexShader = /* glsl */`
       // Overhang protection: never move a vertex below its original Z.
       if (noDownwardZ == 1 && pos.z < position.z) pos.z = position.z;
     }
+#endif
 
     // Always pass the ORIGINAL position for UV computation in the fragment shader.
     vModelPos    = position;
@@ -1067,9 +1105,11 @@ const fragmentShader = /* glsl */`
     // preview surface look flat while the silhouette still displaced.
     float dhx = 0.0, dhy = 0.0, coverSum = 0.0;
     bumpLayer(0, PN, w.x, dhx, dhy, coverSum);
+  #if SINGLE_LAYER == 0
     if (layerCount > 1) bumpLayer(1, PN, w.y, dhx, dhy, coverSum);
     if (layerCount > 2) bumpLayer(2, PN, w.z, dhx, dhy, coverSum);
     if (layerCount > 3) bumpLayer(3, PN, w.w, dhx, dhy, coverSum);
+  #endif
     coverSum = clamp(coverSum, 0.0, 1.0);
 
     vec3 dp1 = dFdx(vViewPos);
@@ -1104,7 +1144,11 @@ const fragmentShader = /* glsl */`
     // are perfectly consistent everywhere.  Mask tinting is applied AFTER
     // lighting as a colour blend so masked areas keep the same glossy look.
     vec3 tealBase      = vec3(0.22, 0.68, 0.68);
+  #if USE_COLOR == 1
     vec3 baseColor     = (useColorTexture == 1) ? computeColorAtPoint(vModelPos, PN, vModelNormal, 0.0, w) : tealBase;
+  #else
+    vec3 baseColor     = tealBase;
+  #endif
     // Single layer: the familiar orange (painted out) and dark grey (angle
     // mask). Several layers: everything the active layer does not cover is a
     // plain neutral grey, so "teal = active layer" reads at a glance and the
@@ -1164,8 +1208,20 @@ const fragmentShader = /* glsl */`
  * @param {Array<object>} layers  see updateMaterial
  * @param {object} settings       global settings, see updateMaterial
  */
+function _computeShaderDefines(layers, settings) {
+  const isColor = settings.useColorTexture ? 1 : 0;
+  const isInterleaved = (isColor && settings.colorSubMode === 1) ? 1 : 0;
+  return {
+    SINGLE_LAYER: (layers && layers.length > 1) ? 0 : 1,
+    USE_COLOR: isColor,
+    USE_INTERLEAVED: isInterleaved,
+    USE_DISP: settings.useDisplacement ? 1 : 0,
+  };
+}
+
 export function createPreviewMaterial(layers, settings) {
   const mat = new THREE.ShaderMaterial({
+    defines: _computeShaderDefines(layers, settings),
     vertexShader,
     fragmentShader,
     uniforms: buildUniforms(),
@@ -1195,6 +1251,17 @@ export function createPreviewMaterial(layers, settings) {
  *   surfaces outside the active layer) }
  */
 export function updateMaterial(material, layers, settings) {
+  const nextDefs = _computeShaderDefines(layers, settings);
+  const curDefs = material.defines || {};
+  if (
+    curDefs.SINGLE_LAYER !== nextDefs.SINGLE_LAYER ||
+    curDefs.USE_COLOR !== nextDefs.USE_COLOR ||
+    curDefs.USE_INTERLEAVED !== nextDefs.USE_INTERLEAVED ||
+    curDefs.USE_DISP !== nextDefs.USE_DISP
+  ) {
+    material.defines = nextDefs;
+    material.needsUpdate = true;
+  }
   const u = material.uniforms;
   const b = settings.bounds || {
     min:    new THREE.Vector3(),

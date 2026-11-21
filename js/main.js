@@ -39,7 +39,7 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261121_04';
+import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261121_08';
 import { PaintTree } from './paintTree.js';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
