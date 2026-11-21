@@ -207,7 +207,7 @@ export function loadFullPreset(idx) {
     img.decoding = 'async';
     img.fetchPriority = 'high';
     img.onload = () => {
-      const { w, h } = fitDimensions(img.width, img.height);
+      const { w, h } = fitDimensions(img.width, img.height, CUSTOM_SIZE);
       const full = makeCanvas(w, h);
       full.getContext('2d').drawImage(img, 0, 0, w, h);
 

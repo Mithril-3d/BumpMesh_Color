@@ -10,7 +10,7 @@
 // a local library (js/customTextures.js) and listed under "Your textures", where they can be starred,
 // downloaded again and deleted; the browser may evict that library at any time.
 
-import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20261121_06';
+import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20261121_07';
 import { listCustomTextures, saveCustomTexture, deleteCustomTexture, clearCustomTextures,
          downloadCustomTexture } from './customTextures.js?v=20260929_130';
 import { t } from './i18n.js?v=20260929_130';

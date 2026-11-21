@@ -16,9 +16,9 @@ import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJ
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadFullPreset, buildThumbPreviewPreset, prefetchDefaultFavourites, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20261121_06';
+import { loadFullPreset, buildThumbPreviewPreset, prefetchDefaultFavourites, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20261121_07';
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
-import { initTextureGallery } from './textureGallery.js?v=20261121_06';
+import { initTextureGallery } from './textureGallery.js?v=20261121_07';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
 import { initTuringController } from './turingController.js?v=20261002_143';
 import { computeMeshCurvatureShading } from './meshCurvature.js?v=20261003_151';
