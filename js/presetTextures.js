@@ -204,6 +204,8 @@ export function loadFullPreset(idx) {
   const preset = IMAGE_PRESETS[idx];
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.decoding = 'async';
+    img.fetchPriority = 'high';
     img.onload = () => {
       const { w, h } = fitDimensions(img.width, img.height);
       const full = makeCanvas(w, h);
@@ -221,6 +223,45 @@ export function loadFullPreset(idx) {
     img.onerror = () => reject(new Error(`Failed to load preset image: ${preset.url}`));
     img.src = preset.url;
   });
+}
+
+/**
+ * Build an instant 0ms preview entry from an already-decoded thumbnail <img> element
+ * while the full 512px preset is still downloading over the network.
+ */
+export function buildThumbPreviewPreset(idx, thumbImgEl) {
+  if (_fullPresetCache.has(idx)) return _fullPresetCache.get(idx);
+  if (!thumbImgEl || !thumbImgEl.complete || !thumbImgEl.naturalWidth) return null;
+  const preset = IMAGE_PRESETS[idx];
+  if (!preset) return null;
+  const { w, h } = fitDimensions(thumbImgEl.naturalWidth, thumbImgEl.naturalHeight);
+  const full = makeCanvas(w, h);
+  full.getContext('2d').drawImage(thumbImgEl, 0, 0, w, h);
+  const imageData = full.getContext('2d').getImageData(0, 0, w, h);
+  const texture = new THREE.CanvasTexture(full);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.name = preset.name + '_thumb_preview';
+  return { name: preset.name, fullCanvas: full, texture, imageData, width: w, height: h, defaultScale: preset.defaultScale, isThumbPreview: true };
+}
+
+/**
+ * Quietly prefetch the 12 default favourite presets one at a time during idle time
+ * so clicking any favourite swatch on the main panel is 100% instant (0ms network wait).
+ */
+export function prefetchDefaultFavourites() {
+  const queue = DEFAULT_FAVOURITES
+    .map(name => IMAGE_PRESETS.findIndex(p => p.name === name))
+    .filter(idx => idx >= 0 && !_fullPresetCache.has(idx));
+  let pos = 0;
+  const next = () => {
+    if (pos >= queue.length) return;
+    const idx = queue[pos++];
+    if (_fullPresetCache.has(idx)) { next(); return; }
+    loadFullPreset(idx).catch(() => {}).finally(() => {
+      setTimeout(next, 120);
+    });
+  };
+  setTimeout(next, 900);
 }
 
 export { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES };

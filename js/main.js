@@ -12,13 +12,13 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
          updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_130';
-import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js?v=20261003_151';
+import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
-import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260929_130';
+import { loadFullPreset, buildThumbPreviewPreset, prefetchDefaultFavourites, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20261121_06';
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
-import { initTextureGallery } from './textureGallery.js?v=20261121_03';
+import { initTextureGallery } from './textureGallery.js?v=20261121_06';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
 import { initTuringController } from './turingController.js?v=20261002_143';
 import { computeMeshCurvatureShading } from './meshCurvature.js?v=20261003_151';
@@ -67,7 +67,7 @@ import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS }
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV, MODE_SURFACE_NORMAL,
          isStampActive, stampFrame, stampUV, stampUntouchedFaces, buildStampDepth,
          STAMP_DEPTH_RES, stampAxes, stampSurfaceAt } from './mapping.js?v=20261031_2115';
-import { QuantizedPointMap } from './meshIndex.js?v=20260912_111';
+import { QuantizedPointMap } from './meshIndex.js';
 import { APP_VERSION } from './version.js?v=20261121_05';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
@@ -2199,26 +2199,41 @@ async function selectPreset(idx, applyDefaults = true) {
   }
 
   // If full texture is already loaded, use it directly
-  if (entry.texture) {
+  if (entry.texture && !entry.isThumbPreview) {
     activeMapEntry = entry;
-    runColorQuantization();
+    if (colorModeToggle?.checked) runColorQuantization();
     _onTextureChanged();
     updatePreview();
     _autoSaveSettings();
     return;
   }
 
+  // Instant 0ms preview using the already-loaded swatch thumbnail while the full 512px preset downloads
+  try {
+    const swImg = document.querySelector(`.preset-swatch[data-key="${CSS.escape(entry.name)}"] img`);
+    const quick = buildThumbPreviewPreset(idx, swImg);
+    if (quick) {
+      activeMapEntry = quick;
+      _onTextureChanged();
+      updatePreview();
+    }
+  } catch { /* ignore CSS.escape or thumb preview errors */ }
+
   // Load full-resolution texture on demand
   gallery.setLoading(idx, true);
   try {
     const full = await loadFullPreset(idx);
-    PRESETS[idx] = { ...entry, ...full };
+    PRESETS[idx] = { ...entry, ...full, isThumbPreview: false };
     if (gen !== _selectGeneration) return;
+    if (activeMapEntry?.isThumbPreview && activeMapEntry.texture) {
+      activeMapEntry.texture.dispose();
+    }
     activeMapEntry = PRESETS[idx];
-    runColorQuantization();
+    if (colorModeToggle?.checked) runColorQuantization();
     _onTextureChanged();
     updatePreview();
     _autoSaveSettings();
+    prefetchDefaultFavourites();
   } catch (err) {
     console.error('Failed to load full texture:', err);
   } finally {
@@ -3781,6 +3796,9 @@ function wireEvents() {
       if (ctrl) {
         ctrl.style.opacity = isEnabled ? '1' : '0.4';
         ctrl.style.pointerEvents = isEnabled ? 'auto' : 'none';
+      }
+      if (isEnabled && activeMapEntry) {
+        runColorQuantization();
       }
       if (exportMultiColor3mfBtn) {
         exportMultiColor3mfBtn.disabled = !isEnabled || (activeMapEntry === null || currentGeometry === null);
@@ -6522,16 +6540,20 @@ function updateFaceMask(geometry, { forceFalloff = false } = {}) {
   }
 
   const maskAttr = _ensureAttr(geometry, 'layerMask', posCount, 4, 0.0);
-  const m = maskAttr.array;
-  const nSlots = covers.length;
-  for (let i = 0; i < posCount; i++) {
-    const o = i * 4;
-    for (let k = 0; k < 4; k++) {
-      const c = covers[k];
-      m[o + k] = k < nSlots ? (c ? c[i] : 1) : 0;
+  const maskSig = `${slots.map(s => `${s.index}:${s.isActive ? 1 : 0}:${selectionMode ? 1 : 0}:${layers[s.index]?.includeOnly ? 1 : 0}`).join('|')}|${paintTree ? paintTree.paintVersion : 0}|${paintTree ? paintTree.structureVersion : 0}|${excludedFaces.size}`;
+  if (geometry._lastLayerMaskSig !== maskSig) {
+    geometry._lastLayerMaskSig = maskSig;
+    const m = maskAttr.array;
+    const nSlots = covers.length;
+    for (let i = 0; i < posCount; i++) {
+      const o = i * 4;
+      for (let k = 0; k < 4; k++) {
+        const c = covers[k];
+        m[o + k] = k < nSlots ? (c ? c[i] : 1) : 0;
+      }
     }
+    maskAttr.needsUpdate = true;
   }
-  maskAttr.needsUpdate = true;
 
   // Ensure faceNormal attribute exists (needed by shader for angle masking).
   // For the original geometry normal == faceNormal; for subdivided geometry

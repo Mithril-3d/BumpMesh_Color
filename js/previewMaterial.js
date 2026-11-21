@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { scaleMmToRelative, isStampActive, stampFrame } from './mapping.js';
+import { scaleMmToRelative, isStampActive, stampFrame } from './mapping.js?v=20261031_2115';
 
 // Mapping mode constants (must match index.html <option value="…">)
 export const MODE_PLANAR_XY   = 0;

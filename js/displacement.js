@@ -4,10 +4,10 @@
  */
 
 import { THREE } from './threeCompat.js';
-import { computeUV, getDominantCubicAxis, getCubicBlendWeights, scaleMmToRelative, isStampActive, stampFrame, stampUV } from './mapping.js';
+import { computeUV, getDominantCubicAxis, getCubicBlendWeights, scaleMmToRelative, isStampActive, stampFrame, stampUV } from './mapping.js?v=20261031_2115';
 import { QuantizedPointMap } from './meshIndex.js';
-import { getToolAtUV } from './colorQuantization.js';
-import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement, computeColorBlendWeight, computeMultiColorBlend } from './layerBlending.js';
+import { getToolAtUV } from './colorQuantization.js?v=20261121_04';
+import { getLayerIndex, getInterleavedToolAtLayer, computeLouverDisplacement, computeColorBlendWeight, computeMultiColorBlend } from './layerBlending.js?v=20261121_04';
 
 /**
  * Apply displacement to every vertex of a non-indexed BufferGeometry.

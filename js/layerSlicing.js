@@ -12,7 +12,7 @@
  *  5. Watertight manifold geometry (manifold = yes, open edges = 0).
  */
 
-import { computeLouverDisplacement, getInterleavedToolAtLayer } from './layerBlending.js';
+import { computeLouverDisplacement, getInterleavedToolAtLayer } from './layerBlending.js?v=20261121_04';
 import { TolerantPointMap } from './meshIndex.js';
 
 export function sliceMeshWatertight(positions, normals, minZ, thickness, totalLayers, excludeWeights = null) {

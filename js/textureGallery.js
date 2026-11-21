@@ -10,7 +10,7 @@
 // a local library (js/customTextures.js) and listed under "Your textures", where they can be starred,
 // downloaded again and deleted; the browser may evict that library at any time.
 
-import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20260929_130';
+import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20261121_06';
 import { listCustomTextures, saveCustomTexture, deleteCustomTexture, clearCustomTextures,
          downloadCustomTexture } from './customTextures.js?v=20260929_130';
 import { t } from './i18n.js?v=20260929_130';
@@ -68,9 +68,27 @@ function saveFavourites(favs) {
   try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); } catch { /* private mode */ }
 }
 
+// Shared IntersectionObserver for gallery tiles so only the ~16 visible thumbnails
+// inside #gallery-body are fetched over the network when opening/scrolling the gallery.
+let _galleryImgObserver = null;
+function _ensureGalleryObserver(rootEl) {
+  if (_galleryImgObserver || typeof IntersectionObserver === 'undefined') return _galleryImgObserver;
+  _galleryImgObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const img = entry.target;
+      _galleryImgObserver.unobserve(img);
+      if (img.dataset.src && !img.getAttribute('src')) {
+        img.src = img.dataset.src;
+      }
+    }
+  }, { root: rootEl || null, rootMargin: '200px 0px' });
+  return _galleryImgObserver;
+}
+
 /** A clickable thumbnail for `item`. Carries data-key so active/loading state can be mirrored on
  *  every copy (panel + gallery). */
-function makeSwatch(item, onPick) {
+function makeSwatch(item, onPick, deferSrc = false, observerRoot = null) {
   const el = document.createElement('div');
   el.className = 'preset-swatch preset-loading';
   el.dataset.key = item.key;
@@ -80,13 +98,22 @@ function makeSwatch(item, onPick) {
 
   const img = document.createElement('img');
   img.alt = '';
+  img.width = 80;
+  img.height = 80;
   img.loading = 'lazy';
   img.decoding = 'async';
   img.draggable = false;
   const loaded = () => el.classList.remove('preset-loading');
   img.addEventListener('load', loaded, { once: true });
   img.addEventListener('error', loaded, { once: true });
-  img.src = item.thumb;
+  if (deferSrc && typeof IntersectionObserver !== 'undefined') {
+    img.dataset.src = item.thumb;
+    const obs = _ensureGalleryObserver(observerRoot);
+    if (obs) obs.observe(img);
+    else img.src = item.thumb;
+  } else {
+    img.src = item.thumb;
+  }
   el.appendChild(img);
 
   el.addEventListener('click', () => onPick(item.key));
@@ -196,7 +223,7 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
     const tile = document.createElement('div');
     tile.className = 'gallery-tile';
 
-    const sw = makeSwatch(item, pick);
+    const sw = makeSwatch(item, pick, true, body);
     if (item.credit) {
       const badge = document.createElement('span');
       badge.className = 'gallery-badge';
@@ -535,9 +562,11 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
     if (isOpen()) return;
     returnFocus = document.activeElement;
     settingsScroll = settings.scrollTop;
-    renderGallery();
+    // Unhide panel BEFORE renderGallery() so #gallery-body has real layout bounds
+    // and IntersectionObserver only loads the ~16 visible thumbnails in view.
     panel.parentElement.classList.add('gallery-open');
     panel.classList.remove('hidden');
+    renderGallery();
     // Type-to-search needs a real keyboard; on touch screens focusing the box would pop up the
     // on-screen keyboard over the gallery, so the panel itself takes focus there.
     const typing = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ?? true;

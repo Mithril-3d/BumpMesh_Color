@@ -3,10 +3,10 @@
  * Mesh Tool Assignment & Partitioning for Multi-Material Export
  */
 
-import { THREE } from './threeCompat.js?v=20260908d';
-import { computeUV, isStampActive, stampFrame, stampUV } from './mapping.js?v=20260908d';
-import { getToolAtUV } from './colorQuantization.js?v=20260908d';
-import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=20260909d';
+import { THREE } from './threeCompat.js';
+import { computeUV, isStampActive, stampFrame, stampUV } from './mapping.js?v=20261031_2115';
+import { getToolAtUV } from './colorQuantization.js?v=20261121_04';
+import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=20261121_04';
 
 /**
  * Check if 3D point p is within triangle abc (projected along normal n)
