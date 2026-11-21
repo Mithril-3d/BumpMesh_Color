@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v2.0.0-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.0.1-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,14 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v2.0.1 (Patch Release - 2026-11-21)**:
+  - **Cycle-Staggered Weave Phase Across All Tool Counts (2–8 Colors)**:
+    - Unified the circumferential wave phase (`layerPhase = (colIdx * 2π / L) + (cycle % 2) * π`) across all tool counts (`L = 2..8`) and all weave profiles (Halftone Weave, Sinusoidal, Triangle, Rectangular Block, Modulated Step), eliminating vertical column alignment in 2-color and even-tool-count halftone weaves so every tool alternates in a true staggered knit pattern.
+  - **Texture Loading & WebGL Shader Compilation Acceleration**:
+    - Deferred gallery tile creation (`textureGallery.js`) until the gallery panel is opened, eliminating 133 concurrent detached thumbnail HTTP requests on startup.
+    - Split vertex-only and fragment-only multi-layer color GLSL functions (`previewMaterial.js`) and deduplicated `compositeRawColor` evaluations to speed up ANGLE D3D11 shader compilation.
+    - Optimized `quantizeImageGamut` cluster weighting using the 3D voxel histogram (`< 0.1 ms`), made full-image pixel quantization on-demand, and compressed oversized built-in JPEG presets.
+
 - **v2.0.0 (Major Release - 2026-11-21)**:
   - **Multi-Texture Layer System (Up to 4 Layers) & Interactive Stamp Placement**:
     - Compose up to 4 independent displacement/color texture layers, each with its own projection mode, scale, rotation, amplitude, adaptive subdivision paint mask (`PaintTree`), blend mode (Cover / Add), and visibility toggle.
@@ -314,7 +322,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.1--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -508,6 +516,14 @@ python -m http.server 8080
 ---
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v2.0.1 (パッチリリース - 2026-11-21)**:
+  - **2色および全ツール数（2〜8色）における千鳥編み位相シフトの統一**:
+    - ハーフトーン編み・正弦波・三角波・矩形ブロック・Modulated Step の全編みモードおよび2〜8色すべてのツール数において、サイクルごとの半周期（`π`）千鳥位相シフト式（`layerPhase = (colIdx * 2π / L) + (cycle % 2) * π`）に統一。2色や偶数ツール数で同じ色の編み目が縦一列に揃ってしまう問題を解消し、全ツール数で互い違いの美しい千鳥編みを実現。
+  - **テクスチャ読み込み＆WebGLシェーダーコンパイルの大幅高速化**:
+    - ギャラリーパネルを開くまで全133個のサムネイルタイル生成を遅延させ、起動時の大量同時HTTPリクエストによる通信詰まり（特にGitHub Pages上）を解消。
+    - 頂点・フラグメント専用GLSL関数の分離と `compositeRawColor` の重複呼び出し削減により、初回テクスチャ適用時のANGLE D3D11シェーダーコンパイル時間を短縮。
+    - `quantizeImageGamut` の面積比集計を3Dボクセルヒストグラムから直接算出（`0.1 ms` 以下）し、不要な全ピクセル走査の省略と大容量プリセットJPEG画像の軽量化を実施。
 
 - **v2.0.0 (メジャーリリース - 2026-11-21)**:
   - **マルチテクスチャレイヤー機能（最大4レイヤー合成）＆スタンプ配置モード**:
