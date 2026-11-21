@@ -68,7 +68,7 @@ import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV, MO
          isStampActive, stampFrame, stampUV, stampUntouchedFaces, buildStampDepth,
          STAMP_DEPTH_RES, stampAxes, stampSurfaceAt } from './mapping.js?v=20261031_2115';
 import { QuantizedPointMap } from './meshIndex.js';
-import { APP_VERSION } from './version.js?v=20261121_05';
+import { APP_VERSION } from './version.js?v=20261121_09';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────

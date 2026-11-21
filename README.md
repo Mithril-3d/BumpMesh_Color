@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v2.0.1-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.0.2-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,13 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v2.0.2 (Patch Release - 2026-11-21)**:
+  - **4.3x Faster Startup & WebGL Shader Compilation (`SINGLE_LAYER` / `USE_COLOR` / `USE_INTERLEAVED` / `USE_DISP`)**:
+    - Split `previewMaterial.js` into lightweight `ShaderMaterial.defines` variants so ANGLE Direct3D 11 compiles only the active feature path instead of unrolling 4-layer color/weave loops at startup, cutting initial texture compilation freeze from `5.63 s` down to `1.30 s`.
+  - **Full-Resolution Built-in Presets (4096px Cap) + 0ms Instant Thumbnail Preview**:
+    - Raised `loadFullPreset()` resolution cap from `512 px` to `4096 px` (`CUSTOM_SIZE`) so high-resolution built-in presets (e.g. `2513×1000`, `1024×1024`) apply and export at native 1:1 fidelity.
+    - Added instant 0ms thumbnail preview on preset click, background prefetching of the 12 panel favourites, `IntersectionObserver` lazy loading for the gallery panel, and unified ES module query strings to eliminate duplicate network fetches.
+
 - **v2.0.1 (Patch Release - 2026-11-21)**:
   - **Cycle-Staggered Weave Phase Across All Tool Counts (2–8 Colors)**:
     - Unified the circumferential wave phase (`layerPhase = (colIdx * 2π / L) + (cycle % 2) * π`) across all tool counts (`L = 2..8`) and all weave profiles (Halftone Weave, Sinusoidal, Triangle, Rectangular Block, Modulated Step), eliminating vertical column alignment in 2-color and even-tool-count halftone weaves so every tool alternates in a true staggered knit pattern.
@@ -322,7 +329,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.1--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.2--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -516,6 +523,13 @@ python -m http.server 8080
 ---
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v2.0.2 (パッチリリース - 2026-11-21)**:
+  - **WebGLシェーダーバリアント分割による初回テクスチャ表示の大幅高速化（5.63秒 → 1.30秒）**:
+    - `previewMaterial.js` に `ShaderMaterial.defines` バリアント（`SINGLE_LAYER`, `USE_COLOR`, `USE_INTERLEAVED`, `USE_DISP`）を導入し、ANGLE D3D11 環境で未使用の4レイヤー／振り重ね／頂点変位パスをコンパイル対象から除外。初回テクスチャ表示時のコンパイル待ちフリーズを約4.3倍高速化。
+  - **プリセット画像のフル解像度（4096px上限）維持 ＆ 0ms即時プレビュー**:
+    - `loadFullPreset()` の解像度上限を `512px` から `4096px`（`CUSTOM_SIZE`）へ引き上げ、`2513×1000` や `1024×1024` 等の高解像度プリセットも元の解像度のままモデルへ貼り付け・3MF出力できるよう統一。
+    - クリック直後の0msサムネイル即時プレビュー、お気に入り12種のアイドル時バックグラウンド先読み、ギャラリー展開時の `IntersectionObserver` 遅延読込、およびESモジュールの重複リクエスト解消を実施。
 
 - **v2.0.1 (パッチリリース - 2026-11-21)**:
   - **2色および全ツール数（2〜8色）における千鳥編み位相シフトの統一**:

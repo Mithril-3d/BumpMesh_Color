@@ -2,6 +2,14 @@
 
 `BumpMesh_Color` の各バージョンにおける機能追加・変更・不具合修正の記録です。
 
+## [v2.0.2] - 2026-11-21 (🚀 WebGLシェーダーバリアント分割高速化 ＆ プリセット4096pxフル解像度対応・0ms即時プレビュー)
+### 🧩 修正・改善 (Bug Fixes & Refinements)
+- **WebGLシェーダーバリアント分割による初回コンパイルの4.3倍高速化 (`previewMaterial.js`)**:
+  - `SINGLE_LAYER` / `USE_COLOR` / `USE_INTERLEAVED` / `USE_DISP` の `ShaderMaterial.defines` バリアントを導入し、単一レイヤー時や通常モード時に不要な4レイヤー展開・振り重ねGLSL・頂点変位GLSLを除外。Windows Chrome/Edge（ANGLE D3D11 FXC）での初回テクスチャ表示時フリーズを **`5.63秒 → 1.30秒`** へ短縮。
+- **プリセット画像のフル解像度（4096px上限）保持と0ms即時プレビュー (`presetTextures.js`, `textureGallery.js`, `main.js`)**:
+  - `loadFullPreset()` のリサイズ上限を従来の `512px` から `CUSTOM_SIZE (4096px)` に引き上げ、`2513×1000` 等の高解像度プリセットも元の解像度のままモデル適用・エクスポート可能に改善。
+  - プリセット選択直後にサムネイルから0msで即時プレビューを表示しつつ裏でフル解像度画像へ差し替える機能、お気に入り12種のアイドル時先読み、`IntersectionObserver` によるギャラリーサムネイルの可視領域限定読み込み、およびESモジュールの `?v=` 不一致による重複ダウンロード解消を実装。
+
 ## [v2.0.1] - 2026-11-21 (⚡ テクスチャ読込・シェーダー高速化 ＆ 2色/偶数ツール千鳥編み位相シフト修正パッチリリース)
 ### 🧩 修正・改善 (Bug Fixes & Refinements)
 - **2色および偶数ツール数（2〜8色）でのハーフトーン編み・各編みモードの千鳥位相シフト修正 (`weaveTubeGenerator.js`, `layerBlending.js`, `layerSlicing.js`, `previewMaterial.js`)**:
