@@ -250,13 +250,10 @@ export function quantizeImage(imageDataOrList, k = 4, maxSamples = 20000, mode =
     p.toolId = idx + 1;
   });
 
-  // Quantize the primary image using the computed palette
-  const primaryRes = quantizeImageWithPalette(images[0], palette);
-
   return {
     palette,
-    quantizedImageData: primaryRes.quantizedImageData,
-    luminanceMap: primaryRes.luminanceMap
+    quantizedImageData: null,
+    luminanceMap: null
   };
 }
 
@@ -663,36 +660,31 @@ export function quantizeImageGamut(imageDataOrList, k = 4, maxSamples = 25000) {
 
 
 
-  // Quantize primary image & count pixels per cluster across all visible images
+  // Count cluster weights directly from the 3D voxel histogram bins (~1000 bins, <0.1ms)
+  // instead of looping over all millions of full-resolution pixels on the main thread.
   const actualK = centers.length;
   const clusterCounts = new Uint32Array(actualK);
   let totalAllPixels = 0;
 
-  for (const img of images) {
-    const imgPixels = img.width * img.height;
-    const imgData = img.data;
-    totalAllPixels += imgPixels;
-    for (let i = 0; i < imgPixels; i++) {
-      const idx = i * 4;
-      const r = imgData[idx];
-      const g = imgData[idx + 1];
-      const b = imgData[idx + 2];
-
-      let minD = Infinity;
-      let bestC = 0;
-      for (let c = 0; c < actualK; c++) {
-        const center = centers[c];
-        const dr = center[0] - r;
-        const dg = center[1] - g;
-        const db = center[2] - b;
-        const d = dr * dr + dg * dg + db * db;
-        if (d < minD) {
-          minD = d;
-          bestC = c;
-        }
+  for (const bin of bins.values()) {
+    const r = bin.sumR / bin.count;
+    const g = bin.sumG / bin.count;
+    const b = bin.sumB / bin.count;
+    let minD = Infinity;
+    let bestC = 0;
+    for (let c = 0; c < actualK; c++) {
+      const center = centers[c];
+      const dr = center[0] - r;
+      const dg = center[1] - g;
+      const db = center[2] - b;
+      const d = dr * dr + dg * dg + db * db;
+      if (d < minD) {
+        minD = d;
+        bestC = c;
       }
-      clusterCounts[bestC]++;
     }
+    clusterCounts[bestC] += bin.count;
+    totalAllPixels += bin.count;
   }
 
   // Build palette
@@ -714,12 +706,10 @@ export function quantizeImageGamut(imageDataOrList, k = 4, maxSamples = 25000) {
     p.toolId = idx + 1;
   });
 
-  const primaryRes = quantizeImageWithPalette(images[0], palette);
-
   return {
     palette,
-    quantizedImageData: primaryRes.quantizedImageData,
-    luminanceMap: primaryRes.luminanceMap
+    quantizedImageData: null,
+    luminanceMap: null
   };
 }
 

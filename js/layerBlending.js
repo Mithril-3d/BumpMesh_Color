@@ -279,15 +279,10 @@ export function computeLouverDisplacement(
         sHoriz = px * 0.7071 - py * 0.7071;
       }
       const k = (2.0 * Math.PI) / pitch;
-      const toolCount = toolIds?.length || 2;
-      let layerPhase;
-      if (profileMode === 5 && toolCount > 2) {
-        const colIdx = Math.abs(layerIdx) % toolCount;
-        const cycle = Math.floor(Math.abs(layerIdx) / toolCount);
-        layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
-      } else {
-        layerPhase = (Math.abs(layerIdx) % 2) * Math.PI;
-      }
+      const toolCount = Math.max(1, toolIds?.length || 2);
+      const colIdx = Math.abs(layerIdx) % toolCount;
+      const cycle = Math.floor(Math.abs(layerIdx) / toolCount);
+      const layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
       const phi = k * sHoriz + layerPhase;
       const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
       let W;
@@ -334,15 +329,10 @@ export function computeLouverDisplacement(
     }
 
     const k = (2.0 * Math.PI) / pitch;
-    const toolCount = toolIds?.length || 2;
-    let layerPhase;
-    if (profileMode === 5 && toolCount > 2) {
-      const colIdx = Math.abs(layerIdx) % toolCount;
-      const cycle = Math.floor(Math.abs(layerIdx) / toolCount);
-      layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
-    } else {
-      layerPhase = (Math.abs(layerIdx) % 2) * Math.PI;
-    }
+    const toolCount = Math.max(1, toolIds?.length || 2);
+    const colIdx = Math.abs(layerIdx) % toolCount;
+    const cycle = Math.floor(Math.abs(layerIdx) / toolCount);
+    const layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
     const phi = k * sHoriz + layerPhase;
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
 

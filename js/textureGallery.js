@@ -225,8 +225,21 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
     paintStar(item.key);
   }
 
+  function getOrBuildTile(key) {
+    let entry = tiles.get(key);
+    if (!entry) {
+      const item = items.get(key);
+      if (!item) return null;
+      buildTile(item);
+      entry = tiles.get(key);
+    }
+    return entry;
+  }
+
   function paintStar(key) {
-    const { star } = tiles.get(key);
+    const entry = tiles.get(key);
+    if (!entry) return;
+    const { star } = entry;
     const on = favourites.includes(key);
     star.textContent = on ? '★' : '☆';
     star.setAttribute('aria-pressed', String(on));
@@ -259,7 +272,10 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
   function grid(keys, container) {
     const g = document.createElement('div');
     g.className = 'gallery-grid';
-    for (const key of keys) g.appendChild(tiles.get(key).tile);
+    for (const key of keys) {
+      const entry = getOrBuildTile(key);
+      if (entry) g.appendChild(entry.tile);
+    }
     container.appendChild(g);
   }
 
@@ -410,7 +426,7 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
         thumb: m.thumb, category: CUSTOM_CATEGORY.id, custom: m,
       };
       items.set(item.key, item);
-      buildTile(item);
+      if (isOpen()) buildTile(item);
     }
   }
 
@@ -552,7 +568,8 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
   }
 
   // ── Wiring ──────────────────────────────────────────────────────────────
-  PRESET_ITEMS.forEach(buildTile);
+  // Build gallery tiles lazily on openGallery()/renderGallery() instead of upfront,
+  // preventing 133 detached <img> requests from flooding the network at startup.
   buildChips();
   refreshText();
   renderPanel();

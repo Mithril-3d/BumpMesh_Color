@@ -368,7 +368,10 @@ function computeLayerDisplacementByLayer(
       const dx = px - cx, dy = py - cy;
       const theta = Math.atan2(dy, dx);
       const waveCount = weaveOptions.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions.pitch ?? 1.6)));
-      const layerPhase = (lay % 2) * Math.PI;
+      const toolCount = Math.max(1, toolIds?.length || 2);
+      const colIdx = Math.abs(lay) % toolCount;
+      const cycle = Math.floor(Math.abs(lay) / toolCount);
+      const layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
       const phi = waveCount * theta + layerPhase;
       const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
       let W;
@@ -421,7 +424,10 @@ function computeLayerDisplacementByLayer(
     const dx = px - cx, dy = py - cy;
     const theta = Math.atan2(dy, dx);
     const waveCount = weaveOptions?.waveCount ?? Math.max(6, Math.round((2.0 * Math.PI * 20.0) / (weaveOptions?.pitch ?? 1.6)));
-    const layerPhase = (lay % 2) * Math.PI;
+    const toolCount = Math.max(1, toolIds?.length || 2);
+    const colIdx = Math.abs(lay) % toolCount;
+    const cycle = Math.floor(Math.abs(lay) / toolCount);
+    const layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
     const phi = waveCount * theta + layerPhase;
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
 
@@ -490,7 +496,10 @@ function computeLayerDisplacementByLayer(
     const theta = Math.atan2(py - cy, px - cx);
     const waveCount = weaveOptions?.waveCount ?? Math.max(1, Math.round((2.0 * Math.PI * (weaveOptions?.radius ?? 10.0)) / pitch));
 
-    const layerPhase = (lay % 2) * Math.PI;
+    const toolCount = Math.max(1, toolIds?.length || 2);
+    const colIdx = Math.abs(lay) % toolCount;
+    const cycle = Math.floor(Math.abs(lay) / toolCount);
+    const layerPhase = (colIdx * (2.0 * Math.PI / toolCount)) + (cycle % 2) * Math.PI;
     const phi = theta * waveCount + layerPhase;
 
     const uFrac = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;

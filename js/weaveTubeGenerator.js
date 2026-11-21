@@ -292,14 +292,9 @@ export function generateWeaveRubberBandTube({
       ? !!toolWeaveModes[activeTool]
       : true;
     const L = Math.max(1, toolIds.length);
-    let layerPhase;
-    if (profileMode === 5 && L > 2) {
-      const colIdx = lay % L;
-      const cycle = Math.floor(lay / L);
-      layerPhase = (colIdx * (2.0 * Math.PI / L)) + (cycle % 2) * Math.PI;
-    } else {
-      layerPhase = (lay % 2) * Math.PI;
-    }
+    const colIdx = lay % L;
+    const cycle = Math.floor(lay / L);
+    const layerPhase = (colIdx * (2.0 * Math.PI / L)) + (cycle % 2) * Math.PI;
 
     // 各角度における内外の頂点位置を計算
     for (let i = 0; i < N; i++) {

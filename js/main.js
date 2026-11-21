@@ -18,7 +18,7 @@ import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
 import { loadFullPreset, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20260929_130';
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
-import { initTextureGallery } from './textureGallery.js?v=20260929_130';
+import { initTextureGallery } from './textureGallery.js?v=20261121_03';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
 import { initTuringController } from './turingController.js?v=20261002_143';
 import { computeMeshCurvatureShading } from './meshCurvature.js?v=20261003_151';
@@ -39,12 +39,12 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261121_01';
+import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261121_04';
 import { PaintTree } from './paintTree.js';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
 import { exportSTL, export3MF, exportMultiColor3MF } from './exporter.js?v=20261005_1520';
-import { quantizeImage, quantizeImageWithPalette, getToolAtUV } from './colorQuantization.js?v=20261121_02';
+import { quantizeImage, quantizeImageWithPalette, getToolAtUV } from './colorQuantization.js?v=20261121_04';
 import { assignToolsToTriangles, isPointInTri } from './meshPartition.js?v=20260909e';
 import {
   getLayerIndex,
@@ -54,9 +54,9 @@ import {
   computeLuminanceBlendWeight,
   computeMultiColorBlend,
   generateInterleavedTable
-} from './layerBlending.js?v=20261121_01';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261019_2245';
-import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261004_1517';
+} from './layerBlending.js?v=20261121_04';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261121_04';
+import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261121_04';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -2414,6 +2414,10 @@ function runColorQuantization() {
 
 function _refreshQuantizedTexture() {
   if (!currentQuantizedResult || !currentColorPalette || currentColorPalette.length === 0) return;
+  // Skip expensive full-image pixel quantization unless Color Mode + Color Preview + Quantize sub-mode are active.
+  // If the user enables them later, getLayerColorTexture() lazily builds and caches _quantizedTex on demand.
+  const isInterleaved = (currentColorSubMode === 1 || settings.colorSubMode === 1);
+  if (!colorModeToggle?.checked || !colorPreviewToggle?.checked || isInterleaved) return;
   const k = parseInt(colorCountSlider ? colorCountSlider.value : (interleavedColorCountSlider ? interleavedColorCountSlider.value : 4), 10) || 4;
   const quantMode = quantizeModeSelect ? quantizeModeSelect.value : (settings.quantizeMode || 'area');
   const key = `${k}_${quantMode}_${currentColorPalette.map(p => p.hex).join('')}`;

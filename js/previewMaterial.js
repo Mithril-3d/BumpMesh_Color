@@ -604,8 +604,10 @@ const sharedGLSL = /* glsl */`
       }
     }
   }
+`;
 
-  // Compute displacement height for color mode
+const vertexColorGLSL = /* glsl */`
+  // Compute displacement height for color mode (vertex shader only)
   float computeColorHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
     if (colorSubMode == 1) {
       vec3 cTarget;
@@ -649,14 +651,10 @@ const sharedGLSL = /* glsl */`
         if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) {
           float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
           float waveCount = max(6.0, interleavedWaveCount);
-          float layerPhase;
-          if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
-            float colIdx = mod(float(layerIdx), float(interleavedToolCount));
-            float cycle = floor(float(layerIdx) / float(interleavedToolCount));
-            layerPhase = (colIdx * (2.0 * PI / float(interleavedToolCount))) + mod(cycle, 2.0) * PI;
-          } else {
-            layerPhase = mod(float(layerIdx), 2.0) * PI;
-          }
+          float nTools = max(1.0, float(interleavedToolCount));
+          float colIdx = mod(float(abs(layerIdx)), nTools);
+          float cycle = floor(float(abs(layerIdx)) / nTools);
+          float layerPhase = (colIdx * (2.0 * PI / nTools)) + mod(cycle, 2.0) * PI;
           float phi = waveCount * theta + layerPhase;
           float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
           float B = 0.0;
@@ -733,14 +731,10 @@ const sharedGLSL = /* glsl */`
         if (interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) {
           float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
           float waveCount = max(6.0, interleavedWaveCount);
-          float layerPhase;
-          if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
-            float colIdx = mod(float(layerIdx), float(interleavedToolCount));
-            float cycle = floor(float(layerIdx) / float(interleavedToolCount));
-            layerPhase = (colIdx * (2.0 * PI / float(interleavedToolCount))) + mod(cycle, 2.0) * PI;
-          } else {
-            layerPhase = mod(float(layerIdx), 2.0) * PI;
-          }
+          float nTools = max(1.0, float(interleavedToolCount));
+          float colIdx = mod(float(abs(layerIdx)), nTools);
+          float cycle = floor(float(abs(layerIdx)) / nTools);
+          float layerPhase = (colIdx * (2.0 * PI / nTools)) + mod(cycle, 2.0) * PI;
           float phi = waveCount * theta + layerPhase;
           float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
           float B = 0.0;
@@ -788,9 +782,14 @@ const sharedGLSL = /* glsl */`
 
     return computeHeightAtPoint(0, pos, projN, blendN);
   }
+`;
 
-  // Compute final surface color at a world-space point
+const fragmentColorGLSL = /* glsl */`
+  // Compute final surface color at a world-space point (fragment shader only)
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
+    vec3 rawCol = (colorSubMode == 1 && shadingSource == 1)
+      ? vec3(0.0)
+      : compositeRawColor(pos, projN, blendN, w);
     if (colorSubMode == 1) {
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
@@ -802,7 +801,6 @@ const sharedGLSL = /* glsl */`
         float lum = clamp(curvLum, 0.0, 1.0);
         baseCol = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
       } else {
-        vec3 rawCol = compositeRawColor(pos, projN, blendN, w);
         if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
           if (interleavedToolCount == 2) {
             float lum0 = dot(interleavedPalette[0], vec3(0.2126, 0.7152, 0.0722));
@@ -841,18 +839,14 @@ const sharedGLSL = /* glsl */`
         }
       }
 
-      if ((interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) && interleavedToolCount >= 2) {
-        float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
-        float waveCount = max(6.0, interleavedWaveCount);
-        float layerPhase;
-        if (interleavedProfileMode == 5 && interleavedToolCount > 2) {
-          float colIdx = mod(float(layerIdx), float(interleavedToolCount));
-          float cycle = floor(float(layerIdx) / float(interleavedToolCount));
-          layerPhase = (colIdx * (2.0 * PI / float(interleavedToolCount))) + mod(cycle, 2.0) * PI;
-        } else {
-          layerPhase = mod(float(layerIdx), 2.0) * PI;
-        }
-        float phi = waveCount * theta + layerPhase;
+        if ((interleavedProfileMode == 2 || interleavedProfileMode == 3 || interleavedProfileMode == 4 || interleavedProfileMode == 5) && interleavedToolCount >= 2) {
+          float theta = atan(pos.y - boundsCenter.y, pos.x - boundsCenter.x);
+          float waveCount = max(6.0, interleavedWaveCount);
+          float nTools = max(1.0, float(interleavedToolCount));
+          float colIdx = mod(float(abs(layerIdx)), nTools);
+          float cycle = floor(float(abs(layerIdx)) / nTools);
+          float layerPhase = (colIdx * (2.0 * PI / nTools)) + mod(cycle, 2.0) * PI;
+          float phi = waveCount * theta + layerPhase;
         float u = mod(mod(phi / (2.0 * PI), 1.0) + 1.0, 1.0);
         float B = 0.0;
         if (interleavedProfileMode == 5) {
@@ -892,13 +886,14 @@ const sharedGLSL = /* glsl */`
 
       return mix(baseCol, interleavedPalette[activeK], 0.35);
     }
-    return compositeRawColor(pos, projN, blendN, w);
+    return rawCol;
   }
 `;
 
 const vertexShader = /* glsl */`
   precision highp float;
   ${sharedGLSL}
+  ${vertexColorGLSL}
 
   attribute vec3  smoothNormal;
   attribute vec3  faceNormal;
@@ -974,6 +969,7 @@ const vertexShader = /* glsl */`
 const fragmentShader = /* glsl */`
   precision highp float;
   ${sharedGLSL}
+  ${fragmentColorGLSL}
 
   uniform sampler2D boundaryEdgeTex;
   uniform int       boundaryEdgeCount;
