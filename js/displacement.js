@@ -887,6 +887,7 @@ export function applyDisplacementLayers(geometry, layers, settings, bounds, onPr
   // Optional per-vertex exclusion weights threaded through by subdivision.js.
   // A face's user-exclusion flag = average of its 3 vertex weights > 0.99.
   const ewAttr = geometry.attributes.excludeWeight || null;
+  const uvAttr = geometry.attributes.uv || null;
   // Positions that belong to at least one user-excluded face. Kept separate
   // from maskedFrac so that user-excluded faces do NOT bleed reduced
   // displacement into adjacent faces via shared vertices (maskedFrac is only
@@ -1219,8 +1220,11 @@ export function applyDisplacementLayers(geometry, layers, settings, bounds, onPr
             groupGrey[k] = cubicGrey(w.x, w.y, w.z, creases.nrmX[k], creases.nrmY[k], creases.nrmZ[k]);
           } else {
             tmpNrm.set(blendNrmX[node], blendNrmY[node], blendNrmZ[node]);
+            const meshUV = (lset.mappingMode === 7 && uvAttr)
+              ? { u: uvAttr.getX(i), v: uvAttr.getY(i) }
+              : null;
             groupGrey[k] = _projectedGrey(imageData.data, imgWidth, imgHeight, tmpPos, tmpNrm,
-              lset.mappingMode, settingsWithAspect, bounds);
+              lset.mappingMode, settingsWithAspect, bounds, meshUV);
           }
         }
         continue;
@@ -1278,8 +1282,11 @@ export function applyDisplacementLayers(geometry, layers, settings, bounds, onPr
       // no-op there. Displacement direction (Pass 3) stays on the unsmoothed
       // smooth normal — only blend weights change here.
       tmpNrm.set(blendNrmX[vid], blendNrmY[vid], blendNrmZ[vid]);
+      const meshUV = (lset.mappingMode === 7 && uvAttr)
+        ? { u: uvAttr.getX(i), v: uvAttr.getY(i) }
+        : null;
       dispCacheVal[vid] = _projectedGrey(imageData.data, imgWidth, imgHeight, tmpPos, tmpNrm,
-        lset.mappingMode, settingsWithAspect, bounds);
+        lset.mappingMode, settingsWithAspect, bounds, meshUV);
     }
 
     // ── Fold this layer into the composite ──────────────────────────────────
@@ -1431,6 +1438,12 @@ export function applyDisplacementLayers(geometry, layers, settings, bounds, onPr
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
   out.setAttribute('normal',   new THREE.BufferAttribute(newNrm, 3));
+  if (ewAttr) {
+    out.setAttribute('excludeWeight', ewAttr);
+  }
+  if (uvAttr) {
+    out.setAttribute('uv', uvAttr);
+  }
   return out;
 }
 
@@ -1724,8 +1737,8 @@ function _stampGrey(data, w, h, st) {
 }
 
 /** Every other mode: computeUV (mapping.js) with `nrm` as the blend normal. */
-function _projectedGrey(data, w, h, pos, nrm, mode, settings, bounds) {
-  const uvResult = computeUV(pos, nrm, mode, settings, bounds);
+function _projectedGrey(data, w, h, pos, nrm, mode, settings, bounds, meshUV = null) {
+  const uvResult = computeUV(pos, nrm, mode, settings, bounds, meshUV);
   if (uvResult.triplanar) {
     let grey = 0;
     for (const s of uvResult.samples) grey += sampleBilinear(data, w, h, s.u, s.v) * s.w;

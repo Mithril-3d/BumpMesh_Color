@@ -579,8 +579,8 @@ export function loadGeometry(geometry, material) {
   // Clear previous mesh
   while (meshGroup.children.length) {
     const old = meshGroup.children[0];
-    old.geometry.dispose();
-    if (old.material && old.material.dispose) old.material.dispose();
+    if (old.geometry && old.geometry !== geometry) old.geometry.dispose();
+    if (old.material && old.material !== material && old.material.dispose) old.material.dispose();
     meshGroup.remove(old);
   }
 
@@ -637,7 +637,7 @@ export function loadGeometry(geometry, material) {
  */
 export function setMeshMaterial(material) {
   if (!currentMesh) return;
-  if (currentMesh.material && currentMesh.material.dispose) {
+  if (currentMesh.material && currentMesh.material !== material && currentMesh.material.dispose) {
     currentMesh.material.dispose();
   }
   currentMesh.material = material || new THREE.MeshStandardMaterial({

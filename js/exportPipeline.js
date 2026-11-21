@@ -256,18 +256,47 @@ export async function runExportPipeline(input, onEvent = () => {}, shouldAbort =
     }
     if (shouldAbort()) return null;
 
+    if (input.softExclude) {
+      subdivided.setAttribute('softExclude', new THREE.BufferAttribute(interpolateFromParents(
+        subdivided.attributes.position.array, faceParentId, input.positions, input.softExclude
+      ), 1));
+    }
+
     const subTriCount = subdivided.attributes.position.count / 3;
     onEvent('displace', 0, { triCount: subTriCount });
     await yieldFrame();
-    displaced = applyDisplacement(
-      subdivided,
-      input.imageData,
-      input.imgWidth,
-      input.imgHeight,
-      settings,
-      bounds,
-      (p) => onEvent('displace', p, { triCount: subTriCount })
-    );
+    if (layers && settings.colorSubMode !== 1) {
+      // Carry each layer's mask from the source mesh onto the refined one:
+      // per-corner exclusion by barycentric interpolation inside the parent
+      // triangle (exact for uniform parents), hard-mask flags by parent.
+      const subPos = subdivided.attributes.position.array;
+      const refined = layers.map((l) => {
+        let hardFaces = null;
+        if (l.hardFaces) {
+          hardFaces = new Uint8Array(faceParentId.length);
+          for (let i = 0; i < hardFaces.length; i++) hardFaces[i] = l.hardFaces[faceParentId[i]];
+        }
+        return {
+          imageData: l.imageData, imgWidth: l.imgWidth, imgHeight: l.imgHeight,
+          settings: l.settings, blendAdd: !!l.blendAdd, hardFaces, stampDepth: l.stampDepth || null,
+          exclude: l.exclude ? interpolateFromParents(subPos, faceParentId, input.positions, l.exclude) : null,
+        };
+      });
+      displaced = applyDisplacementLayers(
+        subdivided, refined, settings, bounds,
+        (p) => onEvent('displace', p, { triCount: subTriCount })
+      );
+    } else {
+      displaced = applyDisplacement(
+        subdivided,
+        input.imageData,
+        input.imgWidth,
+        input.imgHeight,
+        settings,
+        bounds,
+        (p) => onEvent('displace', p, { triCount: subTriCount })
+      );
+    }
     if (shouldAbort()) return null;
 
     // Preserve-untextured / exclusion locking for decimation:

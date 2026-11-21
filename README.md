@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v1.7.1-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.0.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,21 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v2.0.0 (Major Release - 2026-11-21)**:
+  - **Multi-Texture Layer System (Up to 4 Layers) & Interactive Stamp Placement**:
+    - Compose up to 4 independent displacement/color texture layers, each with its own projection mode, scale, rotation, amplitude, adaptive subdivision paint mask (`PaintTree`), blend mode (Cover / Add), and visibility toggle.
+    - Added **Stamp Placement Mode** with dedicated **Surface Normal Projection (`MODE_SURFACE_NORMAL`)** and GPU-style depth occlusion (`buildStampDepth`) so decals can be clicked, dragged, and wheel-scaled directly on curved surfaces without bleeding through the back of the mesh.
+    - Full `.bumpmesh` project archive round-trip and unified Undo/Redo snapshot history across all layers.
+  - **Unified Multi-Layer Color Quantization & Interleaved Slicing**:
+    - Proportional sampling across all visible layers extracts a unified global palette for both **Area Priority (k-means++)** and **Gamut Basis (Gradation)** modes.
+    - Multi-layer interleaved 3MF export samples the active unmasked layer at each surface point and blends against the shared palette.
+  - **3+ Color Clamped Segment-Projection Blending & Continuous Gamma**:
+    - Replaced distance-ratio stretching in 3+ color interleaved/halftone weave blending with clamped orthogonal segment projection (`colA -> colB`) and brightness-consistent continuous gamma, eliminating midpoint color inversion and secondary color leakage in both 3D WebGL preview and 3MF export.
+
+- **v1.7.2 (Patch Release - 2026-10-31)**:
+  - **Native Mesh UV Scale Slider & Export Synchronization**:
+    - Enabled real-time `Size U / Size V` scaling and aspect ratio correction for models with built-in UV maps (`.obj`, `.3mf`, `.zip`), synchronized across 3D preview and 3MF/STL export.
+
 - **v1.7.1 (Patch Release - 2026-10-26)**:
   - **100% Watertight Manifold Shelf Generation & Zero Open Edges**:
     - Mathematically exact geometric outward normal calculation for sliced boundary edges, ensuring shelf polygons are never skipped on low horizontal-normal slopes.
@@ -299,7 +314,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v1.6.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -493,6 +508,22 @@ python -m http.server 8080
 ---
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v2.0.0 (メジャーリリース - 2026-11-21)**:
+  - **マルチテクスチャレイヤー機能（最大4レイヤー合成）＆スタンプ配置モード**:
+    - 最大4つのテクスチャレイヤーを重ねて合成可能に。各レイヤーが独立したテクスチャ・投影モード・スケール・回転・振幅・ペイントマスク（`PaintTree` 適応型分割）・ブレンド方式（上書き Cover / 加算 Add）を保持し、`.bumpmesh` 保存や Undo/Redo に完全対応。
+    - モデル表面の任意の位置にクリック＆ドラッグ・ホイール拡縮で1枚だけ貼れる **スタンプ配置モード** と、曲面に沿って裏面貫通を防ぐ遮蔽デプス判定付き **表面法線投影 (`Surface Normal`)** を追加。
+  - **マルチレイヤー対応カラー量子化＆交互積層（振り重ね）統合**:
+    - 複数の可視レイヤー全体から共通カラーパレット（「面積優先」および「混色基底」）を自動抽出し、レイヤー別のマスクやスタンプ領域を考慮したマルチツール3MF出力・交互積層スライスに対応。
+  - **3色以上の振り重ね・ハーフトーン編みにおける線分射影ブレンド＆連続ガンマ補正**:
+    - 3色以上のグラデーション混色時に中間境界付近で露出比率が反転する問題を解消し、最近接2色間のクランプ付き直交線分射影と明度基準の連続ガンマ補正へ刷新。3Dプレビューと3MF出力の階調推移を完全一致。
+
+- **v1.7.2 (パッチリリース - 2026-10-31)**:
+  - **ネイティブ Mesh UV モードでのサイズ U/V スライダー対応**:
+    - UV付きモデル（OBJ / 3MF / Zipカラーモデル等）読み込み時に「サイズ U / サイズ V」による拡大・縮小・タイリングが3Dプレビューとエクスポートの双方で正確に反映されるよう修正。
+
+- **v1.7.1 (パッチリリース - 2026-10-26)**:
+  - **交互積層シェルフ生成のオープンエッジ完全根絶・混色基底連動・Zipカラーモデル自動抽出強化**。
 
 - **v1.7.0 (メジャーリリース - 2026-10-26)**:
   - **水密スライス完全閉鎖＆オープンエッジの完全根絶**:

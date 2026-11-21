@@ -43,8 +43,10 @@ export const MAX_LAYERS = 4;
 const sharedGLSL = /* glsl */`
   #define MAX_LAYERS 4
 
-  
-  uniform sampler2D colorMap;
+  uniform sampler2D colorMap0;
+  uniform sampler2D colorMap1;
+  uniform sampler2D colorMap2;
+  uniform sampler2D colorMap3;
   uniform int       hasMeshUV;
   uniform int       useColorTexture;
   uniform int       colorSubMode;
@@ -61,7 +63,6 @@ const sharedGLSL = /* glsl */`
   uniform float     interleavedGamma;
   uniform int       interleavedInvertTools;
   uniform int       shadingSource;
-  uniform sampler2D layerBlendMap;
   uniform vec3      untexturedColor;
   uniform int       interleavedExclusionMode;
   uniform int       interleavedEnableBaseDisplacement;
@@ -416,45 +417,50 @@ const sharedGLSL = /* glsl */`
 
   // ── Color Mode Helper Functions ──────────────────────────────────────────────
 
-  vec3 sampleMapColor(vec2 rawUV) {
-    vec2 uv = (rawUV * layerAspect[0]) / layerScale[0] + layerOffset[0];
-    float c = cos(layerRot[0]); float s = sin(layerRot[0]);
+  vec3 sampleColorTex(int l, vec2 uv) {
+    vec3 col = vec3(0.5);
+    if      (l == 0) col = texture2D(colorMap0, uv).rgb;
+    else if (l == 1) col = texture2D(colorMap1, uv).rgb;
+    else if (l == 2) col = texture2D(colorMap2, uv).rgb;
+    else             col = texture2D(colorMap3, uv).rgb;
+    return col;
+  }
+
+  vec3 sampleMapColor(int l, vec2 rawUV) {
+    vec2 srcUV = (layerMode[l] == 7 && hasMeshUV == 1) ? gMeshUV : rawUV;
+    vec2 uv = (srcUV * layerAspect[l]) / layerScale[l] + layerOffset[l];
+    float c = cos(layerRot[l]); float s = sin(layerRot[l]);
     uv -= 0.5;
     uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
     uv += 0.5;
-    return texture2D(colorMap, uv).rgb;
+    return sampleColorTex(l, uv);
   }
 
-  vec3 sampleMeshUVMapColor(vec2 rawUV) {
-    vec2 uv = (rawUV * layerAspect[0]) / layerScale[0] + layerOffset[0];
-    float c = cos(layerRot[0]); float s = sin(layerRot[0]);
-    uv -= 0.5;
-    uv  = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y);
-    uv += 0.5;
-    return texture2D(colorMap, uv).rgb;
-  }
-
-  vec3 computeRawColorAtPoint(vec3 pos, vec3 projN, vec3 blendN) {
-    int mappingMode = layerMode[0];
-    float mappingBlend = layerBlend[0];
-    float seamBandWidth = layerSeamBand[0];
-    float capAngle = layerCapAngle[0];
-    vec2 cylinderCenter = layerCylCenter[0];
-    float cylinderRadius = layerCylRadius[0];
+  vec3 computeLayerColorAtPoint(int l, vec3 pos, vec3 projN, vec3 blendN) {
+    if (layerStamp[l].w != 0.0) {
+      vec2 halfTexel = 0.5 / layerStampSize[l].zw;
+      return sampleColorTex(l, clamp(stampFrame(l, pos, projN).xy, halfTexel, 1.0 - halfTexel));
+    }
+    int mappingMode = layerMode[l];
+    float mappingBlend = layerBlend[l];
+    float seamBandWidth = layerSeamBand[l];
+    float capAngle = layerCapAngle[l];
+    vec2 cylinderCenter = layerCylCenter[l];
+    float cylinderRadius = layerCylRadius[l];
 
     if (mappingMode == 7 && hasMeshUV == 1) {
-      return sampleMeshUVMapColor(gMeshUV);
+      return sampleMapColor(l, gMeshUV);
     }
     vec3 rel = pos - boundsCenter;
     float maxDim = max(boundsSize.x, max(boundsSize.y, boundsSize.z));
     float md = max(maxDim, 1e-4);
 
     if (mappingMode == 0) {
-      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.y - boundsMin.y) / md));
+      return sampleMapColor(l, vec2((pos.x - boundsMin.x) / md, (pos.y - boundsMin.y) / md));
     } else if (mappingMode == 1) {
-      return sampleMapColor(vec2((pos.x - boundsMin.x) / md, (pos.z - boundsMin.z) / md));
+      return sampleMapColor(l, vec2((pos.x - boundsMin.x) / md, (pos.z - boundsMin.z) / md));
     } else if (mappingMode == 2) {
-      return sampleMapColor(vec2((pos.y - boundsMin.y) / md, (pos.z - boundsMin.z) / md));
+      return sampleMapColor(l, vec2((pos.y - boundsMin.y) / md, (pos.z - boundsMin.z) / md));
     } else if (mappingMode == 3) {
       vec2 cylRel2 = pos.xy - cylinderCenter;
       float r = max(cylinderRadius, 1e-4);
@@ -467,17 +473,17 @@ const sharedGLSL = /* glsl */`
       if (seamBand > 0.001 && seamDist < seamBand) {
         float d = u_cyl < 0.5 ? u_cyl : u_cyl - 1.0;
         float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
-        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_cyl));
-        vec3 cRight = sampleMapColor(vec2(d, v_cyl));
+        vec3 cLeft  = sampleMapColor(l, vec2(1.0 + d, v_cyl));
+        vec3 cRight = sampleMapColor(l, vec2(d, v_cyl));
         cSide = mix(cLeft, cRight, t);
       } else {
-        cSide = sampleMapColor(vec2(u_cyl, v_cyl));
+        cSide = sampleMapColor(l, vec2(u_cyl, v_cyl));
       }
       if (mappingBlend < 0.001) return cSide;
       float capThreshold = cos(radians(capAngle));
       float blendHalf = seamBandWidth * 0.5;
       float capW = smoothstep(capThreshold - blendHalf, capThreshold + blendHalf, abs(blendN.z));
-      vec3 cCap = sampleMapColor(vec2(cylRel2.x / C + 0.5, cylRel2.y / C + 0.5));
+      vec3 cCap = sampleMapColor(l, vec2(cylRel2.x / C + 0.5, cylRel2.y / C + 0.5));
       return mix(cSide, cCap, capW);
     } else if (mappingMode == 4) {
       float r     = length(rel);
@@ -489,11 +495,11 @@ const sharedGLSL = /* glsl */`
       if (seamBand > 0.001 && seamDist < seamBand) {
         float d = u_sph < 0.5 ? u_sph : u_sph - 1.0;
         float t = smoothstep(0.0, 1.0, (d + seamBand) / (2.0 * seamBand));
-        vec3 cLeft  = sampleMapColor(vec2(1.0 + d, v_sph));
-        vec3 cRight = sampleMapColor(vec2(d, v_sph));
+        vec3 cLeft  = sampleMapColor(l, vec2(1.0 + d, v_sph));
+        vec3 cRight = sampleMapColor(l, vec2(d, v_sph));
         return mix(cLeft, cRight, t);
       }
-      return sampleMapColor(vec2(u_sph, v_sph));
+      return sampleMapColor(l, vec2(u_sph, v_sph));
     } else if (mappingMode == 5) {
       vec3 blend = abs(projN);
       blend = pow(blend, vec3(4.0));
@@ -504,9 +510,9 @@ const sharedGLSL = /* glsl */`
       if (projN.y > 0.0) xzU = -xzU;
       float xyU = (pos.x - boundsMin.x) / md;
       if (projN.z < 0.0) xyU = -xyU;
-      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
-      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
-      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
+      vec3 cXY = sampleMapColor(l, vec2(xyU, (pos.y - boundsMin.y) / md));
+      vec3 cXZ = sampleMapColor(l, vec2(xzU, (pos.z - boundsMin.z) / md));
+      vec3 cYZ = sampleMapColor(l, vec2(yzU, (pos.z - boundsMin.z) / md));
       return cXY * blend.z + cXZ * blend.y + cYZ * blend.x;
     } else {
       float yzU = (pos.y - boundsMin.y) / md;
@@ -515,9 +521,9 @@ const sharedGLSL = /* glsl */`
       if (projN.y > 0.0) xzU = -xzU;
       float xyU = (pos.x - boundsMin.x) / md;
       if (projN.z < 0.0) xyU = -xyU;
-      vec3 cYZ = sampleMapColor(vec2(yzU, (pos.z - boundsMin.z) / md));
-      vec3 cXZ = sampleMapColor(vec2(xzU, (pos.z - boundsMin.z) / md));
-      vec3 cXY = sampleMapColor(vec2(xyU, (pos.y - boundsMin.y) / md));
+      vec3 cYZ = sampleMapColor(l, vec2(yzU, (pos.z - boundsMin.z) / md));
+      vec3 cXZ = sampleMapColor(l, vec2(xzU, (pos.z - boundsMin.z) / md));
+      vec3 cXY = sampleMapColor(l, vec2(xyU, (pos.y - boundsMin.y) / md));
       vec3 bN = blendN;
       vec3 absFaceN = abs(projN);
       float facePrimary = max(absFaceN.x, max(absFaceN.y, absFaceN.z));
@@ -529,15 +535,85 @@ const sharedGLSL = /* glsl */`
     }
   }
 
+  // Composite visible layers' colors using each layer's mask × falloff × angle × stamp coverage
+  vec3 compositeRawColor(vec3 pos, vec3 projN, vec3 blendN, vec4 w) {
+    vec3 col = untexturedColor;
+    bool any = false;
+    for (int l = 0; l < MAX_LAYERS; l++) {
+      if (l >= layerCount) break;
+      float wl = clamp(w[l] * stampCover(l, pos, projN), 0.0, 1.0);
+      if (wl <= 0.001) continue;
+      vec3 cl = computeLayerColorAtPoint(l, pos, projN, blendN);
+      if (!any) {
+        col = mix(untexturedColor, cl, wl);
+        any = true;
+      } else {
+        col = mix(col, cl, wl);
+      }
+    }
+    return col;
+  }
+
+  // Evaluate 3+ color clamped segment-projection blend and brightness-consistent gamma
+  void evalMultiColorBlend(
+    vec3 targetCol,
+    out int bestK,
+    out int secondK,
+    out vec3 colA,
+    out vec3 colB,
+    out float tAffinity
+  ) {
+    bestK = 0;
+    float bestDistSq = 1e8;
+    secondK = 1;
+    float secondDistSq = 1e8;
+    colA = interleavedPalette[0];
+    colB = interleavedPalette[1];
+
+    for (int k = 0; k < 8; k++) {
+      if (k >= interleavedToolCount) break;
+      vec3 pk = interleavedPalette[k];
+      vec3 diff = targetCol - pk;
+      float dSq = dot(diff, diff);
+      if (dSq < bestDistSq) {
+        secondDistSq = bestDistSq;
+        secondK = bestK;
+        colB = colA;
+        bestDistSq = dSq;
+        bestK = k;
+        colA = pk;
+      } else if (dSq < secondDistSq) {
+        secondDistSq = dSq;
+        secondK = k;
+        colB = pk;
+      }
+    }
+
+    vec3 vAB = colB - colA;
+    float abLenSq = dot(vAB, vAB);
+    float proj = (abLenSq > 1e-6) ? clamp(dot(targetCol - colA, vAB) / abLenSq, 0.0, 1.0) : 0.0;
+    tAffinity = 1.0 - proj;
+    if (abs(interleavedGamma - 1.0) > 0.01) {
+      float lumA = dot(colA, vec3(0.2126, 0.7152, 0.0722));
+      float lumB = dot(colB, vec3(0.2126, 0.7152, 0.0722));
+      float gExp = max(0.1, interleavedGamma);
+      if (lumA > lumB + 1e-4) {
+        tAffinity = pow(clamp(tAffinity, 0.0, 1.0), gExp);
+      } else if (lumB > lumA + 1e-4) {
+        tAffinity = 1.0 - pow(clamp(1.0 - tAffinity, 0.0, 1.0), gExp);
+      }
+    }
+  }
+
   // Compute displacement height for color mode
-  float computeColorHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum) {
+  float computeColorHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
     if (colorSubMode == 1) {
       vec3 cTarget;
       if (shadingSource == 1) {
         float lum = clamp(curvLum, 0.0, 1.0);
         cTarget = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
       } else {
-        cTarget = computeRawColorAtPoint(pos, projN, blendN);
+        cTarget = compositeRawColor(pos, projN, blendN, w);
       }
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
@@ -560,33 +636,12 @@ const sharedGLSL = /* glsl */`
           }
           exposure = (activeK == 0) ? w : (1.0 - w);
         } else {
-          int bestK = 0;
-          float bestDistSq = 1e8;
-          int secondK = 1;
-          float secondDistSq = 1e8;
-
-          for (int k = 0; k < 8; k++) {
-            if (k >= interleavedToolCount) break;
-            vec3 diff = cTarget - interleavedPalette[k];
-            float dSq = dot(diff, diff);
-            if (dSq < bestDistSq) {
-              secondDistSq = bestDistSq;
-              secondK = bestK;
-              bestDistSq = dSq;
-              bestK = k;
-            } else if (dSq < secondDistSq) {
-              secondDistSq = dSq;
-              secondK = k;
-            }
-          }
-
-          float dA = sqrt(bestDistSq);
-          float dB = sqrt(secondDistSq);
-          float sumD = dA + dB;
-          float tAffinity = (sumD > 1e-5) ? (dB / sumD) : 1.0;
-          if (abs(interleavedGamma - 1.0) > 0.01) {
-            tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
-          }
+          int bestK;
+          int secondK;
+          vec3 colA;
+          vec3 colB;
+          float tAffinity;
+          evalMultiColorBlend(cTarget, bestK, secondK, colA, colB, tAffinity);
           exposure = (activeK == bestK) ? tAffinity : ((activeK == secondK) ? (1.0 - tAffinity) : 0.0);
         }
         exposure = clamp(exposure, 0.0, 1.0);
@@ -735,7 +790,7 @@ const sharedGLSL = /* glsl */`
   }
 
   // Compute final surface color at a world-space point
-  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum) {
+  vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
     if (colorSubMode == 1) {
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
@@ -747,7 +802,7 @@ const sharedGLSL = /* glsl */`
         float lum = clamp(curvLum, 0.0, 1.0);
         baseCol = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
       } else {
-        vec3 rawCol = computeRawColorAtPoint(pos, projN, blendN);
+        vec3 rawCol = compositeRawColor(pos, projN, blendN, w);
         if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
           if (interleavedToolCount == 2) {
             float lum0 = dot(interleavedPalette[0], vec3(0.2126, 0.7152, 0.0722));
@@ -762,32 +817,13 @@ const sharedGLSL = /* glsl */`
             }
             baseCol = mix(interleavedPalette[1], interleavedPalette[0], clamp(w, 0.0, 1.0));
           } else {
-            int bestK = 0;
-            float bestDistSq = 1e8;
-            int secondK = 1;
-            float secondDistSq = 1e8;
-            for (int k = 0; k < 8; k++) {
-              if (k >= interleavedToolCount) break;
-              vec3 diff = rawCol - interleavedPalette[k];
-              float dSq = dot(diff, diff);
-              if (dSq < bestDistSq) {
-                secondDistSq = bestDistSq;
-                secondK = bestK;
-                bestDistSq = dSq;
-                bestK = k;
-              } else if (dSq < secondDistSq) {
-                secondDistSq = dSq;
-                secondK = k;
-              }
-            }
-            float dA = sqrt(bestDistSq);
-            float dB = sqrt(secondDistSq);
-            float sumD = dA + dB;
-            float tAffinity = (sumD > 1e-5) ? (dB / sumD) : 1.0;
-            if (abs(interleavedGamma - 1.0) > 0.01) {
-              tAffinity = pow(tAffinity, max(0.1, interleavedGamma));
-            }
-            baseCol = mix(interleavedPalette[secondK], interleavedPalette[bestK], clamp(tAffinity, 0.0, 1.0));
+            int bestK;
+            int secondK;
+            vec3 colA;
+            vec3 colB;
+            float tAffinity;
+            evalMultiColorBlend(rawCol, bestK, secondK, colA, colB, tAffinity);
+            baseCol = mix(colB, colA, clamp(tAffinity, 0.0, 1.0));
           }
         } else {
           int bestK = 0;
@@ -856,7 +892,7 @@ const sharedGLSL = /* glsl */`
 
       return mix(baseCol, interleavedPalette[activeK], 0.35);
     }
-    return computeRawColorAtPoint(pos, projN, blendN);
+    return compositeRawColor(pos, projN, blendN, w);
   }
 `;
 
@@ -905,11 +941,12 @@ const vertexShader = /* glsl */`
     vMaskType     = boundaryMaskTypeAttr;
 
     if (useDisplacement == 1) {
+      vec4 wDisp = layerMask * layerFalloff * angleMask;
       float h;
       if (colorSubMode == 1) {
-        h = computeColorHeightAtPoint(position, safeN, safeN, 0.0);
+        h = computeColorHeightAtPoint(position, safeN, safeN, 0.0, wDisp);
       } else {
-        h = compositeHeight(position, safeN, safeN, layerMask * layerFalloff * angleMask);
+        h = compositeHeight(position, safeN, safeN, wDisp);
       }
 
       // Displace along smooth normal so all copies of the same position
@@ -1071,14 +1108,14 @@ const fragmentShader = /* glsl */`
     // are perfectly consistent everywhere.  Mask tinting is applied AFTER
     // lighting as a colour blend so masked areas keep the same glossy look.
     vec3 tealBase      = vec3(0.22, 0.68, 0.68);
-    vec3 baseColor     = (useColorTexture == 1) ? computeColorAtPoint(vModelPos, PN, vModelNormal, 0.0) : tealBase;
+    vec3 baseColor     = (useColorTexture == 1) ? computeColorAtPoint(vModelPos, PN, vModelNormal, 0.0, w) : tealBase;
     // Single layer: the familiar orange (painted out) and dark grey (angle
     // mask). Several layers: everything the active layer does not cover is a
     // plain neutral grey, so "teal = active layer" reads at a glance and the
     // other layers' relief still shows through the shading.
-    vec3 inactiveGrey  = vec3(0.55, 0.57, 0.59);
-    vec3 userMaskColor = layeredTint == 1 ? inactiveGrey : vec3(0.85, 0.40, 0.15);
-    vec3 angleMaskColor = layeredTint == 1 ? inactiveGrey : vec3(0.45, 0.48, 0.50);
+    vec3 inactiveGrey   = vec3(0.55, 0.57, 0.59);
+    vec3 userMaskColor  = layeredTint == 1 ? inactiveGrey : vec3(0.85, 0.40, 0.15);
+    vec3 angleMaskColor = vec3(0.45, 0.48, 0.50);
 
     vec3 L1 = normalize(vec3( 0.5,  0.8,  1.0));
     vec3 L2 = normalize(vec3(-0.5, -0.2, -0.6));
@@ -1096,16 +1133,20 @@ const fragmentShader = /* glsl */`
                  + baseColor * diff2 * vec3(0.80, 0.60, 0.50) * 0.15
                  + vec3(spec);
 
-    // Mask tint shows the ACTIVE layer's mask: pick colour by mask type,
-    // compute the same lighting with that base.
+    // Mask tint: in Color OFF mode, shows the ACTIVE layer's mask; in Color ON
+    // mode, shows all visible layers' composited colors and only masks areas
+    // uncovered by all layers (or angle-masked faces).
     float userMask   = activeLayer == 0 ? vLayerMask.x : activeLayer == 1 ? vLayerMask.y : activeLayer == 2 ? vLayerMask.z : vLayerMask.w;
-    float activeMask = activeLayer == 0 ? w.x : activeLayer == 1 ? w.y : activeLayer == 2 ? w.z : w.w;
-    float maskEffect = 1.0 - activeMask; // 0 = fully textured, 1 = fully masked
-    // Any user-mask coverage (hard 0 or soft-brush fractions) tints in the
-    // user colour; only fully unmasked pixels defer to the boundary type.
-    float effectiveMaskType = mix(vMaskType, 0.0, step(0.001, 1.0 - userMask));
+    float activeMask = (activeLayer == 0 ? w.x : activeLayer == 1 ? w.y : activeLayer == 2 ? w.z : w.w)
+                     * stampCover(activeLayer, vModelPos, vModelNormal);
+    float maskEffect = (useColorTexture == 1) ? (1.0 - coverSum) : (1.0 - activeMask);
+    // Angle-masked faces (vAngleMask < 0.5) always use angleMaskColor (dark grey),
+    // even when an include-only user mask also sets userMask = 0 on that face.
+    float effectiveMaskType = (vAngleMask < 0.5)
+      ? 1.0
+      : mix(vMaskType, 0.0, step(0.001, 1.0 - userMask));
     vec3 stdMaskBase = mix(userMaskColor, angleMaskColor, effectiveMaskType);
-    vec3 maskBase    = (useColorTexture == 1) ? untexturedColor : stdMaskBase;
+    vec3 maskBase    = (useColorTexture == 1) ? mix(untexturedColor, angleMaskColor, effectiveMaskType) : stdMaskBase;
     vec3 litMask = maskBase * 0.55
                  + maskBase * diff1 * vec3(1.00, 0.96, 0.88) * 0.55
                  + maskBase * diff2 * vec3(0.80, 0.60, 0.50) * 0.15
@@ -1172,6 +1213,9 @@ export function updateMaterial(material, layers, settings) {
     const mapU = u['map' + l];
     const tex = L && L.texture ? L.texture : _fallbackTexture();
     if (mapU.value !== tex) mapU.value = tex;
+    const colorMapU = u['colorMap' + l];
+    const colTex = L && L.colorTexture ? L.colorTexture : (L && L.texture ? L.texture : _fallbackTexture());
+    if (colorMapU && colorMapU.value !== colTex) colorMapU.value = colTex;
     const mode = L ? (L.mappingMode ?? MODE_TRIPLANAR) : MODE_TRIPLANAR;
     u.layerMode.value[l] = mode;
     // scaleU/scaleV are absolute mm; the shader works in normalized UV
@@ -1228,11 +1272,6 @@ export function updateMaterial(material, layers, settings) {
   u.boundaryFalloffDist.value  = settings.boundaryFalloff ?? 0.0;
   u.boundaryFalloffCurve.value = FALLOFF_CURVE_INDEX[settings.boundaryFalloffCurve] ?? 0;
   u.layeredTint.value = settings.layeredTint ? 1 : 0;
-  if (settings.colorTexture) {
-    u.colorMap.value = settings.colorTexture;
-  } else if (layers[0] && layers[0].texture) {
-    u.colorMap.value = layers[0].texture;
-  }
   u.hasMeshUV.value = settings.hasMeshUV ? 1 : 0;
   u.useColorTexture.value = settings.useColorTexture ? 1 : 0;
   u.colorSubMode.value = settings.useColorTexture ? (settings.colorSubMode ?? 0) : 0;
@@ -1296,7 +1335,10 @@ function buildUniforms() {
     stampDepth1:    { value: _fallbackDepthTexture() },
     stampDepth2:    { value: _fallbackDepthTexture() },
     stampDepth3:    { value: _fallbackDepthTexture() },
-    colorMap:        { value: _fallbackTexture() },
+    colorMap0:       { value: _fallbackTexture() },
+    colorMap1:       { value: _fallbackTexture() },
+    colorMap2:       { value: _fallbackTexture() },
+    colorMap3:       { value: _fallbackTexture() },
     hasMeshUV:       { value: 0 },
     colorSubMode:    { value: 0 },
     useColorTexture: { value: 0 },
@@ -1317,7 +1359,6 @@ function buildUniforms() {
     interleavedToolWeaveMask: { value: 0xFFFF },
     interleavedFlatAmpScale: { value: 1.0 },
     shadingSource:        { value: 0 },
-    layerBlendMap:        { value: _fallbackTexture() },
     untexturedColor:      { value: new THREE.Vector3(0.68, 0.08, 0.22) },
     boundsMin:       { value: new THREE.Vector3() },
     boundsSize:       { value: new THREE.Vector3(1, 1, 1) },

@@ -4,7 +4,7 @@
  */
 
 import { THREE } from './threeCompat.js?v=20260908d';
-import { computeUV } from './mapping.js?v=20260908d';
+import { computeUV, isStampActive, stampFrame, stampUV } from './mapping.js?v=20260908d';
 import { getToolAtUV } from './colorQuantization.js?v=20260908d';
 import { getLayerIndex, getInterleavedToolAtLayer } from './layerBlending.js?v=20260909d';
 
@@ -57,6 +57,24 @@ export function assignToolsToTriangles(
   const aspectU = tmax / Math.max(imgWidth, 1);
   const aspectV = tmax / Math.max(imgHeight, 1);
   const settingsWithAspect = { ...settings, textureAspectU: aspectU, textureAspectV: aspectV };
+  const stamp = isStampActive(settings) ? stampFrame(settingsWithAspect, bounds) : null;
+  if (stamp && settings.stampDepth) stamp.depth = settings.stampDepth;
+
+  const preparedLayers = Array.isArray(layerBlendLayers) && layerBlendLayers.length > 0
+    ? layerBlendLayers.map((l) => {
+        const lmax = Math.max(l.imgWidth, l.imgHeight, 1);
+        const laspectU = lmax / Math.max(l.imgWidth, 1);
+        const laspectV = lmax / Math.max(l.imgHeight, 1);
+        const lsetWithAspect = { ...l.settings, textureAspectU: laspectU, textureAspectV: laspectV };
+        const lstamp = isStampActive(l.settings) ? stampFrame(lsetWithAspect, bounds) : null;
+        if (lstamp && l.stampDepth) lstamp.depth = l.stampDepth;
+        return {
+          ...l,
+          settingsWithAspect: lsetWithAspect,
+          stamp: lstamp,
+        };
+      })
+    : null;
 
   const tmpCentroid = new THREE.Vector3();
   const tmpNormal = new THREE.Vector3();
@@ -123,6 +141,65 @@ export function assignToolsToTriangles(
     let toolId;
     if (isMasked) {
       toolId = untexturedToolId || 4;
+    } else if (isLayerBlend) {
+      const minZ = bounds ? bounds.min.z : 0;
+      const thickness = settings.interleavedThickness || 0.20;
+      const toolIds = settings.interleavedToolIds || (palette && palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
+      const layerIdx = getLayerIndex(tmpCentroid.z, minZ, thickness);
+      toolId = getInterleavedToolAtLayer(layerIdx, toolIds);
+    } else if (preparedLayers) {
+      toolId = untexturedToolId || 4;
+      for (let li = 0; li < preparedLayers.length; li++) {
+        const pl = preparedLayers[li];
+        if (pl.excludedTriangles && pl.excludedTriangles.length > 0) {
+          let layerMasked = false;
+          const px = tmpCentroid.x, py = tmpCentroid.y, pz = tmpCentroid.z;
+          for (let k = 0; k < pl.excludedTriangles.length; k++) {
+            const t = pl.excludedTriangles[k];
+            if (px < t.minX || px > t.maxX || py < t.minY || py > t.maxY || pz < t.minZ || pz > t.maxZ) continue;
+            if (tmpNormal.dot(t.n) < 0.85) continue;
+            if (Math.abs(tmpNormal.dot(tmpCentroid) - t.planeD) > 0.4) continue;
+            if (isPointInTri(tmpCentroid, t.a, t.b, t.c, t.n)) {
+              layerMasked = true;
+              break;
+            }
+          }
+          if (layerMasked) continue;
+        }
+        let u = 0, v = 0;
+        if (pl.stamp) {
+          const st = stampUV(tmpCentroid, tmpNormal, pl.stamp);
+          if (st.cover < 0.5) continue;
+          u = st.u; v = st.v;
+        } else {
+          const lmode = pl.settings.mappingMode ?? 5;
+          const meshUV = (lmode === 7 && uvAttr)
+            ? {
+                u: (uvAttr.getX(i * 3) + uvAttr.getX(i * 3 + 1) + uvAttr.getX(i * 3 + 2)) / 3,
+                v: (uvAttr.getY(i * 3) + uvAttr.getY(i * 3 + 1) + uvAttr.getY(i * 3 + 2)) / 3,
+              }
+            : null;
+          const uvResult = computeUV(tmpCentroid, tmpNormal, lmode, pl.settingsWithAspect, bounds, meshUV);
+          if (uvResult) {
+            if (typeof uvResult.u === 'number') {
+              u = uvResult.u; v = uvResult.v;
+            } else if (Array.isArray(uvResult.samples) && uvResult.samples.length > 0) {
+              let maxW = -1;
+              for (const s of uvResult.samples) {
+                if (s.w > maxW) { maxW = s.w; u = s.u; v = s.v; }
+              }
+            }
+          }
+        }
+        toolId = getToolAtUV(pl.imageData.data, pl.imgWidth, pl.imgHeight, u, v, palette);
+      }
+    } else if (stamp) {
+      const st = stampUV(tmpCentroid, tmpNormal, stamp);
+      if (st.cover < 0.5) {
+        toolId = untexturedToolId || 4;
+      } else {
+        toolId = getToolAtUV(imageData.data, imgWidth, imgHeight, st.u, st.v, palette);
+      }
     } else {
       const mode = settings.mappingMode ?? 5;
       const meshUV = (mode === 7 && uvAttr)
@@ -148,16 +225,7 @@ export function assignToolsToTriangles(
           }
         }
       }
-
-      if (isLayerBlend) {
-        const minZ = bounds ? bounds.min.z : 0;
-        const thickness = settings.interleavedThickness || 0.20;
-        const toolIds = settings.interleavedToolIds || (palette && palette.length > 0 ? palette.map(p => p.toolId) : [1, 2]);
-        const layerIdx = getLayerIndex(tmpCentroid.z, minZ, thickness);
-        toolId = getInterleavedToolAtLayer(layerIdx, toolIds);
-      } else {
-        toolId = getToolAtUV(imageData.data, imgWidth, imgHeight, u, v, palette);
-      }
+      toolId = getToolAtUV(imageData.data, imgWidth, imgHeight, u, v, palette);
     }
     triTool[i] = toolId;
   }

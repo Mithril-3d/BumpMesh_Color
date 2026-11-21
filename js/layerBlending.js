@@ -165,13 +165,32 @@ export function computeMultiColorBlend(rgb, palette, gamma = 1.0, invert = false
     }
   }
 
-  const dA = Math.sqrt(bestDistSq);
-  const dB = Math.sqrt(secondDistSq);
-  const sumD = dA + dB;
-  // Normalize to full 0.0..1.0 range: when dA == dB, t = 0.0; when dA == 0, t = 1.0
-  let t = (sumD > 1e-6) ? Math.max(0.0, Math.min(1.0, 2.0 * (dB / sumD - 0.5))) : 1.0;
-  if (gamma !== 1.0 && gamma > 0.01) {
-    t = Math.pow(t, gamma);
+  const colA = palette[bestK].color || [0, 0, 0];
+  const colB = palette[secondK].color || [0, 0, 0];
+  const abR = colB[0] - colA[0];
+  const abG = colB[1] - colA[1];
+  const abB = colB[2] - colA[2];
+  const abLenSq = abR * abR + abG * abG + abB * abB;
+  // Orthogonal projection onto segment colA -> colB:
+  // By identity, proj = 0.5 + (dA^2 - dB^2) / (2 * ||colB - colA||^2) <= 0.5 whenever dA <= dB,
+  // so t = 1 - clamp(proj, 0, 1) is guaranteed in [0.5, 1.0], equals 0.5 continuously at dA == dB,
+  // and reaches 1.0 cleanly for pixels beyond colA (zero secondary color leakage).
+  let proj = 0.0;
+  if (abLenSq > 1e-6) {
+    proj = ((rgb[0] - colA[0]) * abR + (rgb[1] - colA[1]) * abG + (rgb[2] - colA[2]) * abB) / abLenSq;
+    proj = Math.max(0.0, Math.min(1.0, proj));
+  }
+  let t = 1.0 - proj;
+  if (Math.abs(gamma - 1.0) > 0.01 && gamma > 0.01) {
+    // Apply gamma symmetrically to the brighter color's weight so transitions stay continuous across dA == dB
+    const lumA = 0.2126 * colA[0] + 0.7152 * colA[1] + 0.0722 * colA[2];
+    const lumB = 0.2126 * colB[0] + 0.7152 * colB[1] + 0.0722 * colB[2];
+    const gExp = Math.max(0.1, gamma);
+    if (lumA > lumB + 0.01) {
+      t = Math.pow(t, gExp);
+    } else if (lumB > lumA + 0.01) {
+      t = 1.0 - Math.pow(1.0 - t, gExp);
+    }
   }
 
   return {

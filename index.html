@@ -99,7 +99,7 @@
       <div class="logo-text">
         <div class="logo-title">
           <span>BumpMesh_Color</span>
-          <span id="app-version" class="app-version">v1.7.1</span>
+          <span id="app-version" class="app-version">v2.0.0</span>
         </div>
         <div class="logo-subtitle">
           by <a href="https://x.com/Mithril_MEX" target="_blank" rel="noopener noreferrer">@Mithril_MEX</a>
@@ -745,6 +745,7 @@
         <div class="form-row">
           <label for="mapping-mode" data-i18n="labels.mode">Mode</label>
           <select id="mapping-mode">
+            <option value="8" hidden disabled data-i18n-opt="projection.surfaceNormal">Surface normal</option>
             <option value="5" selected data-i18n-opt="projection.triplanar">Triplanar</option>
             <option value="6" data-i18n-opt="projection.cubic">Cubic (Box)</option>
             <option value="3" data-i18n-opt="projection.cylindrical">Cylindrical</option>
@@ -791,6 +792,23 @@
               title="Reset to AABB center and AABB-derived radius.">Reset</button>
           </div>
         </div>
+        <div class="form-row" id="stamp-mode-row">
+          <div class="cylinder-axis-controls">
+            <button id="stamp-mode-btn" type="button" class="cylinder-axis-btn" aria-pressed="false"
+              data-i18n="ui.stampMode"
+              data-i18n-title="tooltips.stamp"
+              title="Apply the texture once instead of tiling it, for logos, badges and labels. Click the model to position it; Size U and V set its size. While it is on, only the Surface normal, Planar and Cylindrical projections are available; Surface normal lines the stamp up with the surface under its centre.">Stamp mode</button>
+          </div>
+        </div>
+        <div class="form-row" id="stamp-place-row" style="display:none">
+          <div class="cylinder-axis-controls">
+            <button id="stamp-place-btn" type="button" class="cylinder-axis-btn"
+              data-i18n="ui.stampPlace"
+              data-i18n-title="tooltips.stampPlace"
+              title="Click the model to centre the stamp there. Hold and drag to slide it along the surface.">Position on model</button>
+          </div>
+        </div>
+        <p id="stamp-hint" class="advanced-blurb stamp-hint" style="display:none" data-i18n="ui.stampHint">Drag the stamp on the model to move it, then scroll to resize it.</p>
       </section>
 
       <!-- Displacement -->
@@ -950,8 +968,21 @@
         <div id="excl-brush-type-row" class="form-row hidden">
           <span id="excl-brush-type-label" class="form-row-label" data-i18n="labels.type">Type</span>
           <div class="excl-seg" role="group" aria-labelledby="excl-brush-type-label">
-            <button id="excl-brush-single" class="excl-seg-btn active" data-i18n="brushType.single">Single</button>
-            <button id="excl-brush-radius-btn" class="excl-seg-btn" data-i18n="brushType.circle">Circle</button>
+            <button id="excl-brush-single" class="excl-seg-btn" data-i18n="brushType.single">Single</button>
+            <button id="excl-brush-radius-btn" class="excl-seg-btn active" data-i18n="brushType.circle">Circle</button>
+          </div>
+        </div>
+
+        <!-- Circle brush mode (shown when Brush + Circle) -->
+        <div id="excl-brush-mode-row" class="form-row hidden">
+          <span id="excl-brush-mode-label" class="form-row-label" data-i18n="brushMode.label">Mode</span>
+          <div class="excl-seg" role="group" aria-labelledby="excl-brush-mode-label">
+            <button id="excl-brush-standard" class="excl-seg-btn"
+              data-i18n="brushMode.standard" data-i18n-title="brushMode.standardTitle"
+              title="Marks every whole triangle the brush touches. Quick for selecting flat faces of CAD models.">Standard</button>
+            <button id="excl-brush-precision" class="excl-seg-btn active"
+              data-i18n="brushMode.precision" data-i18n-title="brushMode.precisionTitle"
+              title="Splits the triangles under the brush so the mask follows the brush outline exactly, with an optional soft edge.">Precision</button>
           </div>
         </div>
 
@@ -960,6 +991,13 @@
           <label for="excl-brush-radius-slider" data-i18n="labels.size">Size</label>
           <input type="range" id="excl-brush-radius-slider" min="0.2" max="100" step="0.2" value="10" />
           <input type="number" class="val" id="excl-brush-radius-val" value="10" min="0.2" max="100" step="0.2" data-wheel-decimals="1" />
+        </div>
+
+        <!-- Hardness slider (shown when Brush + Circle + Precision) -->
+        <div id="excl-hardness-row" class="form-row slider-row hidden">
+          <label for="excl-brush-hardness-slider" data-i18n="labels.hardness" data-i18n-title="tooltips.hardness" title="Edge softness of the circle brush, in %. 100 = hard, face-exact mask. Lower values fade the mask out toward the brush rim for smooth borders. The brush refines the mesh under the stroke, so the fade is smooth on any triangle size. Shift erases softly too.">Hardness %</label>
+          <input type="range" id="excl-brush-hardness-slider" min="0" max="100" step="1" value="50" />
+          <input type="number" class="val" id="excl-brush-hardness-val" value="50" min="0" max="100" step="1" />
         </div>
 
         <!-- Bucket threshold (shown when Fill is active) -->
@@ -1798,6 +1836,6 @@
     </div>
   </aside>
 
-  <script type="module" src="js/main.js?v=20261101_0740"></script>
+  <script type="module" src="js/main.js?v=20261121_02"></script>
 </body>
 </html>

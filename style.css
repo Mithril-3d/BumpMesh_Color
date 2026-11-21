@@ -234,6 +234,20 @@ main {
   transform: translate(0, 0);
 }
 
+/* Soft brush: the dashed ring marks the hardness core — full strength inside,
+   fading out toward the outer rim. */
+#brush-cursor.soft::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--brush-hardness, 1) * 100%);
+  height: calc(var(--brush-hardness, 1) * 100%);
+  transform: translate(-50%, -50%);
+  border: 1px dashed rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+}
+
 #viewport-section {
   flex: 1 1 0;
   min-width: 0;
@@ -861,6 +875,11 @@ main {
   color: var(--text-muted);
   margin: 0 0 10px;
   line-height: 1.4;
+}
+
+/* Lit while the mouse wheel resizes the stamp instead of zooming. */
+.stamp-hint.armed {
+  color: var(--accent);
 }
 
 .advanced-section .panel-subsection-heading:first-of-type {
