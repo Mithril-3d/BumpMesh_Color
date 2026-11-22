@@ -2501,11 +2501,40 @@ input[type="number"].val:focus { outline: none; border-color: var(--accent); }
   padding: 6px 10px;
   border-radius: var(--radius, 6px);
   border: 1px solid var(--border, #3b3b4f);
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s, opacity 0.15s;
 }
 
 .palette-item:hover {
   border-color: var(--accent, #3b82f6);
+}
+
+.palette-item.dragging {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.palette-item.drag-over {
+  border-color: var(--accent, #3b82f6);
+  box-shadow: 0 -2px 0 0 var(--accent, #3b82f6);
+}
+
+.palette-drag-handle {
+  cursor: grab;
+  color: var(--text-muted, #8888aa);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px 2px 0;
+  user-select: none;
+  opacity: 0.7;
+}
+
+.palette-drag-handle:hover {
+  opacity: 1;
+  color: var(--text, #fff);
+}
+
+.palette-item:active .palette-drag-handle {
+  cursor: grabbing;
 }
 
 .palette-color-group {

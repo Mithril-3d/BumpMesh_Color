@@ -56,7 +56,7 @@ import {
   generateInterleavedTable
 } from './layerBlending.js?v=20261121_04';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261121_04';
-import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261121_04';
+import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261122_11';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -68,7 +68,7 @@ import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV, MO
          isStampActive, stampFrame, stampUV, stampUntouchedFaces, buildStampDepth,
          STAMP_DEPTH_RES, stampAxes, stampSurfaceAt } from './mapping.js?v=20261031_2115';
 import { QuantizedPointMap } from './meshIndex.js';
-import { APP_VERSION } from './version.js?v=20261121_10';
+import { APP_VERSION } from './version.js?v=20261122_11';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -2505,12 +2505,70 @@ function renderPaletteUI() {
   paletteList.innerHTML = '';
   if (!currentColorPalette || currentColorPalette.length === 0) return;
 
+  let _dragFromIdx = -1;
+
   currentColorPalette.forEach((item, idx) => {
     const row = document.createElement('div');
     row.className = 'palette-item';
+    row.draggable = true;
+    row.dataset.paletteIdx = String(idx);
+
+    row.addEventListener('dragstart', (e) => {
+      _dragFromIdx = idx;
+      row.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(idx));
+      }
+    });
+    row.addEventListener('dragend', () => {
+      _dragFromIdx = -1;
+      paletteList.querySelectorAll('.palette-item').forEach(el => {
+        el.classList.remove('dragging', 'drag-over');
+      });
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (_dragFromIdx !== -1 && _dragFromIdx !== idx) {
+        row.classList.add('drag-over');
+      }
+    });
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over');
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      const fromIdx = _dragFromIdx >= 0 ? _dragFromIdx : parseInt(e.dataTransfer?.getData('text/plain') ?? '-1', 10);
+      const toIdx = idx;
+      if (fromIdx < 0 || fromIdx === toIdx || fromIdx >= currentColorPalette.length) return;
+
+      // Reorder palette rows and reassign toolIds in ascending order (Tool 1, Tool 2, ...)
+      // so row 0 is always Tool 1 (Layer 1), row 1 is Tool 2 (Layer 2), etc.
+      const prevSortedTools = currentColorPalette.map(p => p.toolId).sort((a, b) => a - b);
+      const [moved] = currentColorPalette.splice(fromIdx, 1);
+      currentColorPalette.splice(toIdx, 0, moved);
+      currentColorPalette.forEach((p, i) => {
+        const assigned = prevSortedTools[i] ?? (i + 1);
+        p.toolId = assigned;
+        _userAssignedToolIds[i] = assigned;
+      });
+      renderPaletteUI();
+      updateUntexturedToolOptions();
+      renderInterleavedUI();
+      updatePreview();
+      _autoSaveSettings();
+    });
 
     const left = document.createElement('div');
     left.className = 'palette-color-group';
+
+    const handle = document.createElement('span');
+    handle.className = 'palette-drag-handle';
+    handle.textContent = '⋮⋮';
+    handle.title = 'ドラッグして順番（1層目からのツール順）を入れ替え';
+    left.appendChild(handle);
 
     const chip = document.createElement('div');
     chip.className = 'palette-color-chip';
@@ -8161,7 +8219,7 @@ async function handleExport(format = 'stl') {
 
         const exportPalette = currentColorPalette || [];
         const toolIds = exportPalette && exportPalette.length > 0
-          ? exportPalette.map(p => p.toolId)
+          ? [...new Set(exportPalette.map(p => p.toolId))].sort((a, b) => a - b)
           : [1, 2];
 
         const tmax = Math.max(exportEntry.width, exportEntry.height, 1);

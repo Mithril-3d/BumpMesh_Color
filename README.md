@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v2.0.3-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.0.4-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,12 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v2.0.4 (Patch Release - 2026-11-22)**:
+  - **Multi-Island & Concave Contour Support in Halftone Weave (`weaveTubeGenerator.js`)**:
+    - Upgraded `generateWeaveRubberBandTube()` from single-ray polar sampling to closed contour-loop stitching + 2D Ear-Clipping bottom/top capping, allowing complex shapes with **multiple islands** (e.g. cat ears, animal legs) and **concave contours** (e.g. C-shaped coiled koi) to print cleanly without bridging ears or filling cavities with solid discs.
+  - **Drag-and-Drop Palette Reordering & Tool-Number Layer Order (`main.js`, `style.css`)**:
+    - Added drag-and-drop reordering handles (`⋮⋮`) to Color & Multi-Tool palette rows and aligned interleaved layer rotation (`toolIds`) with ascending physical tool numbers (`Tool 1 -> Tool 2 -> Tool 3`), ensuring Layer 1 always uses Tool 1 consistently across different models on the same build plate.
+
 - **v2.0.3 (Patch Release - 2026-11-21)**:
   - **Zip Bundle Texture & Custom Map Swatch Re-Selection Fix (`main.js`, `zipModelLoader.js`)**:
     - Fixed a `TypeError` on the deprecated `#active-map-name` element inside `_activateCustomMap()` that prevented clicking the custom map thumbnail (`#custom-map-swatch`) from switching back to a `.zip` model's bundled texture (or uploaded custom texture) after selecting a preset.
@@ -335,7 +341,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.3--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.4--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -529,6 +535,12 @@ python -m http.server 8080
 ---
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v2.0.4 (パッチリリース - 2026-11-22)**:
+  - **ハーフトーン編み（輪ゴム積層）の複数島・凹輪郭（C字形状）完全対応 (`weaveTubeGenerator.js`)**:
+    - 従来の中心からの単一極座標レイ抽出を刷新し、水平断面の交線セグメントから閉ループ（島）ごとに独立した輪郭を自動構築＋2D Ear-Clippingキャップを生成する方式へアップデート。猫の両耳など1層に複数の島が分かれる箇所のブリッジ連結や、錦鯉などのC字凹形状が円盤・筒化する問題を根絶。
+  - **カラーパレットのドラッグ＆ドロップ並び替え ＆ ツール番号順の1層目統一 (`main.js`, `style.css`)**:
+    - パレット一覧の各色カードにドラッグ＆ドロップ（`⋮⋮`）での順番入れ替え機能を追加。あわせて交互積層・ハーフトーン編みの層ローテーションを物理ツール番号昇順（`Tool 1 → Tool 2 → Tool 3`）に統一し、複数モデルを並べても1層目の色が常に一致するように改善。
 
 - **v2.0.3 (パッチリリース - 2026-11-21)**:
   - **Zip同梱テクスチャおよびカスタムマップサムネイルの再選択復帰バグ修正 (`main.js`, `zipModelLoader.js`)**:

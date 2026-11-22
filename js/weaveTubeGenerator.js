@@ -5,44 +5,153 @@
 
 /**
  * weaveTubeGenerator.js
- * 
- * 編み重ね（Weave: 矩形ブロック・三角波・正弦波）専用の「断面四角の輪ゴム積層チューブ生成エンジン」。
- * 
- * 円柱プリセットだけでなく、頭部モデルや彫刻、スザンヌ、カスタムSTLなど「任意の3Dメッシュ」に対応。
- * 各レイヤーの水平断面から外周輪郭半径 R(theta, z) を自動抽出し、
- * 厚み thickness（0.2mm）、幅 wallThickness（デフォルト 0.40mm）の断面四角い「輪ゴム（帯状リング）」として
- * レイヤーごとに直接プロシージャル生成し、100%水密なマニホールドとして出力する。
- * 
- * - 幅が0.40mm（ノズル径相当）であるため、スライサー上でトップ/ボトムインフィルが一切発生せず、
- *   全層が100%外周ペリメータとしてスライスされる。
- * - 波の周期の角（立ち上がり・立ち下がり）の正確な角度に頂点を打つため、
- *   サンプリング破綻（ギザギザ・毛羽立ち・モザイク砂嵐）が物理的にゼロとなり、美しいエッジの立った市松模様を形成する。
+ *
+ * 編み重ね（Weave: ハーフトーン編み・矩形ブロック・三角波・正弦波）専用の
+ * 「断面四角の輪ゴム積層チューブ生成エンジン」。
+ *
+ * - 円柱プリセット: 幾何学的真円に対して高速・高精度に生成。
+ * - 任意3Dメッシュ: 各Zレイヤーの水平断面から交線セグメントを抽出し、
+ *   閉じたポリゴンループ（複数島・C字凹輪郭対応）を独立して構築。
+ *   猫の耳や動物の足などの「複数島」、錦鯉のC字などの「凹形状」もブリッジや円盤化せず
+ *   そのままの輪郭でハーフトーン編みチューブを生成し、100%水密マニホールドとして出力する。
  */
 
 /**
- * 2D半直線と線分の交差距離をクラメルの公式で計算
+ * 水平断面上の交線セグメント群を連結し、閉じた島ループ（CCW外周）の配列を返す
  */
-function raySegmentIntersect(Dx, Dy, P1x, P1y, P2x, P2y) {
-  const Vx = P2x - P1x;
-  const Vy = P2y - P1y;
-  const det = -Dx * Vy + Dy * Vx;
-  if (Math.abs(det) < 1e-9) return null;
-  const s = (-P1x * Vy + Vx * P1y) / det;
-  const t = (Dx * P1y - Dy * P1x) / det;
-  if (t < -1e-4 || t > 1.0001 || s < 0.01) return null;
-  return s;
+function stitchSegmentsToLoops(segs, normals) {
+  const nSeg = segs.length / 4;
+  if (nSeg < 3) return [];
+
+  const SCALE = 2000; // 0.5 um precision key
+  const keyOf = (x, y) => `${Math.round(x * SCALE)},${Math.round(y * SCALE)}`;
+
+  // 向きを三角形外向き法線に対してCCW（外側が右）に揃える
+  const sX1 = new Float64Array(nSeg);
+  const sY1 = new Float64Array(nSeg);
+  const sX2 = new Float64Array(nSeg);
+  const sY2 = new Float64Array(nSeg);
+  for (let i = 0; i < nSeg; i++) {
+    const sb = i * 4;
+    let x1 = segs[sb], y1 = segs[sb + 1], x2 = segs[sb + 2], y2 = segs[sb + 3];
+    const nx = normals[i * 2], ny = normals[i * 2 + 1];
+    const dx = x2 - x1, dy = y2 - y1;
+    // CCW外周なら進行方向(dx,dy)の右90度(dy, -dx)が外向き法線(nx,ny)と一致する
+    if (dy * nx - dx * ny < 0) {
+      const tx = x1, ty = y1;
+      x1 = x2; y1 = y2; x2 = tx; y2 = ty;
+    }
+    sX1[i] = x1; sY1[i] = y1;
+    sX2[i] = x2; sY2[i] = y2;
+  }
+
+  const startMap = new Map();
+  for (let i = 0; i < nSeg; i++) {
+    const k = keyOf(sX1[i], sY1[i]);
+    let arr = startMap.get(k);
+    if (!arr) { arr = []; startMap.set(k, arr); }
+    arr.push(i);
+  }
+
+  const used = new Uint8Array(nSeg);
+  const loops = [];
+
+  for (let startIdx = 0; startIdx < nSeg; startIdx++) {
+    if (used[startIdx]) continue;
+    used[startIdx] = 1;
+
+    const pts = [[sX1[startIdx], sY1[startIdx]]];
+    let curX = sX2[startIdx], curY = sY2[startIdx];
+    const sx = sX1[startIdx], sy = sY1[startIdx];
+
+    let steps = 0;
+    while (steps < nSeg + 2) {
+      steps++;
+      if (Math.hypot(curX - sx, curY - sy) < 0.01 && pts.length >= 3) {
+        break; // closed cleanly
+      }
+      pts.push([curX, curY]);
+
+      const k = keyOf(curX, curY);
+      const candidates = startMap.get(k);
+      let nextIdx = -1;
+      if (candidates) {
+        for (let c = 0; c < candidates.length; c++) {
+          if (!used[candidates[c]]) {
+            nextIdx = candidates[c];
+            break;
+          }
+        }
+      }
+
+      // 許容誤差フォールバック（0.08mm以内の最近接未使用セグメント始点）
+      if (nextIdx === -1) {
+        let bestD2 = 0.08 * 0.08;
+        for (let j = 0; j < nSeg; j++) {
+          if (used[j]) continue;
+          const dx = sX1[j] - curX, dy = sY1[j] - curY;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            nextIdx = j;
+          }
+        }
+      }
+
+      if (nextIdx === -1) break;
+      used[nextIdx] = 1;
+      curX = sX2[nextIdx];
+      curY = sY2[nextIdx];
+    }
+
+    if (pts.length < 3) continue;
+
+    // 重複連続頂点を整理
+    const clean = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const prev = clean.length > 0 ? clean[clean.length - 1] : pts[pts.length - 1];
+      if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 1e-4) {
+        clean.push(p);
+      }
+    }
+    if (clean.length < 3) continue;
+
+    // 符号付き面積と周長を計算
+    let area2 = 0;
+    let perim = 0;
+    for (let i = 0; i < clean.length; i++) {
+      const a = clean[i];
+      const b = clean[(i + 1) % clean.length];
+      area2 += a[0] * b[1] - b[0] * a[1];
+      perim += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    const area = 0.5 * area2;
+    if (Math.abs(area) < 0.2 || perim < 2.0) continue;
+
+    loops.push({ pts: clean, area, perim });
+  }
+
+  if (loops.length === 0) return [];
+
+  // 外周ループ (area > 0) を優先採用。もし法線が全面逆向きだった場合のみ反転して使う
+  const outer = loops.filter(lp => lp.area > 0);
+  if (outer.length > 0) return outer;
+
+  return loops.map(lp => ({
+    pts: lp.pts.slice().reverse(),
+    area: -lp.area,
+    perim: lp.perim,
+  }));
 }
 
 /**
- * メッシュの各レイヤー・各角度における外周輪郭半径 R(theta, z) を抽出する
+ * メッシュの各Zレイヤーにおける全閉ループ（複数島・凹輪郭）を抽出する
  */
-export function buildMeshContourRadii(meshPositions, cx, cy, minZ, thickness, totalLayers, angles, defaultRadius) {
-  const N = angles.length;
-  const layerRadii = new Float32Array(totalLayers * N);
+function buildMeshLayerLoops(meshPositions, minZ, thickness, totalLayers) {
   const triCount = Math.floor(meshPositions.length / 9);
-
-  // 1. Zバケットによる交差三角形の高速インデックス化
   const layerTris = Array.from({ length: totalLayers }, () => []);
+
   for (let tIdx = 0; tIdx < triCount; tIdx++) {
     const b = tIdx * 9;
     const z0 = meshPositions[b + 2];
@@ -57,26 +166,20 @@ export function buildMeshContourRadii(meshPositions, cx, cy, minZ, thickness, to
     }
   }
 
-  // 角度の cos / sin を事前計算
-  const cosAngles = new Float32Array(N);
-  const sinAngles = new Float32Array(N);
-  for (let i = 0; i < N; i++) {
-    cosAngles[i] = Math.cos(angles[i]);
-    sinAngles[i] = Math.sin(angles[i]);
-  }
-
-  let prevLayerRadii = null;
+  const allLayerLoops = new Array(totalLayers);
+  let prevLoops = [];
 
   for (let lay = 0; lay < totalLayers; lay++) {
     const z = minZ + (lay + 0.5) * thickness;
     const tris = layerTris[lay];
-    const segs = []; // [p1x, p1y, p2x, p2y] relative to (cx, cy)
+    const segs = [];
+    const normals = [];
 
     for (let k = 0; k < tris.length; k++) {
       const b = tris[k] * 9;
-      const x0 = meshPositions[b] - cx,     y0 = meshPositions[b + 1] - cy,     z0 = meshPositions[b + 2];
-      const x1 = meshPositions[b + 3] - cx, y1 = meshPositions[b + 4] - cy, z1 = meshPositions[b + 5];
-      const x2 = meshPositions[b + 6] - cx, y2 = meshPositions[b + 7] - cy, z2 = meshPositions[b + 8];
+      const x0 = meshPositions[b],     y0 = meshPositions[b + 1], z0 = meshPositions[b + 2];
+      const x1 = meshPositions[b + 3], y1 = meshPositions[b + 4], z1 = meshPositions[b + 5];
+      const x2 = meshPositions[b + 6], y2 = meshPositions[b + 7], z2 = meshPositions[b + 8];
 
       const pts = [[x0, y0, z0], [x1, y1, z1], [x2, y2, z2]];
       const cuts = [];
@@ -84,89 +187,100 @@ export function buildMeshContourRadii(meshPositions, cx, cy, minZ, thickness, to
         const pa = pts[e];
         const pb = pts[(e + 1) % 3];
         const za = pa[2], zb = pb[2];
-        if ((za <= z && zb >= z) || (za >= z && zb <= z)) {
-          if (Math.abs(za - zb) > 1e-7) {
-            const u = (z - za) / (zb - za);
-            cuts.push(pa[0] + u * (pb[0] - pa[0]), pa[1] + u * (pb[1] - pa[1]));
-          }
+        // 半開区間判定により頂点ちょうどを通る際の重複交差を防止
+        if ((za <= z && zb > z) || (zb <= z && za > z)) {
+          const u = (z - za) / (zb - za);
+          cuts.push(pa[0] + u * (pb[0] - pa[0]), pa[1] + u * (pb[1] - pa[1]));
         }
       }
       if (cuts.length >= 4) {
+        const ax = x1 - x0, ay = y1 - y0, az = z1 - z0;
+        const bx = x2 - x0, by = y2 - y0, bz = z2 - z0;
+        const nx = ay * bz - az * by;
+        const ny = az * bx - ax * bz;
         segs.push(cuts[0], cuts[1], cuts[2], cuts[3]);
+        normals.push(nx, ny);
       }
     }
 
-    const curOffset = lay * N;
-    if (segs.length === 0) {
-      if (prevLayerRadii) {
-        layerRadii.set(prevLayerRadii, curOffset);
-      } else {
-        layerRadii.fill(defaultRadius, curOffset, curOffset + N);
-      }
-      continue;
+    const loops = stitchSegmentsToLoops(segs, normals);
+    if (loops.length > 0) {
+      allLayerLoops[lay] = loops;
+      prevLoops = loops;
+    } else {
+      allLayerLoops[lay] = prevLoops;
     }
-
-    const numSegs = segs.length / 4;
-    for (let i = 0; i < N; i++) {
-      const Dx = cosAngles[i];
-      const Dy = sinAngles[i];
-      let maxDist = 0.0;
-
-      for (let s = 0; s < numSegs; s++) {
-        const sb = s * 4;
-        const p1x = segs[sb],     p1y = segs[sb + 1];
-        const p2x = segs[sb + 2], p2y = segs[sb + 3];
-        const dist = raySegmentIntersect(Dx, Dy, p1x, p1y, p2x, p2y);
-        if (dist !== null && dist > maxDist) {
-          maxDist = dist;
-        }
-      }
-
-      if (maxDist > 0.1) {
-        layerRadii[curOffset + i] = maxDist;
-      } else if (prevLayerRadii && prevLayerRadii[i] > 0.1) {
-        layerRadii[curOffset + i] = prevLayerRadii[i];
-      } else {
-        layerRadii[curOffset + i] = defaultRadius;
-      }
-    }
-
-    // 隙間がある場合の隣接角度補間
-    for (let i = 0; i < N; i++) {
-      if (layerRadii[curOffset + i] <= 0.1) {
-        let leftIdx = (i - 1 + N) % N;
-        while (leftIdx !== i && layerRadii[curOffset + leftIdx] <= 0.1) leftIdx = (leftIdx - 1 + N) % N;
-        let rightIdx = (i + 1) % N;
-        while (rightIdx !== i && layerRadii[curOffset + rightIdx] <= 0.1) rightIdx = (rightIdx + 1) % N;
-        layerRadii[curOffset + i] = (layerRadii[curOffset + leftIdx] + layerRadii[curOffset + rightIdx]) * 0.5 || defaultRadius;
-      }
-    }
-
-    prevLayerRadii = layerRadii.subarray(curOffset, curOffset + N);
   }
 
-  return layerRadii;
+  return allLayerLoops;
 }
 
 /**
- * 輪ゴム積層チューブメッシュを生成する（任意メッシュおよび円柱に対応）
- * 
- * @param {Object} options
- * @param {Float32Array} [options.meshPositions=null] - 任意モデルの三角形頂点配列（指定時はモデルの外形輪郭に追従）
- * @param {number} [options.radius=40] - 基準外径半径 (mm, 円柱時またはフォールバック)
- * @param {number} [options.cx=0] - 中心X (mm)
- * @param {number} [options.cy=0] - 中心Y (mm)
- * @param {number} [options.minZ=0] - 底面Z (mm)
- * @param {number} [options.thickness=0.20] - レイヤー厚み (mm)
- * @param {number} [options.wallThickness=0.40] - 輪ゴムの肉厚 (mm, デフォルト 0.40)
- * @param {number} [options.totalLayers=100] - レイヤー総数
- * @param {Array<number>} [options.toolIds=[1, 2]] - 使用ツールID配列 [tool0, tool1]
- * @param {number} [options.profileMode=4] - 2: 正弦波, 3: 三角波, 4: 矩形ブロック
- * @param {number} [options.pitch=1.6] - 波の周方向ピッチ (mm, デフォルト 1.6)
- * @param {number} [options.convexVal=0.35] - 凸量 (mm)
- * @param {number} [options.concaveVal=0.00] - 凹量 (mm)
- * @param {Function} [options.sampleFn=null] - (x, y, z, nx, ny, nz) => { targetTool, blendWeight, multiColorInfo }
- * @returns {{ positions: Float32Array, normals: Float32Array, tools: Int32Array, triCount: number }}
+ * 2D CCWポリゴンをEar-Clipping（耳切り法）で三角形分割する（凹形状・C字型完全対応）
+ * 戻り値: 頂点インデックス配列 [i0, i1, i2, ...]
+ */
+function triangulatePolygonCCW(pts) {
+  const n = pts.length;
+  if (n < 3) return [];
+  if (n === 3) return [0, 1, 2];
+
+  const indices = [];
+  for (let i = 0; i < n; i++) indices.push(i);
+
+  const cross2 = (a, b, c) =>
+    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+
+  const pointInTri = (p, a, b, c) => {
+    const c1 = cross2(a, b, p);
+    const c2 = cross2(b, c, p);
+    const c3 = cross2(c, a, p);
+    return c1 >= -1e-7 && c2 >= -1e-7 && c3 >= -1e-7;
+  };
+
+  const out = [];
+  let guard = n * n * 2;
+  let i = 0;
+
+  while (indices.length > 3 && guard-- > 0) {
+    const m = indices.length;
+    const prevIdx = indices[(i - 1 + m) % m];
+    const currIdx = indices[i % m];
+    const nextIdx = indices[(i + 1) % m];
+    const a = pts[prevIdx], b = pts[currIdx], c = pts[nextIdx];
+
+    if (cross2(a, b, c) > 1e-8) {
+      let hasInside = false;
+      for (let j = 0; j < m; j++) {
+        const ti = indices[j];
+        if (ti === prevIdx || ti === currIdx || ti === nextIdx) continue;
+        if (pointInTri(pts[ti], a, b, c)) {
+          hasInside = true;
+          break;
+        }
+      }
+      if (!hasInside) {
+        out.push(prevIdx, currIdx, nextIdx);
+        indices.splice(i % m, 1);
+        i = i % indices.length;
+        continue;
+      }
+    }
+    i = (i + 1) % m;
+  }
+
+  if (indices.length === 3) {
+    out.push(indices[0], indices[1], indices[2]);
+  } else if (indices.length > 3) {
+    // 自己交差等の緊急フォールバックファン分割
+    for (let k = 1; k < indices.length - 1; k++) {
+      out.push(indices[0], indices[k], indices[k + 1]);
+    }
+  }
+  return out;
+}
+
+/**
+ * 輪ゴム積層チューブメッシュを生成する（任意メッシュ複数島・凹形状および円柱に対応）
  */
 export function generateWeaveRubberBandTube({
   meshPositions = null,
@@ -190,50 +304,23 @@ export function generateWeaveRubberBandTube({
   const wall = Math.max(0.10, Number(wallThickness) || 0.40);
   const layers = Math.max(1, Math.round(totalLayers));
   const stroke = Math.max(0.01, (convexVal + concaveVal) > 0 ? (convexVal + concaveVal) : 0.60);
-
-  const circumference = 2.0 * Math.PI * radius;
   const p = Math.max(0.2, Number(pitch) || 1.60);
-  const waveCount = Math.max(6, Math.round(circumference / p));
 
-  // 波の周期に応じた角（立ち上がり・立ち下がり）の角度グリッドを構築
   const edge = 0.05;
   let uKeypoints;
   if (profileMode === 4) {
-    // 矩形ブロック: 偶数層と奇数層の全角を含む8点
     uKeypoints = [0.0, edge, 0.25, 0.5 - edge, 0.5, 0.5 + edge, 0.75, 1.0 - edge];
   } else if (profileMode === 3) {
-    // 三角波: 山・谷・中間の8点
     uKeypoints = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875];
-  } else if (profileMode === 5) {
-    // 🎭 ハーフトーン編み: 1周期あたり12点均等分割
-    uKeypoints = [];
-    const step = 1.0 / 12.0;
-    for (let k = 0; k < 12; k++) uKeypoints.push(k * step);
   } else {
-    // 正弦波: 1周期あたり12点均等分割
     uKeypoints = [];
     const step = 1.0 / 12.0;
     for (let k = 0; k < 12; k++) uKeypoints.push(k * step);
   }
-
-  const angles = [];
-  const dPhi = (2.0 * Math.PI) / waveCount;
-  for (let w = 0; w < waveCount; w++) {
-    const basePhi = w * dPhi;
-    for (const u of uKeypoints) {
-      angles.push(basePhi + u * dPhi);
-    }
-  }
-  const N = angles.length;
-
-  // メッシュが与えられた場合は全レイヤー・全角度の外周輪郭半径を抽出
-  let contourRadii = null;
-  if (meshPositions && meshPositions.length >= 9) {
-    contourRadii = buildMeshContourRadii(meshPositions, cx, cy, minZ, t, layers, angles, radius);
-  }
+  const kpp = uKeypoints.length;
 
   // 正規化波形 B [0.0, 1.0]
-  function getWaveB(phi, exposure = 1.0, toolCount = 2) {
+  function getWaveB(phi, exposure = 1.0) {
     const u = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
     if (profileMode === 5) {
       if (exposure <= 0.001) return 0.0;
@@ -254,197 +341,270 @@ export function generateWeaveRubberBandTube({
     }
   }
 
-  // 1レイヤーあたりの三角形数: 外壁(2N) + 内壁(2N) + 上面(2N) + 下面(2N) = 8N
-  const trisPerLayer = N * 8;
-  const totalTris = layers * trisPerLayer;
-
-  const positions = new Float32Array(totalTris * 9);
-  const normals = new Float32Array(totalTris * 9);
-  const tools = new Int32Array(totalTris);
-
+  // 動的リサイズ可能な出力バッファ
+  let capTris = 131072;
+  let positions = new Float32Array(capTris * 9);
+  let normals = new Float32Array(capTris * 9);
+  let tools = new Int32Array(capTris);
   let triIdx = 0;
+
+  function ensureCap(extra) {
+    if (triIdx + extra <= capTris) return;
+    while (triIdx + extra > capTris) capTris *= 2;
+    const np = new Float32Array(capTris * 9); np.set(positions); positions = np;
+    const nn = new Float32Array(capTris * 9); nn.set(normals); normals = nn;
+    const nt = new Int32Array(capTris); nt.set(tools); tools = nt;
+  }
+
   function addTri(x0, y0, z0, x1, y1, z1, x2, y2, z2, nx, ny, nz, tool) {
+    if (triIdx >= capTris) ensureCap(1024);
     const b = triIdx * 9;
     positions[b]     = x0; positions[b + 1] = y0; positions[b + 2] = z0;
     positions[b + 3] = x1; positions[b + 4] = y1; positions[b + 5] = z1;
     positions[b + 6] = x2; positions[b + 7] = y2; positions[b + 8] = z2;
-
     normals[b]     = nx; normals[b + 1] = ny; normals[b + 2] = nz;
     normals[b + 3] = nx; normals[b + 4] = ny; normals[b + 5] = nz;
     normals[b + 6] = nx; normals[b + 7] = ny; normals[b + 8] = nz;
-
     tools[triIdx] = tool;
     triIdx++;
   }
 
-  // 頂点座標キャッシュ（各レイヤーで再利用）
-  const outBot = new Float32Array(N * 3);
-  const outTop = new Float32Array(N * 3);
-  const inBot  = new Float32Array(N * 3);
-  const inTop  = new Float32Array(N * 3);
+  const L = Math.max(1, toolIds.length);
+  const useArbitraryMesh = !!(meshPositions && meshPositions.length >= 9);
+  const allLayerLoops = useArbitraryMesh
+    ? buildMeshLayerLoops(meshPositions, minZ, t, layers)
+    : null;
 
   for (let lay = 0; lay < layers; lay++) {
     const z_bot = Math.fround(minZ + lay * t);
     const z_top = Math.fround(minZ + (lay + 1) * t);
     const z_mid = (z_bot + z_top) * 0.5;
-    const activeTool = toolIds[lay % toolIds.length];
+    const activeTool = toolIds[lay % L];
     const isToolWeave = (toolWeaveModes && toolWeaveModes[activeTool] !== undefined)
       ? !!toolWeaveModes[activeTool]
       : true;
-    const L = Math.max(1, toolIds.length);
     const colIdx = lay % L;
     const cycle = Math.floor(lay / L);
     const layerPhase = (colIdx * (2.0 * Math.PI / L)) + (cycle % 2) * Math.PI;
-
-    // 各角度における内外の頂点位置を計算
-    for (let i = 0; i < N; i++) {
-      const th = angles[i];
-      const cosTh = Math.cos(th);
-      const sinTh = Math.sin(th);
-      const phi = waveCount * th + layerPhase;
-
-      const r_base = (contourRadii && contourRadii[lay * N + i] > 0.1) ? contourRadii[lay * N + i] : radius;
-
-      // テクスチャ/曲率サンプリングによる exposure
-      let exposure = 0.5;
-      let multiColorInfo = null;
-      if (sampleFn) {
-        const testX = cx + r_base * cosTh;
-        const testY = cy + r_base * sinTh;
-        const sampled = sampleFn(testX, testY, z_mid, cosTh, sinTh, 0);
-        const targetTool = sampled.targetTool;
-        const blendWeight = sampled.blendWeight;
-        multiColorInfo = sampled.multiColorInfo;
-        if (multiColorInfo) {
-          const { toolA, toolB, t: tAffinity } = multiColorInfo;
-          if (activeTool === toolA) exposure = tAffinity;
-          else if (activeTool === toolB) exposure = 1.0 - tAffinity;
-          else exposure = 0.0;
-        } else if (toolIds.length >= 2) {
-          exposure = (activeTool === targetTool) ? 1.0 : (blendWeight !== undefined ? (activeTool === toolIds[0] ? blendWeight : (1.0 - blendWeight)) : 0.0);
-        } else {
-          exposure = (activeTool === targetTool) ? 1.0 : 0.0;
-        }
-      }
-      exposure = Math.max(0.0, Math.min(1.0, exposure));
-
-      // 混色補正 (Secondary Color Brightness Compensation)
-      let comp = 1.0;
-      if (profileMode === 5 && multiColorInfo && L > 2) {
-        comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
-      }
-
-      let disp;
-      if (isToolWeave) {
-        const B = getWaveB(phi, exposure, L);
-        const effExposure = (profileMode === 5) ? 1.0 : Math.min(1.0, exposure * comp);
-        disp = -concaveVal + stroke * effExposure * B;
-      } else {
-        // ━ フラット段差: ピッチごとの高周波波打ちを介さず、画像の露出度 exposure そのものによって幅広な段差（幅広の波1個）として突出
-        const flatMul = (profileMode === 5) ? Math.max(0.0, Number(flatAmpScale ?? 1.0)) : 1.0;
-        disp = -concaveVal + stroke * flatMul * Math.min(1.0, exposure * comp);
-      }
-
-      const r_out = Math.fround(r_base + disp);
-      let r_in;
-      if (profileMode === 5) {
-        // ⚓ ハーフトーン編み（全ツール完全共通）:
-        // ノズル2本分（baseWall = 2.0 * wall = 0.80mm）の均一内壁を全周で完全保証！
-        // ツール1（フラット）もツール2・3（編み重ね）も、全レイヤーで同一の内壁半径（r_base - 0.80mm）にピシッと完璧に揃う！
-        const baseWall = 2.0 * wall;
-        r_in = Math.fround(Math.min(r_base, r_out) - baseWall);
-      } else {
-        // 既存の輪ゴム編み重ね（Profile 2, 3, 4）: 従来通り肉厚一定のまま内外連動
-        r_in = Math.fround(r_out - wall);
-      }
-
-      const obX = cx + r_out * cosTh;
-      const obY = cy + r_out * sinTh;
-      const ibX = cx + r_in * cosTh;
-      const ibY = cy + r_in * sinTh;
-
-      const idx = i * 3;
-      outBot[idx] = obX; outBot[idx + 1] = obY; outBot[idx + 2] = z_bot;
-      outTop[idx] = obX; outTop[idx + 1] = obY; outTop[idx + 2] = z_top;
-      inBot[idx]  = ibX; inBot[idx + 1]  = ibY; inBot[idx + 2]  = z_bot;
-      inTop[idx]  = ibX; inTop[idx + 1]  = ibY; inTop[idx + 2]  = z_top;
-    }
-
     const isSolidBottom = (lay < 3);
 
-    if (isSolidBottom) {
-      // 🧱 最初の3層は中身の詰まったソリッド円盤ディスク（ベッド定着・底面用）
-      for (let i = 0; i < N; i++) {
-        const next = (i + 1) % N;
-        const i0 = i * 3;
-        const i1 = next * 3;
-
-        const ob0_x = outBot[i0], ob0_y = outBot[i0 + 1], ob0_z = outBot[i0 + 2];
-        const ob1_x = outBot[i1], ob1_y = outBot[i1 + 1], ob1_z = outBot[i1 + 2];
-        const ot0_x = outTop[i0], ot0_y = outTop[i0 + 1], ot0_z = outTop[i0 + 2];
-        const ot1_x = outTop[i1], ot1_y = outTop[i1 + 1], ot1_z = outTop[i1 + 2];
-
-        const nx = Math.cos(angles[i]);
-        const ny = Math.sin(angles[i]);
-
-        // 1. 外壁 (Outer Wall: CCW from outside)
-        addTri(ob0_x, ob0_y, ob0_z, ob1_x, ob1_y, ob1_z, ot1_x, ot1_y, ot1_z, nx, ny, 0, activeTool);
-        addTri(ob0_x, ob0_y, ob0_z, ot1_x, ot1_y, ot1_z, ot0_x, ot0_y, ot0_z, nx, ny, 0, activeTool);
-
-        // 2. 底面 (Bottom Face: CCW looking from below)
-        addTri(ob1_x, ob1_y, ob1_z, ob0_x, ob0_y, ob0_z, cx, cy, z_bot, 0, 0, -1, activeTool);
-
-        // 3. 上面 (Top Face: CCW looking from above)
-        addTri(ot0_x, ot0_y, ot0_z, ot1_x, ot1_y, ot1_z, cx, cy, z_top, 0, 0, 1, activeTool);
-      }
+    // このレイヤーで生成するループ群を用意
+    let loopsForLayer;
+    if (useArbitraryMesh) {
+      loopsForLayer = allLayerLoops[lay];
+      if (!loopsForLayer || loopsForLayer.length === 0) continue;
     } else {
-      // 🧶 4層目以降は中空の輪ゴム（帯状リング）
+      // 円柱モード: 1つの真円ループとして統一処理
+      const circumference = 2.0 * Math.PI * radius;
+      const waveCount = Math.max(6, Math.round(circumference / p));
+      const nPts = waveCount * kpp;
+      const pts = [];
+      const dPhi = (2.0 * Math.PI) / waveCount;
+      for (let w = 0; w < waveCount; w++) {
+        const basePhi = w * dPhi;
+        for (let k = 0; k < kpp; k++) {
+          const th = basePhi + uKeypoints[k] * dPhi;
+          pts.push([cx + radius * Math.cos(th), cy + radius * Math.sin(th)]);
+        }
+      }
+      loopsForLayer = [{ pts, area: Math.PI * radius * radius, perim: circumference, isCircle: true, waveCount }];
+    }
+
+    for (let lpIdx = 0; lpIdx < loopsForLayer.length; lpIdx++) {
+      const lp = loopsForLayer[lpIdx];
+      const waveCount = lp.waveCount || Math.max(4, Math.round(lp.perim / p));
+      const N = waveCount * kpp;
+
+      // ループ周長に沿って等間隔リサンプリング
+      const basePtsX = new Float64Array(N);
+      const basePtsY = new Float64Array(N);
+      const normX = new Float64Array(N);
+      const normY = new Float64Array(N);
+
+      if (lp.isCircle) {
+        for (let i = 0; i < N; i++) {
+          const px = lp.pts[i][0];
+          const py = lp.pts[i][1];
+          basePtsX[i] = px;
+          basePtsY[i] = py;
+          const dx = px - cx, dy = py - cy;
+          const dl = Math.hypot(dx, dy) || 1;
+          normX[i] = dx / dl;
+          normY[i] = dy / dl;
+        }
+      } else {
+        const src = lp.pts;
+        const m = src.length;
+        const cumLen = new Float64Array(m + 1);
+        for (let i = 0; i < m; i++) {
+          const a = src[i], b = src[(i + 1) % m];
+          cumLen[i + 1] = cumLen[i] + Math.hypot(b[0] - a[0], b[1] - a[1]);
+        }
+        const totalLen = cumLen[m];
+        if (totalLen < 1e-4) continue;
+
+        let segCursor = 0;
+        for (let w = 0; w < waveCount; w++) {
+          for (let k = 0; k < kpp; k++) {
+            const idx = w * kpp + k;
+            const targetS = ((w + uKeypoints[k]) / waveCount) * totalLen;
+            while (segCursor < m - 1 && cumLen[segCursor + 1] < targetS) segCursor++;
+            const s0 = cumLen[segCursor], s1 = cumLen[segCursor + 1];
+            const frac = (s1 > s0 + 1e-9) ? (targetS - s0) / (s1 - s0) : 0;
+            const a = src[segCursor], b = src[(segCursor + 1) % m];
+            basePtsX[idx] = a[0] + frac * (b[0] - a[0]);
+            basePtsY[idx] = a[1] + frac * (b[1] - a[1]);
+          }
+        }
+
+        // CCWポリゴンの外向き2D法線を計算（右90度 = (ty, -tx)）
+        for (let i = 0; i < N; i++) {
+          const prev = (i - 1 + N) % N;
+          const next = (i + 1) % N;
+          const tx = basePtsX[next] - basePtsX[prev];
+          const ty = basePtsY[next] - basePtsY[prev];
+          const len = Math.hypot(tx, ty) || 1;
+          normX[i] = ty / len;
+          normY[i] = -tx / len;
+        }
+
+        // 鋭角部の内壁自己交差を抑えるため法線を軽く2回平滑化
+        const tmpNx = new Float64Array(N);
+        const tmpNy = new Float64Array(N);
+        for (let pass = 0; pass < 2; pass++) {
+          for (let i = 0; i < N; i++) {
+            const prev = (i - 1 + N) % N;
+            const next = (i + 1) % N;
+            const sx = 0.25 * normX[prev] + 0.5 * normX[i] + 0.25 * normX[next];
+            const sy = 0.25 * normY[prev] + 0.5 * normY[i] + 0.25 * normY[next];
+            const sl = Math.hypot(sx, sy) || 1;
+            tmpNx[i] = sx / sl;
+            tmpNy[i] = sy / sl;
+          }
+          normX.set(tmpNx);
+          normY.set(tmpNy);
+        }
+      }
+
+      // 細い島（猫の耳先や尻尾先）で内壁が裏返らないよう実効肉厚を安全クランプ
+      const halfWidthEst = (lp.area / Math.max(1e-3, lp.perim)) * 1.35;
+      const effBaseWall = Math.min(2.0 * wall, Math.max(0.25, halfWidthEst));
+      const effWall = Math.min(wall, Math.max(0.20, halfWidthEst));
+
+      const outX = new Float64Array(N);
+      const outY = new Float64Array(N);
+      const inX  = new Float64Array(N);
+      const inY  = new Float64Array(N);
+
       for (let i = 0; i < N; i++) {
-        const next = (i + 1) % N;
-        const i0 = i * 3;
-        const i1 = next * 3;
+        const px = basePtsX[i], py = basePtsY[i];
+        const nx = normX[i], ny = normY[i];
+        const wIdx = Math.floor(i / kpp);
+        const kIdx = i % kpp;
+        const phi = (wIdx + uKeypoints[kIdx]) * 2.0 * Math.PI + layerPhase;
 
-        const ob0_x = outBot[i0], ob0_y = outBot[i0 + 1], ob0_z = outBot[i0 + 2];
-        const ob1_x = outBot[i1], ob1_y = outBot[i1 + 1], ob1_z = outBot[i1 + 2];
-        const ot0_x = outTop[i0], ot0_y = outTop[i0 + 1], ot0_z = outTop[i0 + 2];
-        const ot1_x = outTop[i1], ot1_y = outTop[i1 + 1], ot1_z = outTop[i1 + 2];
+        let exposure = 0.5;
+        let multiColorInfo = null;
+        if (sampleFn) {
+          const sampled = sampleFn(px, py, z_mid, nx, ny, 0);
+          const targetTool = sampled.targetTool;
+          const blendWeight = sampled.blendWeight;
+          multiColorInfo = sampled.multiColorInfo;
+          if (multiColorInfo) {
+            const { toolA, toolB, t: tAffinity } = multiColorInfo;
+            if (activeTool === toolA) exposure = tAffinity;
+            else if (activeTool === toolB) exposure = 1.0 - tAffinity;
+            else exposure = 0.0;
+          } else if (toolIds.length >= 2) {
+            exposure = (activeTool === targetTool)
+              ? 1.0
+              : (blendWeight !== undefined ? (activeTool === toolIds[0] ? blendWeight : (1.0 - blendWeight)) : 0.0);
+          } else {
+            exposure = (activeTool === targetTool) ? 1.0 : 0.0;
+          }
+        }
+        exposure = Math.max(0.0, Math.min(1.0, exposure));
 
-        const ib0_x = inBot[i0], ib0_y = inBot[i0 + 1], ib0_z = inBot[i0 + 2];
-        const ib1_x = inBot[i1], ib1_y = inBot[i1 + 1], ib1_z = inBot[i1 + 2];
-        const it0_x = inTop[i0], it0_y = inTop[i0 + 1], it0_z = inTop[i0 + 2];
-        const it1_x = inTop[i1], it1_y = inTop[i1 + 1], it1_z = inTop[i1 + 2];
+        let comp = 1.0;
+        if (profileMode === 5 && multiColorInfo && L > 2) {
+          comp = 1.0 + 0.35 * (4.0 * exposure * (1.0 - exposure));
+        }
 
-        const nx = Math.cos(angles[i]);
-        const ny = Math.sin(angles[i]);
+        let disp;
+        if (isToolWeave) {
+          const B = getWaveB(phi, exposure);
+          const effExposure = (profileMode === 5) ? 1.0 : Math.min(1.0, exposure * comp);
+          disp = -concaveVal + stroke * effExposure * B;
+        } else {
+          const flatMul = (profileMode === 5) ? Math.max(0.0, Number(flatAmpScale ?? 1.0)) : 1.0;
+          disp = -concaveVal + stroke * flatMul * Math.min(1.0, exposure * comp);
+        }
 
-        // 1. 外壁 (Outer Wall: CCW from outside)
-        addTri(ob0_x, ob0_y, ob0_z, ob1_x, ob1_y, ob1_z, ot1_x, ot1_y, ot1_z, nx, ny, 0, activeTool);
-        addTri(ob0_x, ob0_y, ob0_z, ot1_x, ot1_y, ot1_z, ot0_x, ot0_y, ot0_z, nx, ny, 0, activeTool);
+        // 極小の島では外側変位が自己交差を起こさないよう自然に抑制
+        const safeDisp = useArbitraryMesh ? Math.min(disp, Math.max(0.15, halfWidthEst * 0.8)) : disp;
+        const inDisp = (profileMode === 5)
+          ? (Math.min(0.0, safeDisp) - effBaseWall)
+          : (safeDisp - effWall);
 
-        // 2. 内壁 (Inner Wall: CCW from inside)
-        addTri(ib1_x, ib1_y, ib1_z, ib0_x, ib0_y, ib0_z, it0_x, it0_y, it0_z, -nx, -ny, 0, activeTool);
-        addTri(ib1_x, ib1_y, ib1_z, it0_x, it0_y, it0_z, it1_x, it1_y, it1_z, -nx, -ny, 0, activeTool);
+        outX[i] = Math.fround(px + nx * safeDisp);
+        outY[i] = Math.fround(py + ny * safeDisp);
+        inX[i]  = Math.fround(px + nx * inDisp);
+        inY[i]  = Math.fround(py + ny * inDisp);
+      }
 
-        // 3. 上面 (Top Ring Face: +Z)
-        addTri(it0_x, it0_y, it0_z, ot0_x, ot0_y, ot0_z, ot1_x, ot1_y, ot1_z, 0, 0, 1, activeTool);
-        addTri(it0_x, it0_y, it0_z, ot1_x, ot1_y, ot1_z, it1_x, it1_y, it1_z, 0, 0, 1, activeTool);
+      if (isSolidBottom) {
+        ensureCap(N * 4);
+        // 外壁
+        for (let i = 0; i < N; i++) {
+          const next = (i + 1) % N;
+          const nx = normX[i], ny = normY[i];
+          addTri(outX[i], outY[i], z_bot, outX[next], outY[next], z_bot, outX[next], outY[next], z_top, nx, ny, 0, activeTool);
+          addTri(outX[i], outY[i], z_bot, outX[next], outY[next], z_top, outX[i], outY[i], z_top, nx, ny, 0, activeTool);
+        }
 
-        // 4. 下面 (Bottom Ring Face: -Z)
-        addTri(ob0_x, ob0_y, ob0_z, ib0_x, ib0_y, ib0_z, ib1_x, ib1_y, ib1_z, 0, 0, -1, activeTool);
-        addTri(ob0_x, ob0_y, ob0_z, ib1_x, ib1_y, ib1_z, ob1_x, ob1_y, ob1_z, 0, 0, -1, activeTool);
+        // 底面・上面キャップ（2D Ear-ClippingでC字型・複数島も破綻ゼロ）
+        const polyPts = new Array(N);
+        for (let i = 0; i < N; i++) polyPts[i] = [outX[i], outY[i]];
+        const capTrisIdx = triangulatePolygonCCW(polyPts);
+        for (let c = 0; c < capTrisIdx.length; c += 3) {
+          const i0 = capTrisIdx[c], i1 = capTrisIdx[c + 1], i2 = capTrisIdx[c + 2];
+          // 底面 (-Z)
+          addTri(outX[i2], outY[i2], z_bot, outX[i1], outY[i1], z_bot, outX[i0], outY[i0], z_bot, 0, 0, -1, activeTool);
+          // 上面 (+Z)
+          addTri(outX[i0], outY[i0], z_top, outX[i1], outY[i1], z_top, outX[i2], outY[i2], z_top, 0, 0, 1, activeTool);
+        }
+      } else {
+        ensureCap(N * 8);
+        for (let i = 0; i < N; i++) {
+          const next = (i + 1) % N;
+          const nx = normX[i], ny = normY[i];
+          const ob0x = outX[i], ob0y = outY[i], ob1x = outX[next], ob1y = outY[next];
+          const ib0x = inX[i],  ib0y = inY[i],  ib1x = inX[next],  ib1y = inY[next];
+
+          // 1. 外壁
+          addTri(ob0x, ob0y, z_bot, ob1x, ob1y, z_bot, ob1x, ob1y, z_top, nx, ny, 0, activeTool);
+          addTri(ob0x, ob0y, z_bot, ob1x, ob1y, z_top, ob0x, ob0y, z_top, nx, ny, 0, activeTool);
+
+          // 2. 内壁
+          addTri(ib1x, ib1y, z_bot, ib0x, ib0y, z_bot, ib0x, ib0y, z_top, -nx, -ny, 0, activeTool);
+          addTri(ib1x, ib1y, z_bot, ib0x, ib0y, z_top, ib1x, ib1y, z_top, -nx, -ny, 0, activeTool);
+
+          // 3. 上面リング (+Z)
+          addTri(ib0x, ib0y, z_top, ob0x, ob0y, z_top, ob1x, ob1y, z_top, 0, 0, 1, activeTool);
+          addTri(ib0x, ib0y, z_top, ob1x, ob1y, z_top, ib1x, ib1y, z_top, 0, 0, 1, activeTool);
+
+          // 4. 下面リング (-Z)
+          addTri(ob0x, ob0y, z_bot, ib0x, ib0y, z_bot, ib1x, ib1y, z_bot, 0, 0, -1, activeTool);
+          addTri(ob0x, ob0y, z_bot, ib1x, ib1y, z_bot, ob1x, ob1y, z_bot, 0, 0, -1, activeTool);
+        }
       }
     }
   }
 
-  const actualPositions = (triIdx < totalTris) ? positions.subarray(0, triIdx * 9) : positions;
-  const actualNormals   = (triIdx < totalTris) ? normals.subarray(0, triIdx * 9) : normals;
-  const actualTools     = (triIdx < totalTris) ? tools.subarray(0, triIdx) : tools;
-
   return {
-    positions: actualPositions,
-    normals: actualNormals,
-    tools: actualTools,
+    positions: positions.subarray(0, triIdx * 9),
+    normals: normals.subarray(0, triIdx * 9),
+    tools: tools.subarray(0, triIdx),
     triCount: triIdx,
   };
 }
-
