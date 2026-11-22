@@ -17,11 +17,11 @@
  */
 
 /**
- * 水平断面上の交線セグメント群を連結し、閉じた島ループ（CCW外周）の配列を返す
+ * 水平断面上の交線セグメント群を連結し、外周ループ (area > 0) と穴ループ (area < 0) に分けて返す
  */
 function stitchSegmentsToLoops(segs, normals) {
   const nSeg = segs.length / 4;
-  if (nSeg < 3) return [];
+  if (nSeg < 3) return { outer: [], holes: [] };
 
   const SCALE = 2000; // 0.5 um precision key
   const keyOf = (x, y) => `${Math.round(x * SCALE)},${Math.round(y * SCALE)}`;
@@ -132,21 +132,37 @@ function stitchSegmentsToLoops(segs, normals) {
     loops.push({ pts: clean, area, perim });
   }
 
-  if (loops.length === 0) return [];
+  if (loops.length === 0) return { outer: [], holes: [] };
 
-  // 外周ループ (area > 0) を優先採用。もし法線が全面逆向きだった場合のみ反転して使う
   const outer = loops.filter(lp => lp.area > 0);
-  if (outer.length > 0) return outer;
+  const holes = loops.filter(lp => lp.area < 0);
+  if (outer.length > 0) return { outer, holes };
 
-  return loops.map(lp => ({
-    pts: lp.pts.slice().reverse(),
-    area: -lp.area,
-    perim: lp.perim,
-  }));
+  // 万一法線が全面逆向きのメッシュだった場合のみ反転して外周扱い
+  return {
+    outer: holes.map(lp => ({
+      pts: lp.pts.slice().reverse(),
+      area: -lp.area,
+      perim: lp.perim,
+    })),
+    holes: [],
+  };
+}
+
+function pointInPolygon2D(px, py, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    const intersect = ((yi > py) !== (yj > py)) &&
+      (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
 }
 
 /**
- * メッシュの各Zレイヤーにおける全閉ループ（複数島・凹輪郭）を抽出する
+ * メッシュの各Zレイヤーにおける全閉ループ（複数島＋穴）を抽出する
  */
 function buildMeshLayerLoops(meshPositions, minZ, thickness, totalLayers) {
   const triCount = Math.floor(meshPositions.length / 9);
@@ -167,7 +183,7 @@ function buildMeshLayerLoops(meshPositions, minZ, thickness, totalLayers) {
   }
 
   const allLayerLoops = new Array(totalLayers);
-  let prevLoops = [];
+  let prevData = { outer: [], holes: [] };
 
   for (let lay = 0; lay < totalLayers; lay++) {
     const z = minZ + (lay + 0.5) * thickness;
@@ -203,16 +219,148 @@ function buildMeshLayerLoops(meshPositions, minZ, thickness, totalLayers) {
       }
     }
 
-    const loops = stitchSegmentsToLoops(segs, normals);
-    if (loops.length > 0) {
-      allLayerLoops[lay] = loops;
-      prevLoops = loops;
+    const res = stitchSegmentsToLoops(segs, normals);
+    if (res.outer.length > 0) {
+      allLayerLoops[lay] = res;
+      prevData = res;
     } else {
-      allLayerLoops[lay] = prevLoops;
+      allLayerLoops[lay] = prevData;
     }
   }
 
   return allLayerLoops;
+}
+
+function polygonHasSelfIntersection(pts) {
+  const n = pts.length;
+  if (n < 4) return false;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    const ax = a[0], ay = a[1], bx = b[0], by = b[1];
+    const minAx = ax < bx ? ax : bx, maxAx = ax > bx ? ax : bx;
+    const minAy = ay < by ? ay : by, maxAy = ay > by ? ay : by;
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      const c = pts[j], d = pts[(j + 1) % n];
+      const cx = c[0], cy = c[1], dx = d[0], dy = d[1];
+      if ((cx > dx ? cx : dx) < minAx - 1e-6) continue;
+      if ((cx < dx ? cx : dx) > maxAx + 1e-6) continue;
+      if ((cy > dy ? cy : dy) < minAy - 1e-6) continue;
+      if ((cy < dy ? cy : dy) > maxAy + 1e-6) continue;
+      const den = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+      if (Math.abs(den) < 1e-10) continue;
+      const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / den;
+      const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / den;
+      if (t > 1e-5 && t < 1.0 - 1e-5 && u > 1e-5 && u < 1.0 - 1e-5) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 穴付き2D CCWポリゴンをブリッジング＋Ear-Clippingで三角形分割する（中充填の穴抜き対応）
+ * 戻り値: { pts: 統合頂点配列 [[x,y],...], tris: 三角形インデックス配列 [i0,i1,i2,...] }
+ */
+function triangulatePolygonWithHoles(outerPts, holePtsList = []) {
+  let merged = outerPts.slice();
+
+  if (holePtsList && holePtsList.length > 0) {
+    // 各穴の最右頂点(maxX)を求めて降順ソート
+    const holesWithMax = holePtsList.map(h => {
+      let maxIdx = 0;
+      for (let i = 1; i < h.length; i++) {
+        if (h[i][0] > h[maxIdx][0]) maxIdx = i;
+      }
+      return { pts: h, maxIdx, maxX: h[maxIdx][0] };
+    }).sort((a, b) => b.maxX - a.maxX);
+
+    const segIntersect = (ax, ay, bx, by, cx, cy, dx, dy) => {
+      const den = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+      if (Math.abs(den) < 1e-10) return false;
+      const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / den;
+      const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / den;
+      return t > 1e-5 && t < 1.0 - 1e-5 && u > 1e-5 && u < 1.0 - 1e-5;
+    };
+
+    for (const hole of holesWithMax) {
+      const hPts = hole.pts;
+      const hm = hole.maxIdx;
+      const M = hPts[hm];
+
+      // Eberlyの厳密水平レイ法: Mから+X方向へ水平レイを伸ばし、mergedとの最短交点Iを含む辺の右端点を優先
+      let bestRayX = Infinity;
+      let rayEdgeIdx = -1;
+      for (let ei = 0; ei < merged.length; ei++) {
+        const ea = merged[ei], eb = merged[(ei + 1) % merged.length];
+        if ((ea[1] <= M[1] && eb[1] > M[1]) || (eb[1] <= M[1] && ea[1] > M[1])) {
+          const ix = ea[0] + ((M[1] - ea[1]) / (eb[1] - ea[1])) * (eb[0] - ea[0]);
+          if (ix >= M[0] - 1e-6 && ix < bestRayX) {
+            bestRayX = ix;
+            rayEdgeIdx = ei;
+          }
+        }
+      }
+
+      const isBridgeClear = (P) => {
+        for (let ei = 0; ei < merged.length; ei++) {
+          const ea = merged[ei], eb = merged[(ei + 1) % merged.length];
+          if (segIntersect(M[0], M[1], P[0], P[1], ea[0], ea[1], eb[0], eb[1])) return false;
+        }
+        for (let hi = 0; hi < hPts.length; hi++) {
+          const ha = hPts[hi], hb = hPts[(hi + 1) % hPts.length];
+          if (segIntersect(M[0], M[1], P[0], P[1], ha[0], ha[1], hb[0], hb[1])) return false;
+        }
+        return true;
+      };
+
+      let bestPIdx = -1;
+      if (rayEdgeIdx >= 0) {
+        const iA = rayEdgeIdx;
+        const iB = (rayEdgeIdx + 1) % merged.length;
+        const cand = (merged[iA][0] >= merged[iB][0]) ? [iA, iB] : [iB, iA];
+        for (const ci of cand) {
+          if (isBridgeClear(merged[ci])) {
+            bestPIdx = ci;
+            break;
+          }
+        }
+      }
+
+      if (bestPIdx === -1) {
+        let bestDist2 = 1e18;
+        for (let pi = 0; pi < merged.length; pi++) {
+          const P = merged[pi];
+          if (P[0] < M[0] - 1e-4) continue;
+          const d2 = (P[0] - M[0]) ** 2 + (P[1] - M[1]) ** 2;
+          if (d2 >= bestDist2) continue;
+          if (isBridgeClear(P)) {
+            bestDist2 = d2;
+            bestPIdx = pi;
+          }
+        }
+      }
+      if (bestPIdx === -1) {
+        let bestDist2 = 1e18;
+        for (let pi = 0; pi < merged.length; pi++) {
+          const P = merged[pi];
+          const d2 = (P[0] - M[0]) ** 2 + (P[1] - M[1]) ** 2;
+          if (d2 < bestDist2) { bestDist2 = d2; bestPIdx = pi; }
+        }
+      }
+
+      if (bestPIdx >= 0) {
+        const P = merged[bestPIdx];
+        const bridge = [];
+        for (let k = 0; k < hPts.length; k++) {
+          bridge.push(hPts[(hm + k) % hPts.length]);
+        }
+        bridge.push(M, P);
+        merged.splice(bestPIdx + 1, 0, ...bridge);
+      }
+    }
+  }
+
+  return { pts: merged, tris: triangulatePolygonCCW(merged) };
 }
 
 /**
@@ -230,7 +378,10 @@ function triangulatePolygonCCW(pts) {
   const cross2 = (a, b, c) =>
     (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
 
+  const samePt = (p, q) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6;
+
   const pointInTri = (p, a, b, c) => {
+    if (samePt(p, a) || samePt(p, b) || samePt(p, c)) return false;
     const c1 = cross2(a, b, p);
     const c2 = cross2(b, c, p);
     const c3 = cross2(c, a, p);
@@ -271,10 +422,31 @@ function triangulatePolygonCCW(pts) {
   if (indices.length === 3) {
     out.push(indices[0], indices[1], indices[2]);
   } else if (indices.length > 3) {
-    // 自己交差等の緊急フォールバックファン分割
-    for (let k = 1; k < indices.length - 1; k++) {
-      out.push(indices[0], indices[k], indices[k + 1]);
+    // 自己交差等により厳密耳切りが停止した場合も、全体を跨ぐファン分割は行わず
+    // 最小面積の局所三角形から順に安全に切り落とす
+    while (indices.length > 3) {
+      const m = indices.length;
+      let bestK = 0;
+      let bestScore = 1e18;
+      for (let k = 0; k < m; k++) {
+        const a = pts[indices[(k - 1 + m) % m]];
+        const b = pts[indices[k]];
+        const c = pts[indices[(k + 1) % m]];
+        const cr = cross2(a, b, c);
+        const perim = Math.hypot(b[0] - a[0], b[1] - a[1]) + Math.hypot(c[0] - b[0], c[1] - b[1]) + Math.hypot(a[0] - c[0], a[1] - c[1]);
+        const score = (cr > 0 ? cr : (Math.abs(cr) + 1000.0)) + perim * 0.1;
+        if (score < bestScore) {
+          bestScore = score;
+          bestK = k;
+        }
+      }
+      const pIdx = indices[(bestK - 1 + m) % m];
+      const cIdx = indices[bestK];
+      const nIdx = indices[(bestK + 1) % m];
+      out.push(pIdx, cIdx, nIdx);
+      indices.splice(bestK, 1);
     }
+    if (indices.length === 3) out.push(indices[0], indices[1], indices[2]);
   }
   return out;
 }
@@ -299,6 +471,7 @@ export function generateWeaveRubberBandTube({
   sampleFn = null,
   toolWeaveModes = null,
   flatAmpScale = 1.0,
+  solidFill = false,
 } = {}) {
   const t = Math.max(0.01, Number(thickness) || 0.20);
   const wall = Math.max(0.10, Number(wallThickness) || 0.40);
@@ -386,12 +559,15 @@ export function generateWeaveRubberBandTube({
     const colIdx = lay % L;
     const cycle = Math.floor(lay / L);
     const layerPhase = (colIdx * (2.0 * Math.PI / L)) + (cycle % 2) * Math.PI;
-    const isSolidBottom = (lay < 3);
+    const isSolidBottom = !!solidFill || (lay < 3);
 
     // このレイヤーで生成するループ群を用意
     let loopsForLayer;
+    let holesForLayer = [];
     if (useArbitraryMesh) {
-      loopsForLayer = allLayerLoops[lay];
+      const layerData = allLayerLoops[lay];
+      loopsForLayer = layerData?.outer;
+      holesForLayer = layerData?.holes || [];
       if (!loopsForLayer || loopsForLayer.length === 0) continue;
     } else {
       // 円柱モード: 1つの真円ループとして統一処理
@@ -553,8 +729,64 @@ export function generateWeaveRubberBandTube({
       }
 
       if (isSolidBottom) {
-        ensureCap(N * 4);
+        // この外周ループに内包される穴ループを抽出
+        const myHoles = [];
+        for (let hi = 0; hi < holesForLayer.length; hi++) {
+          const hp = holesForLayer[hi].pts;
+          if (hp.length >= 3 && pointInPolygon2D(hp[0][0], hp[0][1], lp.pts)) {
+            myHoles.push(hp);
+          }
+        }
+
+        // 底面・上面キャップ用の内側コア(corePts)を先に確定し、outX/outYも整合させる:
+        // 波打ちトゲ(outX,outY)や凹み谷(-concaveVal)のノコギリ歯で自己交差が起きないよう、
+        // 滑らかな一定インセットの内側コア(corePts)と穴(myHoles)で厳密に穴くり抜き三角形分割し、
+        // corePts〜outPts間の波打ちフリンジはO(N)クワッド帯で接続する
+        let safeCoreInset = Math.min(Math.max(0, concaveVal), Math.max(0.0, halfWidthEst * 0.35));
+        if (safeCoreInset > 1e-4 && myHoles.length > 0) {
+          let minGapSq = 1e18;
+          for (const hp of myHoles) {
+            for (let hi = 0; hi < hp.length; hi++) {
+              const hx = hp[hi][0], hy = hp[hi][1];
+              for (let i = 0; i < N; i += 2) {
+                const dx = basePtsX[i] - hx, dy = basePtsY[i] - hy;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < minGapSq) minGapSq = d2;
+              }
+            }
+          }
+          safeCoreInset = Math.min(safeCoreInset, Math.sqrt(minGapSq) * 0.35);
+        }
+
+        const corePts = new Array(N);
+        // 鋭角な凹み部でインセットが自己交差しないよう、自己交差が出た場合はsafeCoreInsetを段階的に縮小
+        for (let attempt = 0; attempt < 5; attempt++) {
+          for (let i = 0; i < N; i++) {
+            corePts[i] = [
+              Math.fround(basePtsX[i] - normX[i] * safeCoreInset),
+              Math.fround(basePtsY[i] - normY[i] * safeCoreInset),
+            ];
+          }
+          if (safeCoreInset <= 1e-4 || !polygonHasSelfIntersection(corePts)) break;
+          safeCoreInset = (attempt < 3) ? safeCoreInset * 0.45 : 0.0;
+        }
+
+        let hasFringe = false;
+        for (let i = 0; i < N; i++) {
+          const cx_i = corePts[i][0];
+          const cy_i = corePts[i][1];
+          const dxo = outX[i] - cx_i, dyo = outY[i] - cy_i;
+          const dotOut = dxo * normX[i] + dyo * normY[i];
+          if (dotOut > 1e-4) {
+            hasFringe = true;
+          } else {
+            outX[i] = cx_i;
+            outY[i] = cy_i;
+          }
+        }
+
         // 外壁
+        ensureCap(N * 2 + myHoles.reduce((s, h) => s + h.length * 2, 0));
         for (let i = 0; i < N; i++) {
           const next = (i + 1) % N;
           const nx = normX[i], ny = normY[i];
@@ -562,16 +794,57 @@ export function generateWeaveRubberBandTube({
           addTri(outX[i], outY[i], z_bot, outX[next], outY[next], z_top, outX[i], outY[i], z_top, nx, ny, 0, activeTool);
         }
 
-        // 底面・上面キャップ（2D Ear-ClippingでC字型・複数島も破綻ゼロ）
-        const polyPts = new Array(N);
-        for (let i = 0; i < N; i++) polyPts[i] = [outX[i], outY[i]];
-        const capTrisIdx = triangulatePolygonCCW(polyPts);
+        // 穴ループの側壁（CWループなので外向き＝穴の中心向き）
+        for (const hp of myHoles) {
+          const hm = hp.length;
+          for (let i = 0; i < hm; i++) {
+            const next = (i + 1) % hm;
+            const ax = hp[i][0], ay = hp[i][1];
+            const bx = hp[next][0], by = hp[next][1];
+            const dx = bx - ax, dy = by - ay;
+            const dl = Math.hypot(dx, dy) || 1;
+            const hnx = dy / dl, hny = -dx / dl;
+            addTri(ax, ay, z_bot, bx, by, z_bot, bx, by, z_top, hnx, hny, 0, activeTool);
+            addTri(ax, ay, z_bot, bx, by, z_top, ax, ay, z_top, hnx, hny, 0, activeTool);
+          }
+        }
+
+        const { pts: capPts, tris: capTrisIdx } = triangulatePolygonWithHoles(corePts, myHoles);
+        ensureCap(capTrisIdx.length * 2 + (hasFringe ? N * 4 : 0));
         for (let c = 0; c < capTrisIdx.length; c += 3) {
-          const i0 = capTrisIdx[c], i1 = capTrisIdx[c + 1], i2 = capTrisIdx[c + 2];
+          const p0 = capPts[capTrisIdx[c]], p1 = capPts[capTrisIdx[c + 1]], p2 = capPts[capTrisIdx[c + 2]];
           // 底面 (-Z)
-          addTri(outX[i2], outY[i2], z_bot, outX[i1], outY[i1], z_bot, outX[i0], outY[i0], z_bot, 0, 0, -1, activeTool);
+          addTri(p2[0], p2[1], z_bot, p1[0], p1[1], z_bot, p0[0], p0[1], z_bot, 0, 0, -1, activeTool);
           // 上面 (+Z)
-          addTri(outX[i0], outY[i0], z_top, outX[i1], outY[i1], z_top, outX[i2], outY[i2], z_top, 0, 0, 1, activeTool);
+          addTri(p0[0], p0[1], z_top, p1[0], p1[1], z_top, p2[0], p2[1], z_top, 0, 0, 1, activeTool);
+        }
+
+        // 外側の波打ちフリンジ帯 (corePts -> outPts) を上面(+Z)・下面(-Z)に張る
+        if (hasFringe) {
+          for (let i = 0; i < N; i++) {
+            const next = (i + 1) % N;
+            const c0x = corePts[i][0],    c0y = corePts[i][1];
+            const c1x = corePts[next][0], c1y = corePts[next][1];
+            const o0x = outX[i],          o0y = outY[i];
+            const o1x = outX[next],       o1y = outY[next];
+            const d0 = (c0x !== o0x || c0y !== o0y);
+            const d1 = (c1x !== o1x || c1y !== o1y);
+            if (!d0 && !d1) continue;
+            if (d0 && d1) {
+              // 上面 (+Z): c0 -> o0 -> o1, c0 -> o1 -> c1
+              addTri(c0x, c0y, z_top, o0x, o0y, z_top, o1x, o1y, z_top, 0, 0, 1, activeTool);
+              addTri(c0x, c0y, z_top, o1x, o1y, z_top, c1x, c1y, z_top, 0, 0, 1, activeTool);
+              // 下面 (-Z)
+              addTri(o1x, o1y, z_bot, o0x, o0y, z_bot, c0x, c0y, z_bot, 0, 0, -1, activeTool);
+              addTri(c1x, c1y, z_bot, o1x, o1y, z_bot, c0x, c0y, z_bot, 0, 0, -1, activeTool);
+            } else if (d0) {
+              addTri(c0x, c0y, z_top, o0x, o0y, z_top, c1x, c1y, z_top, 0, 0, 1, activeTool);
+              addTri(c1x, c1y, z_bot, o0x, o0y, z_bot, c0x, c0y, z_bot, 0, 0, -1, activeTool);
+            } else {
+              addTri(c0x, c0y, z_top, o1x, o1y, z_top, c1x, c1y, z_top, 0, 0, 1, activeTool);
+              addTri(c1x, c1y, z_bot, o1x, o1y, z_bot, c0x, c0y, z_bot, 0, 0, -1, activeTool);
+            }
+          }
         }
       } else {
         ensureCap(N * 8);
@@ -596,6 +869,59 @@ export function generateWeaveRubberBandTube({
           // 4. 下面リング (-Z)
           addTri(ob0x, ob0y, z_bot, ib0x, ib0y, z_bot, ib1x, ib1y, z_bot, 0, 0, -1, activeTool);
           addTri(ob0x, ob0y, z_bot, ib1x, ib1y, z_bot, ob1x, ob1y, z_bot, 0, 0, -1, activeTool);
+        }
+      }
+    }
+
+    // 輪ゴム中空モード (lay >= 3 && !solidFill) で穴ループが存在する場合、
+    // 穴の内壁（とぐろの中央空洞側の壁）も輪ゴムリングとして生成する
+    if (!isSolidBottom && holesForLayer.length > 0) {
+      for (let hi = 0; hi < holesForLayer.length; hi++) {
+        const hp = holesForLayer[hi].pts;
+        const hm = hp.length;
+        if (hm < 3) continue;
+        const hWall = Math.min(wall, Math.max(0.20, Math.abs(holesForLayer[hi].area) / Math.max(1e-3, holesForLayer[hi].perim) * 1.2));
+        ensureCap(hm * 8);
+        // hpはCW（穴の中心から見て外向き＝右90度は(dy,-dx)が穴の中心向き）
+        const hOutX = new Float64Array(hm);
+        const hOutY = new Float64Array(hm);
+        const hInX  = new Float64Array(hm);
+        const hInY  = new Float64Array(hm);
+        const hNx   = new Float64Array(hm);
+        const hNy   = new Float64Array(hm);
+        for (let i = 0; i < hm; i++) {
+          const prev = (i - 1 + hm) % hm;
+          const next = (i + 1) % hm;
+          const tx = hp[next][0] - hp[prev][0];
+          const ty = hp[next][1] - hp[prev][1];
+          const len = Math.hypot(tx, ty) || 1;
+          // CWループの右90度(ty/len, -tx/len)は穴の中心方向（自由空間側）
+          const nx = ty / len;
+          const ny = -tx / len;
+          hNx[i] = nx;
+          hNy[i] = ny;
+          hInX[i]  = Math.fround(hp[i][0]);
+          hInY[i]  = Math.fround(hp[i][1]);
+          hOutX[i] = Math.fround(hp[i][0] - nx * hWall); // 肉側（外側）へ厚み
+          hOutY[i] = Math.fround(hp[i][1] - ny * hWall);
+        }
+        for (let i = 0; i < hm; i++) {
+          const next = (i + 1) % hm;
+          const nx = hNx[i], ny = hNy[i];
+          const ib0x = hInX[i],  ib0y = hInY[i],  ib1x = hInX[next],  ib1y = hInY[next];
+          const ob0x = hOutX[i], ob0y = hOutY[i], ob1x = hOutX[next], ob1y = hOutY[next];
+          // 穴側壁 (穴中心向き法線: CWなので ib0 -> ib1 -> top で穴側を向く)
+          addTri(ib0x, ib0y, z_bot, ib1x, ib1y, z_bot, ib1x, ib1y, z_top, nx, ny, 0, activeTool);
+          addTri(ib0x, ib0y, z_bot, ib1x, ib1y, z_top, ib0x, ib0y, z_top, nx, ny, 0, activeTool);
+          // 肉側壁
+          addTri(ob1x, ob1y, z_bot, ob0x, ob0y, z_bot, ob0x, ob0y, z_top, -nx, -ny, 0, activeTool);
+          addTri(ob1x, ob1y, z_bot, ob0x, ob0y, z_top, ob1x, ob1y, z_top, -nx, -ny, 0, activeTool);
+          // 上面リング (+Z)
+          addTri(ib0x, ib0y, z_top, ib1x, ib1y, z_top, ob1x, ob1y, z_top, 0, 0, 1, activeTool);
+          addTri(ib0x, ib0y, z_top, ob1x, ob1y, z_top, ob0x, ob0y, z_top, 0, 0, 1, activeTool);
+          // 下面リング (-Z)
+          addTri(ib1x, ib1y, z_bot, ib0x, ib0y, z_bot, ob0x, ob0y, z_bot, 0, 0, -1, activeTool);
+          addTri(ib1x, ib1y, z_bot, ob0x, ob0y, z_bot, ob1x, ob1y, z_bot, 0, 0, -1, activeTool);
         }
       }
     }

@@ -56,7 +56,7 @@ import {
   generateInterleavedTable
 } from './layerBlending.js?v=20261121_04';
 import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261121_04';
-import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261122_11';
+import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261122_17';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
          buildExclusionOverlayGeo, buildFaceWeights } from './exclusion.js?v=20260908d';
@@ -1212,6 +1212,7 @@ const interleavedFlatScaleRow         = document.getElementById('interleaved-fla
 const interleavedFlatScaleSlider      = document.getElementById('interleaved-flat-scale');
 const interleavedFlatScaleVal         = document.getElementById('interleaved-flat-scale-val');
 const flatScaleReset                  = document.getElementById('flat-scale-reset');
+const interleavedWeaveSolidToggle     = document.getElementById('interleaved-weave-solid-toggle');
 const shadingSourceSelect             = document.getElementById('shading-source-select');
 const curvatureOptionsContainer       = document.getElementById('curvature-options-container');
 const curvatureRadiusSlider           = document.getElementById('curvature-radius');
@@ -1260,6 +1261,7 @@ let interleavedSettings          = {
   curvatureInvert: false,
   toolWeaveModes: {}, // { [toolId]: boolean } - true (default) = Weave wave, false = Flat circle
   flatAmpScale: 1.0,  // Protrusion amplitude multiplier for tools set to Flat in Profile 5
+  weaveSolidFill: false, // false = hollow rubber band shell, true = full solid fill per layer
 };
 const exportProgress   = document.getElementById('export-progress');
 const exportProgBar    = document.getElementById('export-progress-bar');
@@ -2791,6 +2793,7 @@ function renderInterleavedUI() {
   });
   settings.interleavedToolWeaveMask = weaveMask;
   settings.interleavedFlatAmpScale  = interleavedSettings.flatAmpScale ?? 1.0;
+  settings.interleavedWeaveSolidFill = !!interleavedSettings.weaveSolidFill;
 
   settings.colorSubMode           = currentColorSubMode;
   settings.shadingSource          = interleavedSettings.shadingSource ?? 'texture';
@@ -3132,6 +3135,15 @@ function initInterleavedEvents() {
       if (interleavedFlatScaleVal) interleavedFlatScaleVal.textContent = '1.00';
       renderInterleavedUI();
       updatePreview();
+    });
+  }
+
+  if (interleavedWeaveSolidToggle) {
+    interleavedWeaveSolidToggle.addEventListener('change', (e) => {
+      interleavedSettings.weaveSolidFill = !!e.target.checked;
+      renderInterleavedUI();
+      _autoSaveSettings();
+      _scheduleUndoCapture();
     });
   }
 
@@ -8006,6 +8018,7 @@ async function handleExport(format = 'stl') {
       interleavedWeavePitch: interleavedSettings.weavePitch ?? 1.60,
       interleavedWeaveAmp: interleavedSettings.weaveAmp ?? 0.60,
       interleavedFlatAmpScale: interleavedSettings.flatAmpScale ?? 1.0,
+      interleavedWeaveSolidFill: !!interleavedSettings.weaveSolidFill,
       interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
       interleavedGamma: interleavedSettings.gamma ?? 1.0,
       interleavedInvertTools: !!interleavedSettings.invertTools,
@@ -8137,7 +8150,7 @@ async function handleExport(format = 'stl') {
 
         const isWeaveMode = (effectiveSettings.interleavedProfileMode === 2 || effectiveSettings.interleavedProfileMode === 3 || effectiveSettings.interleavedProfileMode === 4 || effectiveSettings.interleavedProfileMode === 5);
 
-        // 3. Slice all triangles at exact layer boundaries for non-weave modes (flat step, louver)
+        // 3. Slice all triangles at exact layer boundaries for non-weave modes (flat step, louver, modulated)
         const cutOffset = 0.005;
         let sliced = null;
         if (!isWeaveMode) {
@@ -8498,7 +8511,7 @@ async function handleExport(format = 'stl') {
         let finalPositions, finalNormals, triTools;
 
         if (isWeaveMode) {
-          // 🧶 断面四角の輪ゴム積層チューブ生成エンジン（全モデル・任意STL対応！）
+          // 🧶 断面四角の輪ゴム積層 / 中充填レーザーカット生成エンジン（全モデル・任意STL対応！）
           // 円柱プリセットは幾何学的真円、頭部モデル等の任意STLは各層の水平断面輪郭 R(theta, z) を自動追従！
           const cx = currentBounds ? currentBounds.center.x : 0;
           const cy = currentBounds ? currentBounds.center.y : 0;
@@ -8525,6 +8538,7 @@ async function handleExport(format = 'stl') {
             sampleFn,
             toolWeaveModes: interleavedSettings.toolWeaveModes,
             flatAmpScale: effectiveSettings.interleavedFlatAmpScale ?? interleavedSettings.flatAmpScale ?? 1.0,
+            solidFill: !!(effectiveSettings.interleavedWeaveSolidFill ?? interleavedSettings.weaveSolidFill),
           });
 
           const triCount = tube.triCount || Math.floor(tube.positions.length / 9);
@@ -8556,7 +8570,8 @@ async function handleExport(format = 'stl') {
               amp: Math.max(0.01, effectiveSettings.interleavedWeaveAmp ?? 0.60),
               profileMode: effectiveSettings.interleavedProfileMode,
               bounds: currentBounds,
-              toolWeaveModes: interleavedSettings.toolWeaveModes
+              toolWeaveModes: interleavedSettings.toolWeaveModes,
+              flatAmpScale: effectiveSettings.interleavedFlatAmpScale ?? interleavedSettings.flatAmpScale ?? 1.0,
             }
           );
 
@@ -9236,6 +9251,7 @@ function getSettingsSnapshot() {
   snap.curvatureInvert        = interleavedSettings.curvatureInvert;
   snap.interleavedToolWeaveModes = interleavedSettings.toolWeaveModes ? { ...interleavedSettings.toolWeaveModes } : {};
   snap.interleavedFlatAmpScale   = interleavedSettings.flatAmpScale ?? 1.0;
+  snap.interleavedWeaveSolidFill = !!interleavedSettings.weaveSolidFill;
 
   // Model Scale state
   snap.modelScale   = { x: _modelScale.x, y: _modelScale.y, z: _modelScale.z };
@@ -9592,6 +9608,10 @@ function applySettingsSnapshot(snap) {
       interleavedFlatScaleSlider.value = snap.interleavedFlatAmpScale;
       if (interleavedFlatScaleVal) interleavedFlatScaleVal.textContent = snap.interleavedFlatAmpScale.toFixed(2);
     }
+  }
+  if (snap.interleavedWeaveSolidFill != null) {
+    interleavedSettings.weaveSolidFill = !!snap.interleavedWeaveSolidFill;
+    if (interleavedWeaveSolidToggle) interleavedWeaveSolidToggle.checked = !!snap.interleavedWeaveSolidFill;
   }
   if (snap.shadingSource != null) {
     interleavedSettings.shadingSource = snap.shadingSource;

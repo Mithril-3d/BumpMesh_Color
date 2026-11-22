@@ -465,10 +465,10 @@ function computeLayerDisplacementByLayer(
     return disp;
   }
 
-  // ProfileMode 6: 🌊 Modulated Step (Any Mesh / Wave Flow)
-  // Maintains 100% watertight sliced topology for arbitrary bifurcated meshes (e.g. 4 legs),
-  // while applying horizontal waveform exposure modulation (halftone weave) per layer.
-  if (profileMode === 6) {
+  // ProfileMode 6 (Modulated Step) & Solid-Fill Weave Modes (Profile 2, 3, 4, 5)
+  // Maintains 100% watertight sliced topology for arbitrary bifurcated/coiled meshes
+  // while applying horizontal waveform exposure modulation per layer.
+  if (profileMode === 6 || profileMode === 5 || profileMode === 4 || profileMode === 3 || profileMode === 2) {
     const pitch = Math.max(0.2, weaveOptions?.pitch ?? 1.60);
     const stroke = Math.max(0.01, (convexVal + concaveVal) > 0 ? (convexVal + concaveVal) : (weaveOptions?.amp ?? 0.60));
     
@@ -482,13 +482,11 @@ function computeLayerDisplacementByLayer(
 
     // 1. Completely flat mode
     if (toolMode === 'flat') {
-      return -concaveVal + stroke * exposure;
+      const flatMul = (profileMode === 5) ? Math.max(0.0, Number(weaveOptions?.flatAmpScale ?? 1.0)) : 1.0;
+      return -concaveVal + stroke * flatMul * exposure;
     }
 
     // Wave phase calculation:
-    // Uses smooth geometric polar coordinate around the local island center (cx, cy).
-    // theta = atan2(y - cy, x - cx) is a smooth, continuous C-inf function of position,
-    // completely independent of individual triangle normals, eliminating "missing-tooth gear" tearing!
     const cx = weaveOptions?.cx ?? 0;
     const cy = weaveOptions?.cy ?? 0;
     const px = weaveOptions?.x ?? 0;
@@ -505,6 +503,29 @@ function computeLayerDisplacementByLayer(
     const uFrac = ((phi / (2.0 * Math.PI)) % 1.0 + 1.0) % 1.0;
     const edge = 0.06;
     let B = 0.0;
+
+    if (profileMode === 5) {
+      // Halftone Weave on solid sliced mesh
+      if (exposure <= 0.001) return -concaveVal;
+      const s = Math.sin(phi);
+      const thresh = 1.0 - 2.0 * Math.min(1.0, exposure);
+      if (s <= thresh) return -concaveVal;
+      const norm = (s - thresh) / (1.0 - thresh + 1e-5);
+      B = Math.pow(norm, 1.2) * exposure;
+      return -concaveVal + stroke * B;
+    } else if (profileMode === 2) {
+      B = 0.5 + 0.5 * Math.sin(phi);
+      return -concaveVal + stroke * exposure * B;
+    } else if (profileMode === 3) {
+      B = Math.max(0.0, Math.min(1.0, 1.0 - 2.0 * Math.abs(uFrac - 0.25)));
+      return -concaveVal + stroke * exposure * B;
+    } else if (profileMode === 4) {
+      if (uFrac < edge) B = uFrac / edge;
+      else if (uFrac < 0.5 - edge) B = 1.0;
+      else if (uFrac < 0.5 + edge) B = 1.0 - (uFrac - (0.5 - edge)) / (2.0 * edge);
+      else B = 0.0;
+      return -concaveVal + stroke * exposure * B;
+    }
 
     if (toolMode === 'pwm') {
       // 2. 🌊 PWM Mode: Duty cycle scales with exposure.
@@ -712,10 +733,10 @@ export function applyLayerAlignedDisplacement(
     if (inLay[i] > actualMaxLay) actualMaxLay = inLay[i];
   }
 
-  // Precompute topological connected-component islands per layer for Profile 6
+  // Precompute topological connected-component islands per layer for Profile 2..6
   let triIslands = null;
   let layerIslands = null;
-  if (profileMode === 6) {
+  if (profileMode >= 2 && profileMode <= 6) {
     const pitch = Math.max(0.2, weaveParams?.pitch ?? 1.60);
     const islandData = buildLayerIslands(sliced, actualMaxLay, pitch);
     triIslands = islandData.triIslands;
@@ -831,6 +852,49 @@ export function applyLayerAlignedDisplacement(
     );
   }
 
+  // Shared per-(layer, vertex) displacement cache: guarantees every triangle and shelf
+  // sharing an edge at (lay, x, y, z) lands on the EXACT same displaced coordinate (0 open edges).
+  const vertDispCache = new Map();
+  function getDisplacedXY(lay, x, y, z, nx, ny, isExcl, layerFade) {
+    const vKey = `${lay}|${Math.round(x * 2000)},${Math.round(y * 2000)},${Math.round(z * 2000)}`;
+    const cached = vertDispCache.get(vKey);
+    if (cached) return cached;
+
+    const hlen = Math.hypot(nx, ny);
+    if (hlen < 0.15 || layerFade <= 1e-6) {
+      const res = [x, y];
+      vertDispCache.set(vKey, res);
+      return res;
+    }
+
+    const unx = nx / hlen;
+    const uny = ny / hlen;
+    const activeTool = getInterleavedToolAtLayer(lay, toolIds);
+    const s = sampleFn(x, y, z, nx, ny, 0);
+    const island = layerIslands ? getNearestIsland(layerIslands, lay, x, y) : null;
+    let disp = computeDisplacement(
+      activeTool,
+      s.targetTool,
+      s.blendWeight,
+      lay,
+      z,
+      isExcl,
+      exclusionMode,
+      s.multiColorInfo,
+      x,
+      y,
+      nx,
+      ny,
+      s.u,
+      s.v,
+      island
+    );
+    disp *= layerFade;
+    const res = [Math.fround(x + disp * unx), Math.fround(y + disp * uny)];
+    vertDispCache.set(vKey, res);
+    return res;
+  }
+
   for (let i = 0; i < triCount; i++) {
     const lay = inLay[i];
     const activeTool = getInterleavedToolAtLayer(lay, toolIds);
@@ -873,46 +937,18 @@ export function applyLayerAlignedDisplacement(
       const ny = inNrm ? inNrm[idx + 1] : 0;
       const nz = inNrm ? inNrm[idx + 2] : 1;
 
-      const hlen = Math.hypot(nx, ny);
-      const fhlen = Math.hypot(fnx, fny);
-
       if (isHorizontalCap || layerFade <= 1e-6) {
-        // Horizontal surface (top/bottom flat caps, boundary rim): keep pristine base position
-        outPos[idx]     = x;
-        outPos[idx + 1] = y;
+        const [dx, dy] = getDisplacedXY(lay, x, y, z, nx, ny, isExcluded, 0.0);
+        outPos[idx]     = dx;
+        outPos[idx + 1] = dy;
         outPos[idx + 2] = z;
         outNrm[idx]     = nx;
         outNrm[idx + 1] = ny;
         outNrm[idx + 2] = nz;
       } else {
-        // Vertical/perimeter sidewall: apply exact displacement
-        const unx = hlen >= 1e-4 ? (nx / hlen) : (fhlen > 0 ? fnx / fhlen : 0);
-        const uny = hlen >= 1e-4 ? (ny / hlen) : (fhlen > 0 ? fny / fhlen : 0);
-
-        const s = sampleFn(x, y, z, nx, ny, nz);
-        const curIsland = triIslands ? triIslands[i] : null;
-
-        let disp = computeDisplacement(
-          activeTool,
-          s.targetTool,
-          s.blendWeight,
-          lay,
-          z,
-          isExcluded,
-          exclusionMode,
-          s.multiColorInfo,
-          x,
-          y,
-          nx,
-          ny,
-          s.u,
-          s.v,
-          curIsland
-        );
-        disp *= layerFade;
-
-        outPos[idx]     = Math.fround(x + disp * unx);
-        outPos[idx + 1] = Math.fround(y + disp * uny);
+        const [dx, dy] = getDisplacedXY(lay, x, y, z, nx, ny, isExcluded, layerFade);
+        outPos[idx]     = dx;
+        outPos[idx + 1] = dy;
         outPos[idx + 2] = z;
         outNrm[idx]     = nx;
         outNrm[idx + 1] = ny;
@@ -979,76 +1015,33 @@ export function applyLayerAlignedDisplacement(
         const n0 = uniqueNorms[id0];
         const n1 = uniqueNorms[id1];
 
-        // Robust outward normal: derive directly from the directed cut edge (p0 -> p1)
-        // on the counter-clockwise perimeter loop. This guarantees 100% correct outward horizontal
-        // displacement even when vertex normals are contaminated by horizontal cap vertices (issue #82).
         const edx = p1[0] - p0[0];
         const edy = p1[1] - p0[1];
         const elen = Math.hypot(edx, edy);
         if (elen < 1e-6) continue; // degenerate micro-edge
 
-        // Geometric outward normal for CCW edge in XY plane: (edy / elen, -edx / elen)
-        const geoNx = edy / elen;
-        const geoNy = -edx / elen;
-
-        const hlen0 = Math.hypot(n0[0], n0[1]);
-        const hlen1 = Math.hypot(n1[0], n1[1]);
-
-        // Use vertex normal if horizontal, otherwise fallback to exact geometric edge normal
-        const unx0 = hlen0 >= 1e-4 ? (n0[0] / hlen0) : geoNx;
-        const uny0 = hlen0 >= 1e-4 ? (n0[1] / hlen0) : geoNy;
-        const unx1 = hlen1 >= 1e-4 ? (n1[0] / hlen1) : geoNx;
-        const uny1 = hlen1 >= 1e-4 ? (n1[1] / hlen1) : geoNy;
-
-        const s0 = sampleFn(p0[0], p0[1], p0[2], n0[0], n0[1], n0[2]);
-        const s1 = sampleFn(p1[0], p1[1], p1[2], n1[0], n1[1], n1[2]);
-
         const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
         const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
 
-        const midX = (p0[0] + p1[0]) * 0.5;
-        const midY = (p0[1] + p1[1]) * 0.5;
-        const botIsland = layerIslands ? getNearestIsland(layerIslands, botLay, midX, midY) : null;
-        const topIsland = layerIslands ? getNearestIsland(layerIslands, topLay, midX, midY) : null;
+        const [p0_bot_x, p0_bot_y] = getDisplacedXY(botLay, p0[0], p0[1], p0[2], n0[0], n0[1], isExcl0, botFade);
+        const [p1_bot_x, p1_bot_y] = getDisplacedXY(botLay, p1[0], p1[1], p1[2], n1[0], n1[1], isExcl1, botFade);
+        const [p0_top_x, p0_top_y] = getDisplacedXY(topLay, p0[0], p0[1], p0[2], n0[0], n0[1], isExcl0, topFade);
+        const [p1_top_x, p1_top_y] = getDisplacedXY(topLay, p1[0], p1[1], p1[2], n1[0], n1[1], isExcl1, topFade);
 
-        const dispBot0 = (hlen0 >= 1e-4) ? computeDisplacement(botTool, s0.targetTool, s0.blendWeight, botLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1], s0.u, s0.v, botIsland) * botFade : 0;
-        const dispBot1 = (hlen1 >= 1e-4) ? computeDisplacement(botTool, s1.targetTool, s1.blendWeight, botLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1], s1.u, s1.v, botIsland) * botFade : 0;
-        let dispTop0 = (hlen0 >= 1e-4) ? computeDisplacement(topTool, s0.targetTool, s0.blendWeight, topLay, zCut, isExcl0, exclusionMode, s0.multiColorInfo, p0[0], p0[1], n0[0], n0[1], s0.u, s0.v, topIsland) * topFade : 0;
-        let dispTop1 = (hlen1 >= 1e-4) ? computeDisplacement(topTool, s1.targetTool, s1.blendWeight, topLay, zCut, isExcl1, exclusionMode, s1.multiColorInfo, p1[0], p1[1], n1[0], n1[1], s1.u, s1.v, topIsland) * topFade : 0;
-
-        let diff0 = dispBot0 - dispTop0;
-        let diff1 = dispBot1 - dispTop1;
-        const hasStep0 = Math.abs(diff0) >= 1e-4;
-        const hasStep1 = Math.abs(diff1) >= 1e-4;
-        if (!hasStep0 && !hasStep1) continue; // coplanar, no shelf needed
-
-        // Synchronize endpoints where step is sub-micron to avoid hairline gaps
-        if (!hasStep0) {
-          dispTop0 = dispBot0;
-          diff0 = 0;
-        }
-        if (!hasStep1) {
-          dispTop1 = dispBot1;
-          diff1 = 0;
-        }
-
-        const p0_bot_x = Math.fround(p0[0] + dispBot0 * unx0);
-        const p0_bot_y = Math.fround(p0[1] + dispBot0 * uny0);
         const p0_bot_z = p0[2];
-
-        const p1_bot_x = Math.fround(p1[0] + dispBot1 * unx1);
-        const p1_bot_y = Math.fround(p1[1] + dispBot1 * uny1);
         const p1_bot_z = p1[2];
-
-        const p0_top_x = Math.fround(p0[0] + dispTop0 * unx0);
-        const p0_top_y = Math.fround(p0[1] + dispTop0 * uny0);
         const p0_top_z = p0[2];
-
-        const p1_top_x = Math.fround(p1[0] + dispTop1 * unx1);
-        const p1_top_y = Math.fround(p1[1] + dispTop1 * uny1);
         const p1_top_z = p1[2];
 
-        const shelfNz = ((dispBot0 + dispBot1) >= (dispTop0 + dispTop1)) ? 1 : -1;
+        const d0Sq = (p0_bot_x - p0_top_x) ** 2 + (p0_bot_y - p0_top_y) ** 2;
+        const d1Sq = (p1_bot_x - p1_top_x) ** 2 + (p1_bot_y - p1_top_y) ** 2;
+        if (d0Sq === 0 && d1Sq === 0) continue; // identical, no shelf needed
+
+        const geoNx = edy / elen;
+        const geoNy = -edx / elen;
+        const dotBot = ((p0_bot_x - p0[0]) + (p1_bot_x - p1[0])) * geoNx + ((p0_bot_y - p0[1]) + (p1_bot_y - p1[1])) * geoNy;
+        const dotTop = ((p0_top_x - p0[0]) + (p1_top_x - p1[0])) * geoNx + ((p0_top_y - p0[1]) + (p1_top_y - p1[1])) * geoNy;
+        const shelfNz = (dotBot >= dotTop) ? 1 : -1;
 
         // Assign tool strictly aligned to the layer containing this surface:
         // - If shelf faces upward (shelfNz > 0), it is the top ceiling of botLay -> botTool.
@@ -1060,9 +1053,9 @@ export function applyLayerAlignedDisplacement(
         // Lower polygon has edge p1_bot -> p0_bot, so shelf MUST have opposite directed edge p0_bot -> p1_bot.
         // Upper polygon has edge p0_top -> p1_top, so shelf MUST have opposite directed edge p1_top -> p0_top.
         // CCW perimeter quad is: p0_bot -> p1_bot -> p1_top -> p0_top.
-        if (!hasStep0) {
+        if (d0Sq === 0) {
           emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p1_bot_x, p1_bot_y, p1_bot_z, p1_top_x, p1_top_y, p1_top_z, shelfNz, shelfTool);
-        } else if (!hasStep1) {
+        } else if (d1Sq === 0) {
           emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);
         } else {
           emitShelfTriangle(p0_bot_x, p0_bot_y, p0_bot_z, p1_bot_x, p1_bot_y, p1_bot_z, p0_top_x, p0_top_y, p0_top_z, shelfNz, shelfTool);

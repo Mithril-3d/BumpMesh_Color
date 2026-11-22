@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v2.0.4-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.0.5-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
