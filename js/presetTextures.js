@@ -35,6 +35,11 @@ function fitDimensions(imgW, imgH, maxSize = SIZE) {
 //           'ff'   = made with Filter Forge.
 
 const IMAGE_PRESETS = [
+  // ── Multi-Color 2-in-1 / 3-in-1 / 4-in-1 Loops (φ80x100 最適化) ──
+  { name: '2-in-1 (φ80x100)', url: 'textures/2in1_phi80x100.png', thumb: 'textures/thumbs/2in1_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+  { name: '3-in-1 (φ80x100)', url: 'textures/3in1_phi80x100.png', thumb: 'textures/thumbs/3in1_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+  { name: '4-in-1 (φ80x100)', url: 'textures/4in1_phi80x100.png', thumb: 'textures/thumbs/4in1_phi80x100.webp', defaultScale: 1.0, category: 'multicolor' },
+
   // ── Random Organic Cells & Voronoi (非周期的・ランダム有機凹み・プラトーゼロ・φ80x100 最適化) ──
   { name: 'Organic Random Cells (φ80x100)',  url: 'textures/organic_orange_random_cells_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_cells_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
   { name: 'Organic Random Fluid (φ80x100)',  url: 'textures/organic_orange_random_fluid_phi80x100.png',  thumb: 'textures/thumbs/organic_orange_random_fluid_phi80x100.webp',  defaultScale: 1.0, category: 'multicolor' },
