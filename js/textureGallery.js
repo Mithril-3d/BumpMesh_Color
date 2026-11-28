@@ -11,16 +11,18 @@
 // downloaded again and deleted; the browser may evict that library at any time.
 
 import { IMAGE_PRESETS, PRESET_CATEGORIES, DEFAULT_FAVOURITES } from './presetTextures.js?v=20261121_07';
-import { listCustomTextures, saveCustomTexture, deleteCustomTexture, clearCustomTextures,
-         downloadCustomTexture } from './customTextures.js?v=20260929_130';
+import {
+  listCustomTextures, saveCustomTexture, deleteCustomTexture, clearCustomTextures,
+  downloadCustomTexture
+} from './customTextures.js?v=20260929_130';
 import { t } from './i18n.js?v=20260929_130';
 
 const FAV_KEY = 'bumpmesh-favourites';
 const TURNTABLE_KEY = 'bumpmesh-gallery-turntable';
 const CREDITS = {
-  hero: { badge: 'HP',  title: 'Hero Patterns (CC BY 4.0)' },
-  cc0:  { badge: 'CC0', title: 'CC0' },
-  ff:   { badge: 'FF',  title: 'Filter Forge' },
+  hero: { badge: 'HP', title: 'Hero Patterns (CC BY 4.0)' },
+  cc0: { badge: 'CC0', title: 'CC0' },
+  ff: { badge: 'FF', title: 'Filter Forge' },
 };
 const KEY_APPLY_DELAY_MS = 150;   // arrow-key browsing applies once the key rests, not per repeat
 // Presets are keyed by name, the user's own textures by this prefix + library id. The key is also
@@ -131,19 +133,19 @@ function makeSwatch(item, onPick, deferSrc = false, observerRoot = null) {
  *   onSelect / onSelectCustom are called when the user picks a preset / one of their own textures;
  *   setTurntable spins the main viewport (onStop fires when the user takes over the view).
  */
-export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
-  const panelGrid  = document.getElementById('preset-grid');
-  const openBtn    = document.getElementById('texture-gallery-btn');
-  const openCount  = document.getElementById('texture-gallery-count');
-  const panel      = document.getElementById('gallery-panel');
-  const settings   = document.getElementById('settings-panel');
-  const doneBtn    = document.getElementById('gallery-done');
-  const spinBtn    = document.getElementById('gallery-turntable');
-  const search     = document.getElementById('gallery-search');
-  const chipsEl    = document.getElementById('gallery-chips');
+export function initTextureGallery({ onSelect, onSelectCustom, onClear, setTurntable }) {
+  const panelGrid = document.getElementById('preset-grid');
+  const openBtn = document.getElementById('texture-gallery-btn');
+  const openCount = document.getElementById('texture-gallery-count');
+  const panel = document.getElementById('gallery-panel');
+  const settings = document.getElementById('settings-panel');
+  const doneBtn = document.getElementById('gallery-done');
+  const spinBtn = document.getElementById('gallery-turntable');
+  const search = document.getElementById('gallery-search');
+  const chipsEl = document.getElementById('gallery-chips');
   const favCountEl = document.getElementById('gallery-fav-count');
-  const resetBtn   = document.getElementById('gallery-fav-reset');
-  const body       = document.getElementById('gallery-body');
+  const resetBtn = document.getElementById('gallery-fav-reset');
+  const body = document.getElementById('gallery-body');
 
   let favourites = loadFavourites();
   let customs = [];              // library metadata, newest first
@@ -184,6 +186,28 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
   // ── Panel: favourites grid ──────────────────────────────────────────────
   function renderPanel() {
     panelGrid.innerHTML = '';
+
+    // Top-left tile: Clear / No Texture
+    if (onClear) {
+      const clearEl = document.createElement('div');
+      clearEl.className = 'preset-swatch preset-none-swatch';
+      clearEl.dataset.key = '__none__';
+      clearEl.setAttribute('role', 'button');
+      clearEl.tabIndex = 0;
+      clearEl.title = 'テクスチャを削除（なし）';
+      clearEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>';
+      const lbl = document.createElement('span');
+      lbl.className = 'preset-label';
+      lbl.textContent = 'テクスチャ削除';
+      clearEl.appendChild(lbl);
+      const triggerClear = () => { onClear(); };
+      clearEl.addEventListener('click', triggerClear);
+      clearEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); triggerClear(); }
+      });
+      panelGrid.appendChild(clearEl);
+    }
+
     const keys = shownFavourites();
     // A preset picked in the gallery gets a tile after the favourites, so the panel always shows
     // what is on the model. It stays until another non-favourite pick replaces it.
@@ -278,7 +302,7 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
   function buildChips() {
     chipsEl.innerHTML = '';
     const defs = [{ id: 'all', label: 'gallery.catAll' }, { id: 'favourites', label: 'gallery.catFavourites' },
-                  CUSTOM_CATEGORY, ...PRESET_CATEGORIES];
+      CUSTOM_CATEGORY, ...PRESET_CATEGORIES];
     for (const d of defs) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -393,7 +417,7 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
       } else {
         const pool = filter === 'favourites' ? shownFavourites()
           : filter === 'all' ? [...customKeys(), ...PRESET_ITEMS.map(it => it.key)]
-          : PRESET_ITEMS.filter(it => it.category === filter).map(it => it.key);
+            : PRESET_ITEMS.filter(it => it.category === filter).map(it => it.key);
         const keys = pool.filter(matches);
         if (keys.length) section(null, keys, frag);
         shown = keys.length;
@@ -429,7 +453,8 @@ export function initTextureGallery({ onSelect, onSelectCustom, setTurntable }) {
   /** Mirror active + loading state onto every swatch copy. */
   function syncState() {
     document.querySelectorAll('.preset-swatch[data-key]').forEach(el => {
-      el.classList.toggle('active', el.dataset.key === activeKey);
+      const isNone = (el.dataset.key === '__none__');
+      el.classList.toggle('active', isNone ? (activeKey === null) : (el.dataset.key === activeKey));
       el.classList.toggle('preset-loading-full', loadingKeys.has(el.dataset.key));
     });
   }

@@ -1,6 +1,6 @@
 # BumpMesh_Color
 
-[![Latest Release](https://img.shields.io/badge/version-v2.0.5-blue.svg?style=flat-square)](CHANGELOG.md)
+[![Latest Release](https://img.shields.io/badge/version-v2.1.0-blue.svg?style=flat-square)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **Live Web App:** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -194,6 +194,15 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 ## 🌟 What's New in Recent Updates
 
+- **v2.1.0 (Feature Release - 2026-11-28)**:
+  - **Multi-color Filament Mode (Co-extrusion / Surface Normal Shading)**:
+    - Added a third Shading Source in Interleaved Layer mode that assigns palette colors evenly across 360° based on each surface's horizontal normal direction (`atan2(ny, nx)`), reproducing dual-color / tri-color co-extrusion filament effects on arbitrarily complex 3D meshes without requiring any 2D texture map.
+    - Includes **Azimuth Angle** (5° slider + direct numeric input), **Boundary Sharpness**, and **Z Twist** (`°/mm`) controls with real-time WebGL preview and watertight multi-tool 3MF export.
+  - **Interactive Filament Color Picker & Clear Texture Tile**:
+    - Click any palette color swatch to freely pick custom filament colors; added a top-left **Clear Texture** tile in the Displacement Map grid while keeping procedural color modes (Multi-color Filament & Mesh Curvature) fully previewable and exportable without a texture.
+  - **3MF Non-Printable Volume Filtering & UI Polish**:
+    - Excluded slicer helper volumes (negative volumes, modifiers, support blockers) when importing PrusaSlicer / Bambu Studio 3MF files, suppressed stray texture bump artifacts in non-texture interleaved modes, unified sidebar typography & monochrome SVG icons, and moved Color & Multi-Tool right below Displacement Map.
+
 - **v2.0.4 (Patch Release - 2026-11-22)**:
   - **Multi-Island & Concave Contour Support in Halftone Weave (`weaveTubeGenerator.js`)**:
     - Upgraded `generateWeaveRubberBandTube()` from single-ray polar sampling to closed contour-loop stitching + 2D Ear-Clipping bottom/top capping, allowing complex shapes with **multiple islands** (e.g. cat ears, animal legs) and **concave contours** (e.g. C-shaped coiled koi) to print cleanly without bridging ears or filling cavities with solid discs.
@@ -341,7 +350,7 @@ Then open `http://localhost:8080` in your browser. All processing still runs 100
 
 # 日本語ドキュメント (Japanese)
 
-[![最新安定版](https://img.shields.io/badge/バージョン-v2.0.4--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
+[![最新安定版](https://img.shields.io/badge/バージョン-v2.1.0--最新安定版-blue.svg?style=flat-square)](CHANGELOG.md)
 [![ライセンス: AGPL-3.0](https://img.shields.io/badge/ライセンス-AGPL--3.0-green.svg?style=flat-square)](LICENSE)
 
 > 🚀 **ブラウザで今すぐ使う (Web App):** [**https://mithril-3d.github.io/BumpMesh_Color/**](https://mithril-3d.github.io/BumpMesh_Color/)  
@@ -535,6 +544,15 @@ python -m http.server 8080
 ---
 
 ## 🌟 最近の主な更新ハイライト (Recent Updates)
+
+- **v2.1.0 (機能追加リリース - 2026-11-28)**:
+  - **多色フィラメントモード（Co-extrusion / 法線方向）の追加**:
+    - 交互積層の陰影ソースに「多色フィラメント」を追加。2Dテクスチャを使わず、表面法線の水平方位角 `atan2(ny, nx)` に応じてパレットの N 色を 360° 均等割り当てし、複雑な3D形状でも「右から見たら色A・左から見たら色B」の多色フィラメント風表現をリアルタイムプレビュー＆マルチカラー3MF出力可能に。
+    - **方位角 / 回転**（5°刻みスライダー＋直接数値入力）、**境界シャープさ**、**Zツイスト**（`°/mm`）の3パラメータを搭載。
+  - **フィラメント色の自由変更ピッカー ＆「テクスチャ削除」タイル追加**:
+    - パレットの色チップをクリックしてフィラメント色を自由に変更可能に。ディスプレイスメントマップ一覧の左上に「テクスチャ削除」タイルを追加し、テクスチャなしでも多色フィラメント／モデルの凹凸モードをそのまま利用可能に。
+  - **3MF非造形ボリューム除外・プレビューバンプ修正・UIブラッシュアップ**:
+    - PrusaSlicer / Bambu Studio 3MF 読込時の負のボリューム・モディファイア等の混入を除外。非テクスチャ交互積層時の不要なテクスチャバンプ重畳を解消し、サイドバー見出しサイズ統一・モノクロSVGアイコン化・Color & Multi-Tool の配置最適化を実施。
 
 - **v2.0.4 (パッチリリース - 2026-11-22)**:
   - **ハーフトーン編み（輪ゴム積層）の複数島・凹輪郭（C字形状）完全対応 (`weaveTubeGenerator.js`)**:

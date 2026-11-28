@@ -388,6 +388,84 @@ export function computeLouverDisplacement(
 }
 
 /**
+ * Compute Co-extrusion / Multi-color Filament blend from surface normal azimuth (XY plane)
+ * and optional Z-axis twist.
+ *
+ * Maps the horizontal normal direction atan2(ny, nx) evenly across all N tools in `toolIds`
+ * (e.g. 2 tools = 180° apart, 3 tools = 120° apart, N tools = 360°/N apart) with adjustable
+ * transition sharpness and Z-twist.
+ *
+ * @param {number} nx - surface normal X
+ * @param {number} ny - surface normal Y
+ * @param {number} zRel - height above model base in mm (>= 0)
+ * @param {Array<number>} toolIds - active palette tool IDs
+ * @param {object} [options]
+ * @param {number} [options.angleDeg=0] - azimuth offset in degrees (0..360)
+ * @param {number} [options.sharpness=0.3] - boundary sharpness (0 = smooth, 1 = crisp step)
+ * @param {number} [options.twistDegPerMm=0] - Z-axis rotation rate in deg/mm
+ * @param {boolean} [options.invert=false] - reverse tool order around the azimuth
+ * @param {number} [options.shadingMode=1] - 0 = discrete step, 1 = continuous gradient
+ * @returns {{ targetTool: number, blendWeight: number, multiColorInfo: { toolA: number, toolB: number, t: number } }}
+ */
+export function computeFilamentBlend(nx, ny, zRel = 0, toolIds = [1, 2], options = {}) {
+  const n = (toolIds && toolIds.length > 0) ? toolIds.length : 1;
+  if (n === 1) {
+    const t0 = (toolIds && toolIds.length > 0) ? toolIds[0] : 1;
+    return {
+      targetTool: t0,
+      blendWeight: 1.0,
+      multiColorInfo: { toolA: t0, toolB: t0, t: 1.0 }
+    };
+  }
+
+  const angleDeg = options.angleDeg ?? 0;
+  const sharpness = Math.max(0, Math.min(1, options.sharpness ?? 0.3));
+  const twistDegPerMm = options.twistDegPerMm ?? 0;
+  const invert = !!options.invert;
+  const shadingMode = options.shadingMode ?? 1;
+
+  const hlen = Math.hypot(nx, ny);
+  const theta = (hlen > 1e-5) ? Math.atan2(ny, nx) : 0.0;
+  const offsetRad = (angleDeg + Math.max(0, zRel) * twistDegPerMm) * (Math.PI / 180.0);
+
+  const TWO_PI = Math.PI * 2.0;
+  let phi = (theta - offsetRad) % TWO_PI;
+  if (phi < 0) phi += TWO_PI;
+
+  const u = phi / TWO_PI; // [0, 1)
+  const s = u * n;        // [0, n)
+  let idxA = Math.floor(s) % n;
+  let idxB = (idxA + 1) % n;
+  const frac = s - Math.floor(s); // [0, 1)
+
+  // Symmetric transition curve centered at frac = 0.5
+  const band = Math.max(0.001, 1.0 - sharpness * 0.96);
+  const x = Math.max(0.0, Math.min(1.0, (frac - 0.5) / band + 0.5));
+  const blendB = x * x * (3.0 - 2.0 * x);
+  let tA = 1.0 - blendB;
+
+  if (shadingMode === 0) {
+    tA = (tA >= 0.5) ? 1.0 : 0.0;
+  }
+
+  if (invert) {
+    idxA = (n - 1) - idxA;
+    idxB = (n - 1) - idxB;
+  }
+
+  const toolA = toolIds[idxA];
+  const toolB = toolIds[idxB];
+  const targetTool = (tA >= 0.5) ? toolA : toolB;
+  const blendWeight = (idxA === 0) ? tA : ((idxB === 0) ? (1.0 - tA) : 0.0);
+
+  return {
+    targetTool,
+    blendWeight,
+    multiColorInfo: { toolA, toolB, t: tA }
+  };
+}
+
+/**
  * Generate slicing layer table for display
  */
 export function generateInterleavedTable(minZ, maxZ, thickness, toolIds, palette) {

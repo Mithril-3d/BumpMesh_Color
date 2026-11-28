@@ -553,9 +553,10 @@ export function generateWeaveRubberBandTube({
     const z_top = Math.fround(minZ + (lay + 1) * t);
     const z_mid = (z_bot + z_top) * 0.5;
     const activeTool = toolIds[lay % L];
-    const isToolWeave = (toolWeaveModes && toolWeaveModes[activeTool] !== undefined)
-      ? !!toolWeaveModes[activeTool]
+    const modeVal = (toolWeaveModes && toolWeaveModes[activeTool] !== undefined)
+      ? toolWeaveModes[activeTool]
       : true;
+    const isToolWeave = (modeVal !== false && modeVal !== 'flat');
     const colIdx = lay % L;
     const cycle = Math.floor(lay / L);
     const layerPhase = (colIdx * (2.0 * Math.PI / L)) + (cycle % 2) * Math.PI;

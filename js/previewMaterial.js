@@ -63,6 +63,9 @@ const sharedGLSL = /* glsl */`
   uniform float     interleavedGamma;
   uniform int       interleavedInvertTools;
   uniform int       shadingSource;
+  uniform float     filamentAngle;
+  uniform float     filamentSharpness;
+  uniform float     filamentTwist;
   uniform vec3      untexturedColor;
   uniform int       interleavedExclusionMode;
   uniform int       interleavedEnableBaseDisplacement;
@@ -628,6 +631,63 @@ const sharedGLSL = /* glsl */`
       }
     }
   }
+
+  void evalFilamentBlend(
+    vec3 projN,
+    float zRel,
+    out int idxA,
+    out int idxB,
+    out vec3 colA,
+    out vec3 colB,
+    out float tA
+  ) {
+    int n = max(1, interleavedToolCount);
+    if (n == 1) {
+      idxA = 0;
+      idxB = 0;
+      colA = interleavedPalette[0];
+      colB = interleavedPalette[0];
+      tA = 1.0;
+      return;
+    }
+
+    float hlen = length(projN.xy);
+    float theta = (hlen > 1e-5) ? atan(projN.y, projN.x) : 0.0;
+    float offsetRad = radians(filamentAngle + max(0.0, zRel) * filamentTwist);
+    float twoPi = 2.0 * PI;
+    float phi = mod(mod(theta - offsetRad, twoPi) + twoPi, twoPi);
+    float u = phi / twoPi;
+    float s = u * float(n);
+    int iA = int(floor(s));
+    if (iA >= n) iA = n - 1;
+    if (iA < 0) iA = 0;
+    int iB = (iA + 1 >= n) ? 0 : (iA + 1);
+    float frac = fract(s);
+
+    float sharp = clamp(filamentSharpness, 0.0, 1.0);
+    float band = max(0.001, 1.0 - sharp * 0.96);
+    float x = clamp((frac - 0.5) / band + 0.5, 0.0, 1.0);
+    float blendB = x * x * (3.0 - 2.0 * x);
+    tA = 1.0 - blendB;
+
+    if (interleavedShadingMode == 0) {
+      tA = (tA >= 0.5) ? 1.0 : 0.0;
+    }
+
+    if (interleavedInvertTools == 1) {
+      iA = (n - 1) - iA;
+      iB = (n - 1) - iB;
+    }
+
+    idxA = iA;
+    idxB = iB;
+    colA = interleavedPalette[0];
+    colB = interleavedPalette[0];
+    for (int k = 0; k < 8; k++) {
+      if (k == idxA) colA = interleavedPalette[k];
+      if (k == idxB) colB = interleavedPalette[k];
+    }
+  }
 #endif
 #endif
 `;
@@ -637,22 +697,33 @@ const vertexColorGLSL = /* glsl */`
   // Compute displacement height for color mode (vertex shader only)
   float computeColorHeightAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
     if (colorSubMode == 1) {
-      vec3 cTarget;
-      if (shadingSource == 1) {
-        float lum = clamp(curvLum, 0.0, 1.0);
-        cTarget = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
-      } else {
-        cTarget = compositeRawColor(pos, projN, blendN, w);
-      }
       float zRel = max(0.0, pos.z - boundsMin.z);
       float t = max(0.01, interleavedThickness);
       int layerIdx = int(floor(zRel / t));
       int numTools = max(1, interleavedToolCount);
       int activeK = int(mod(float(layerIdx), float(numTools)));
 
+      vec3 cTarget = vec3(0.0);
+      int filIdxA = 0;
+      int filIdxB = 0;
+      vec3 filColA = vec3(1.0);
+      vec3 filColB = vec3(1.0);
+      float filTA = 1.0;
+
+      if (shadingSource == 2) {
+        evalFilamentBlend(projN, zRel, filIdxA, filIdxB, filColA, filColB, filTA);
+      } else if (shadingSource == 1) {
+        float lum = clamp(curvLum, 0.0, 1.0);
+        cTarget = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
+      } else {
+        cTarget = compositeRawColor(pos, projN, blendN, w);
+      }
+
       if (interleavedShadingMode == 1 && interleavedToolCount >= 2) {
         float exposure = 0.5;
-        if (interleavedToolCount == 2) {
+        if (shadingSource == 2) {
+          exposure = (activeK == filIdxA) ? filTA : ((activeK == filIdxB) ? (1.0 - filTA) : 0.0);
+        } else if (interleavedToolCount == 2) {
           float lum0 = dot(interleavedPalette[0], vec3(0.2126, 0.7152, 0.0722));
           float lum1 = dot(interleavedPalette[1], vec3(0.2126, 0.7152, 0.0722));
           float pixLum = dot(cTarget, vec3(0.2126, 0.7152, 0.0722));
@@ -744,14 +815,18 @@ const vertexColorGLSL = /* glsl */`
         return base + zFrac * slope;
       } else {
         int bestK = 0;
-        float bestDist = 1e6;
-        for (int k = 0; k < 8; k++) {
-          if (k >= interleavedToolCount) break;
-          vec3 diff = cTarget - interleavedPalette[k];
-          float d = dot(diff, diff);
-          if (d < bestDist) {
-            bestDist = d;
-            bestK = k;
+        if (shadingSource == 2) {
+          bestK = (filTA >= 0.5) ? filIdxA : filIdxB;
+        } else {
+          float bestDist = 1e6;
+          for (int k = 0; k < 8; k++) {
+            if (k >= interleavedToolCount) break;
+            vec3 diff = cTarget - interleavedPalette[k];
+            float d = dot(diff, diff);
+            if (d < bestDist) {
+              bestDist = d;
+              bestK = k;
+            }
           }
         }
         float exposure = (activeK == bestK) ? 1.0 : 0.0;
@@ -816,7 +891,7 @@ const fragmentColorGLSL = /* glsl */`
 #if USE_COLOR == 1
   // Compute final surface color at a world-space point (fragment shader only)
   vec3 computeColorAtPoint(vec3 pos, vec3 projN, vec3 blendN, float curvLum, vec4 w) {
-    vec3 rawCol = (colorSubMode == 1 && shadingSource == 1)
+    vec3 rawCol = (colorSubMode == 1 && (shadingSource == 1 || shadingSource == 2))
       ? vec3(0.0)
       : compositeRawColor(pos, projN, blendN, w);
   #if USE_INTERLEAVED == 1
@@ -827,7 +902,17 @@ const fragmentColorGLSL = /* glsl */`
       int activeK = int(mod(float(abs(layerIdx)), float(max(1, interleavedToolCount))));
 
       vec3 baseCol;
-      if (shadingSource == 1) {
+      if (shadingSource == 2) {
+        int filIdxA;
+        int filIdxB;
+        vec3 filColA;
+        vec3 filColB;
+        float filTA;
+        evalFilamentBlend(projN, zRel, filIdxA, filIdxB, filColA, filColB, filTA);
+        baseCol = (interleavedShadingMode == 1)
+          ? mix(filColB, filColA, clamp(filTA, 0.0, 1.0))
+          : ((filTA >= 0.5) ? filColA : filColB);
+      } else if (shadingSource == 1) {
         float lum = clamp(curvLum, 0.0, 1.0);
         baseCol = (interleavedToolCount >= 2) ? mix(interleavedPalette[1], interleavedPalette[0], lum) : vec3(lum);
       } else {
@@ -1104,13 +1189,24 @@ const fragmentShader = /* glsl */`
     // breaks on a uniform into code that silently yields zero, which made the
     // preview surface look flat while the silhouette still displaced.
     float dhx = 0.0, dhy = 0.0, coverSum = 0.0;
-    bumpLayer(0, PN, w.x, dhx, dhy, coverSum);
-  #if SINGLE_LAYER == 0
-    if (layerCount > 1) bumpLayer(1, PN, w.y, dhx, dhy, coverSum);
-    if (layerCount > 2) bumpLayer(2, PN, w.z, dhx, dhy, coverSum);
-    if (layerCount > 3) bumpLayer(3, PN, w.w, dhx, dhy, coverSum);
+    bool suppressTextureBump = false;
+  #if USE_COLOR == 1 && USE_INTERLEAVED == 1
+    if (useColorTexture == 1 && colorSubMode == 1 &&
+        (shadingSource == 1 || shadingSource == 2 || interleavedEnableBaseDisplacement == 0)) {
+      suppressTextureBump = true;
+    }
   #endif
-    coverSum = clamp(coverSum, 0.0, 1.0);
+    if (suppressTextureBump) {
+      coverSum = clamp(w.x, 0.0, 1.0);
+    } else {
+      bumpLayer(0, PN, w.x, dhx, dhy, coverSum);
+    #if SINGLE_LAYER == 0
+      if (layerCount > 1) bumpLayer(1, PN, w.y, dhx, dhy, coverSum);
+      if (layerCount > 2) bumpLayer(2, PN, w.z, dhx, dhy, coverSum);
+      if (layerCount > 3) bumpLayer(3, PN, w.w, dhx, dhy, coverSum);
+    #endif
+      coverSum = clamp(coverSum, 0.0, 1.0);
+    }
 
     vec3 dp1 = dFdx(vViewPos);
     vec3 dp2 = dFdy(vViewPos);
@@ -1129,14 +1225,18 @@ const fragmentShader = /* glsl */`
       ? 2.0 / posScale
       : 6.0 / posScale;
 
-    vec3 bumpVec = N - bumpStr * (dhx * T + dhy * B);
-    vec3 bumpN = length(bumpVec) > 1e-6 ? normalize(bumpVec) : N;
-
-    // On fully masked faces the bump derivatives are zero, so bumpN falls
-    // back to the flat face normal → faceted/static look.  Blend toward
-    // the smooth interpolated normal so masked areas get smooth shading.
     vec3 smoothN = normalize(vSmoothNormal) * (gl_FrontFacing ? 1.0 : -1.0);
-    bumpN = mix(smoothN, bumpN, coverSum);
+    vec3 bumpN;
+    if (suppressTextureBump) {
+      bumpN = smoothN;
+    } else {
+      vec3 bumpVec = N - bumpStr * (dhx * T + dhy * B);
+      bumpN = length(bumpVec) > 1e-6 ? normalize(bumpVec) : N;
+      // On fully masked faces the bump derivatives are zero, so bumpN falls
+      // back to the flat face normal → faceted/static look.  Blend toward
+      // the smooth interpolated normal so masked areas get smooth shading.
+      bumpN = mix(smoothN, bumpN, coverSum);
+    }
 
     // ── Shading ───────────────────────────────────────────────────────────
     // Compute lighting identically for ALL surfaces using the teal base (or color texture) so
@@ -1358,7 +1458,13 @@ export function updateMaterial(material, layers, settings) {
   u.interleavedInvertTools.value = settings.interleavedInvertTools ?? 0;
   u.interleavedToolWeaveMask.value = settings.interleavedToolWeaveMask ?? 0xFFFF;
   u.interleavedFlatAmpScale.value = settings.interleavedFlatAmpScale ?? 1.0;
-  u.shadingSource.value = settings.shadingSource ?? 0;
+  u.interleavedEnableBaseDisplacement.value = settings.interleavedEnableBaseDisplacement ? 1 : 0;
+  u.shadingSource.value = typeof settings.shadingSource === 'number'
+    ? settings.shadingSource
+    : (SHADING_SOURCE_INDEX[settings.shadingSource] ?? 0);
+  u.filamentAngle.value = settings.filamentAngle ?? 0.0;
+  u.filamentSharpness.value = settings.filamentSharpness ?? 0.30;
+  u.filamentTwist.value = settings.filamentTwist ?? 0.0;
   if (settings.untexturedColor) {
     u.untexturedColor.value.copy(settings.untexturedColor);
   }
@@ -1422,6 +1528,9 @@ function buildUniforms() {
     interleavedToolWeaveMask: { value: 0xFFFF },
     interleavedFlatAmpScale: { value: 1.0 },
     shadingSource:        { value: 0 },
+    filamentAngle:        { value: 0.0 },
+    filamentSharpness:    { value: 0.30 },
+    filamentTwist:        { value: 0.0 },
     untexturedColor:      { value: new THREE.Vector3(0.68, 0.08, 0.22) },
     boundsMin:       { value: new THREE.Vector3() },
     boundsSize:       { value: new THREE.Vector3(1, 1, 1) },
@@ -1441,6 +1550,8 @@ function buildUniforms() {
 
 // Maps settings.boundaryFalloffCurve to the shader's integer uniform.
 const FALLOFF_CURVE_INDEX = { linear: 0, scurve: 1, ease: 2 };
+// Maps settings.shadingSource to the shader's integer uniform.
+const SHADING_SOURCE_INDEX = { texture: 0, curvature: 1, filament: 2 };
 
 // One shared mid-grey texture for unused layer slots (never displaces).
 let _fallback = null;

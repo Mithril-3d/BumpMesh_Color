@@ -338,8 +338,68 @@ export function parse3MF(data) {
     meter:      1000,
   };
 
+  // Parse slicer metadata configs (PrusaSlicer Slic3r_PE_model.config & Bambu/Orca model_settings.config)
+  // so that non-printable helper volumes (negative volumes, modifiers, support blockers/enforcers)
+  // are excluded instead of being merged as solid geometry.
+  const NON_PRINT_VOLUME_TYPES = new Set([
+    'negativepart', 'negative_part',
+    'modifierpart', 'modifier_part', 'parametermodifier',
+    'supportblocker', 'support_blocker',
+    'supportenforcer', 'support_enforcer',
+  ]);
+  // objectId -> Array<[firstTri, lastTri]> (inclusive 0-based triangle indices)
+  const excludedTriRangesByObjId = new Map();
+  // Set of objectIds whose entire mesh is a non-printable part (Bambu/Orca model_settings.config)
+  const excludedPartIds = new Set();
+
+  const prusaConfigDoc = readXML('Metadata/Slic3r_PE_model.config');
+  if (prusaConfigDoc) {
+    const cfgObjs = prusaConfigDoc.getElementsByTagName('object');
+    for (const cfgObj of cfgObjs) {
+      const oid = cfgObj.getAttribute('id');
+      if (!oid) continue;
+      const vols = cfgObj.getElementsByTagName('volume');
+      for (const vol of vols) {
+        const firstId = parseInt(vol.getAttribute('firstid'), 10);
+        const lastId  = parseInt(vol.getAttribute('lastid'), 10);
+        if (!Number.isInteger(firstId) || !Number.isInteger(lastId) || lastId < firstId) continue;
+        let isNonPrint = false;
+        const metas = vol.getElementsByTagName('metadata');
+        for (const m of metas) {
+          const key = (m.getAttribute('key') || '').toLowerCase();
+          const val = (m.getAttribute('value') || '').toLowerCase();
+          if ((key === 'volume_type' || key === 'subtype') && NON_PRINT_VOLUME_TYPES.has(val)) {
+            isNonPrint = true;
+            break;
+          }
+          if (key === 'modifier' && (val === '1' || val === 'true')) {
+            isNonPrint = true;
+            break;
+          }
+        }
+        if (isNonPrint) {
+          let ranges = excludedTriRangesByObjId.get(oid);
+          if (!ranges) { ranges = []; excludedTriRangesByObjId.set(oid, ranges); }
+          ranges.push([firstId, lastId]);
+        }
+      }
+    }
+  }
+
+  const bambuConfigDoc = readXML('Metadata/model_settings.config');
+  if (bambuConfigDoc) {
+    const parts = bambuConfigDoc.getElementsByTagName('part');
+    for (const part of parts) {
+      const pid = part.getAttribute('id');
+      const subtype = (part.getAttribute('subtype') || '').toLowerCase();
+      if (pid && NON_PRINT_VOLUME_TYPES.has(subtype)) {
+        excludedPartIds.add(pid);
+      }
+    }
+  }
+
   // Parse all model files and collect objects by (filePath, id)
-  // objectMap: "path#id" → { vertices: Float32Array, triangles: Uint32Array }
+  // objectMap: "path#id" → { vertices: Float32Array, triangles: Uint32Array, id: string }
   const objectMap = new Map();
 
   // Find all .model files in the zip
@@ -351,6 +411,8 @@ export function parse3MF(data) {
     const objects = doc.getElementsByTagNameNS(NS_CORE, 'object');
     for (const obj of objects) {
       const id = obj.getAttribute('id');
+      const objType = (obj.getAttribute('type') || 'model').toLowerCase();
+      if (objType === 'support' || objType === 'other') continue;
       const meshEl = obj.getElementsByTagNameNS(NS_CORE, 'mesh')[0];
       if (!meshEl) continue; // component-only object, no inline mesh
 
@@ -379,7 +441,7 @@ export function parse3MF(data) {
 
       // Normalise path for lookup (strip leading slash, use forward slashes)
       const normPath = path.replace(/^\//, '').replace(/\\/g, '/');
-      objectMap.set(normPath + '#' + id, { vertices, triangles });
+      objectMap.set(normPath + '#' + id, { vertices, triangles, id });
     }
   }
 
@@ -484,11 +546,40 @@ export function parse3MF(data) {
     }
   }
 
-  // Build non-indexed BufferGeometry from all instances
-  let totalTris = 0;
-  for (const inst of instances) {
-    const mesh = objectMap.get(inst.meshKey);
-    if (mesh) totalTris += mesh.triangles.length / 3;
+  // Build non-indexed BufferGeometry from all instances, filtering out
+  // non-printable slicer helper volumes (negative volumes, modifiers, blockers).
+  function isTriExcluded(objId, triIndex) {
+    const ranges = excludedTriRangesByObjId.get(objId);
+    if (!ranges) return false;
+    for (let r = 0; r < ranges.length; r++) {
+      if (triIndex >= ranges[r][0] && triIndex <= ranges[r][1]) return true;
+    }
+    return false;
+  }
+
+  function countInstanceTris(applyFilter) {
+    let count = 0;
+    for (const inst of instances) {
+      const mesh = objectMap.get(inst.meshKey);
+      if (!mesh) continue;
+      if (applyFilter && excludedPartIds.has(mesh.id)) continue;
+      const nTri = mesh.triangles.length / 3;
+      if (!applyFilter || !excludedTriRangesByObjId.has(mesh.id)) {
+        count += nTri;
+      } else {
+        for (let ti = 0; ti < nTri; ti++) {
+          if (!isTriExcluded(mesh.id, ti)) count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  let applyFilter = (excludedTriRangesByObjId.size > 0 || excludedPartIds.size > 0);
+  let totalTris = countInstanceTris(applyFilter);
+  if (totalTris === 0 && applyFilter) {
+    applyFilter = false;
+    totalTris = countInstanceTris(false);
   }
 
   if (totalTris > MAX_3MF_TRIANGLES) {
@@ -504,8 +595,11 @@ export function parse3MF(data) {
   for (const inst of instances) {
     const mesh = objectMap.get(inst.meshKey);
     if (!mesh) continue;
-    const { vertices, triangles } = mesh;
-    for (let t = 0; t < triangles.length; t += 3) {
+    if (applyFilter && excludedPartIds.has(mesh.id)) continue;
+    const { vertices, triangles, id } = mesh;
+    const hasRanges = applyFilter && excludedTriRangesByObjId.has(id);
+    for (let t = 0, ti = 0; t < triangles.length; t += 3, ti++) {
+      if (hasRanges && isTriExcluded(id, ti)) continue;
       for (let v = 0; v < 3; v++) {
         const vi = triangles[t + v];
         tmpV.set(vertices[vi * 3], vertices[vi * 3 + 1], vertices[vi * 3 + 2]);

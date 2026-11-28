@@ -769,6 +769,9 @@ export function applyLayerAlignedDisplacement(
     return 1.0;
   }
 
+  // Reusable options object to eliminate per-vertex spread allocations
+  const _weaveOpts = weaveParams ? { ...weaveParams } : {};
+
   function computeDisplacement(
     activeTool,
     targetTool,
@@ -786,9 +789,17 @@ export function applyLayerAlignedDisplacement(
     v = null,
     island = null
   ) {
-    const weaveOptions = weaveParams
-      ? { ...weaveParams, x, y, nx, ny, u, v, cx: island?.cx, cy: island?.cy, waveCount: island?.waveCount, radius: island?.radius }
-      : { x, y, nx, ny, u, v, cx: island?.cx, cy: island?.cy, waveCount: island?.waveCount, radius: island?.radius };
+    _weaveOpts.x = x;
+    _weaveOpts.y = y;
+    _weaveOpts.nx = nx;
+    _weaveOpts.ny = ny;
+    _weaveOpts.u = u;
+    _weaveOpts.v = v;
+    _weaveOpts.cx = island ? island.cx : undefined;
+    _weaveOpts.cy = island ? island.cy : undefined;
+    _weaveOpts.waveCount = island ? island.waveCount : undefined;
+    _weaveOpts.radius = island ? island.radius : undefined;
+    const weaveOptions = _weaveOpts;
     if (isExcl) {
       if (exclMode === 1) {
         // Mode 2: OFF, ON - 指定ツールが出っ張り交互積層
@@ -852,47 +863,89 @@ export function applyLayerAlignedDisplacement(
     );
   }
 
-  // Shared per-(layer, vertex) displacement cache: guarantees every triangle and shelf
-  // sharing an edge at (lay, x, y, z) lands on the EXACT same displaced coordinate (0 open edges).
-  const vertDispCache = new Map();
-  function getDisplacedXY(lay, x, y, z, nx, ny, isExcl, layerFade) {
-    const vKey = `${lay}|${Math.round(x * 2000)},${Math.round(y * 2000)},${Math.round(z * 2000)}`;
-    const cached = vertDispCache.get(vKey);
-    if (cached) return cached;
+  // Per-layer numeric-keyed displacement cache backed by a growable Float32Array pool.
+  // Guarantees every triangle and shelf sharing an edge at (lay, x, y, z) lands on the EXACT
+  // same displaced coordinate (0 open edges) with zero per-vertex string/array allocations.
+  const vertDispCacheByLayer = new Array(actualMaxLay + 2);
+  let dispPoolCap = Math.max(16384, Math.min(triCount, 1 << 20));
+  let dispPoolX = new Float32Array(dispPoolCap);
+  let dispPoolY = new Float32Array(dispPoolCap);
+  let dispPoolLen = 0;
+  let _outDx = 0;
+  let _outDy = 0;
 
-    const hlen = Math.hypot(nx, ny);
-    if (hlen < 0.15 || layerFade <= 1e-6) {
-      const res = [x, y];
-      vertDispCache.set(vKey, res);
-      return res;
+  function computeDisplacedXY(lay, x, y, z, nx, ny, isExcl, layerFade) {
+    if (layerFade <= 1e-6) {
+      _outDx = x;
+      _outDy = y;
+      return;
     }
 
-    const unx = nx / hlen;
-    const uny = ny / hlen;
-    const activeTool = getInterleavedToolAtLayer(lay, toolIds);
-    const s = sampleFn(x, y, z, nx, ny, 0);
-    const island = layerIslands ? getNearestIsland(layerIslands, lay, x, y) : null;
-    let disp = computeDisplacement(
-      activeTool,
-      s.targetTool,
-      s.blendWeight,
-      lay,
-      z,
-      isExcl,
-      exclusionMode,
-      s.multiColorInfo,
-      x,
-      y,
-      nx,
-      ny,
-      s.u,
-      s.v,
-      island
-    );
-    disp *= layerFade;
-    const res = [Math.fround(x + disp * unx), Math.fround(y + disp * uny)];
-    vertDispCache.set(vKey, res);
-    return res;
+    let layerMap = vertDispCacheByLayer[lay];
+    if (!layerMap) {
+      layerMap = new Map();
+      vertDispCacheByLayer[lay] = layerMap;
+    }
+
+    const ix = Math.round(x * 2000);
+    const iy = Math.round(y * 2000);
+    const iz = Math.round((z - (minZ + lay * t)) * 2000);
+    const vKey = (ix >= -524288 && ix < 524288 && iy >= -524288 && iy < 524288 && iz >= -2048 && iz < 2048)
+      ? (((ix + 524288) * 1048576 + (iy + 524288)) * 4096 + (iz + 2048))
+      : `${ix},${iy},${Math.round(z * 2000)}`;
+
+    const cachedIdx = layerMap.get(vKey);
+    if (cachedIdx !== undefined) {
+      _outDx = dispPoolX[cachedIdx];
+      _outDy = dispPoolY[cachedIdx];
+      return;
+    }
+
+    const hlen = Math.hypot(nx, ny);
+    let dx = x;
+    let dy = y;
+    if (hlen >= 0.15) {
+      const unx = nx / hlen;
+      const uny = ny / hlen;
+      const activeTool = getInterleavedToolAtLayer(lay, toolIds);
+      const s = sampleFn(x, y, z, nx, ny, 0);
+      const island = layerIslands ? getNearestIsland(layerIslands, lay, x, y) : null;
+      const disp = computeDisplacement(
+        activeTool,
+        s.targetTool,
+        s.blendWeight,
+        lay,
+        z,
+        isExcl,
+        exclusionMode,
+        s.multiColorInfo,
+        x,
+        y,
+        nx,
+        ny,
+        s.u,
+        s.v,
+        island
+      ) * layerFade;
+      dx = Math.fround(x + disp * unx);
+      dy = Math.fround(y + disp * uny);
+    }
+
+    if (dispPoolLen >= dispPoolCap) {
+      dispPoolCap *= 2;
+      const nextX = new Float32Array(dispPoolCap);
+      const nextY = new Float32Array(dispPoolCap);
+      nextX.set(dispPoolX);
+      nextY.set(dispPoolY);
+      dispPoolX = nextX;
+      dispPoolY = nextY;
+    }
+    const slot = dispPoolLen++;
+    dispPoolX[slot] = dx;
+    dispPoolY[slot] = dy;
+    layerMap.set(vKey, slot);
+    _outDx = dx;
+    _outDy = dy;
   }
 
   for (let i = 0; i < triCount; i++) {
@@ -938,17 +991,16 @@ export function applyLayerAlignedDisplacement(
       const nz = inNrm ? inNrm[idx + 2] : 1;
 
       if (isHorizontalCap || layerFade <= 1e-6) {
-        const [dx, dy] = getDisplacedXY(lay, x, y, z, nx, ny, isExcluded, 0.0);
-        outPos[idx]     = dx;
-        outPos[idx + 1] = dy;
+        outPos[idx]     = x;
+        outPos[idx + 1] = y;
         outPos[idx + 2] = z;
         outNrm[idx]     = nx;
         outNrm[idx + 1] = ny;
         outNrm[idx + 2] = nz;
       } else {
-        const [dx, dy] = getDisplacedXY(lay, x, y, z, nx, ny, isExcluded, layerFade);
-        outPos[idx]     = dx;
-        outPos[idx + 1] = dy;
+        computeDisplacedXY(lay, x, y, z, nx, ny, isExcluded, layerFade);
+        outPos[idx]     = _outDx;
+        outPos[idx + 1] = _outDy;
         outPos[idx + 2] = z;
         outNrm[idx]     = nx;
         outNrm[idx + 1] = ny;
@@ -1023,10 +1075,14 @@ export function applyLayerAlignedDisplacement(
         const isExcl0 = vertExcluded ? Boolean(vertExcluded[id0]) : false;
         const isExcl1 = vertExcluded ? Boolean(vertExcluded[id1]) : false;
 
-        const [p0_bot_x, p0_bot_y] = getDisplacedXY(botLay, p0[0], p0[1], p0[2], n0[0], n0[1], isExcl0, botFade);
-        const [p1_bot_x, p1_bot_y] = getDisplacedXY(botLay, p1[0], p1[1], p1[2], n1[0], n1[1], isExcl1, botFade);
-        const [p0_top_x, p0_top_y] = getDisplacedXY(topLay, p0[0], p0[1], p0[2], n0[0], n0[1], isExcl0, topFade);
-        const [p1_top_x, p1_top_y] = getDisplacedXY(topLay, p1[0], p1[1], p1[2], n1[0], n1[1], isExcl1, topFade);
+        computeDisplacedXY(botLay, p0[0], p0[1], p0[2], n0[0], n0[1], isExcl0, botFade);
+        const p0_bot_x = _outDx, p0_bot_y = _outDy;
+        computeDisplacedXY(botLay, p1[0], p1[1], p1[2], n1[0], n1[1], isExcl1, botFade);
+        const p1_bot_x = _outDx, p1_bot_y = _outDy;
+        computeDisplacedXY(topLay, p0[0], p0[1], p0[2], n0[0], n0[1], isExcl0, topFade);
+        const p0_top_x = _outDx, p0_top_y = _outDy;
+        computeDisplacedXY(topLay, p1[0], p1[1], p1[2], n1[0], n1[1], isExcl1, topFade);
+        const p1_top_x = _outDx, p1_top_y = _outDy;
 
         const p0_bot_z = p0[2];
         const p1_bot_z = p1[2];

@@ -12,13 +12,13 @@ import { initViewer, loadGeometry, setMeshMaterial, setMeshGeometry, setWirefram
          setRotationGizmo, isGizmoDragging, getViewerThumbnail,
          generateColorThumbnail,
          updateSceneBounds, fitCameraToMesh, setTurntable } from './viewer.js?v=20260929_130';
-import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js?v=20261121_10';
+import { loadModelFile, computeBounds, getTriangleCount, loadSTLFromUrl, loadOBJFromUrl }  from './stlLoader.js?v=20261128_02';
 import { estimateStep } from './stepLoader.js?v=20260908d';
 import { resolveStepSettings } from './stepConvert.js?v=20260908d';
 import { computeSmartResolution } from './smartResolution.js?v=20260908d';
 import { loadFullPreset, buildThumbPreviewPreset, prefetchDefaultFavourites, loadCustomTexture, IMAGE_PRESETS }  from './presetTextures.js?v=20261121_07';
 import { getCustomTextureFile } from './customTextures.js?v=20260929_130';
-import { initTextureGallery } from './textureGallery.js?v=20261121_07';
+import { initTextureGallery } from './textureGallery.js?v=20261128_05';
 import { initSidebarToggle } from './sidebarToggle.js?v=20260929_130';
 import { initTuringController } from './turingController.js?v=20261002_143';
 import { computeMeshCurvatureShading } from './meshCurvature.js?v=20261003_151';
@@ -39,7 +39,7 @@ import {
   applyProfile,
   lerpColor,
 } from './textureGenerator.js?v=20260929_130';
-import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261121_08';
+import { createPreviewMaterial, updateMaterial, MAX_LAYERS } from './previewMaterial.js?v=20261128_04';
 import { PaintTree } from './paintTree.js';
 import { subdivide }          from './subdivision.js?v=20260908d';
 import { regularizeMesh }     from './regularize.js?v=20260908d';
@@ -53,9 +53,10 @@ import {
   computeColorBlendWeight,
   computeLuminanceBlendWeight,
   computeMultiColorBlend,
+  computeFilamentBlend,
   generateInterleavedTable
-} from './layerBlending.js?v=20261121_04';
-import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261121_04';
+} from './layerBlending.js?v=20261128_01';
+import { sliceMeshWatertight, applyLayerAlignedDisplacement } from './layerSlicing.js?v=20261128_01';
 import { generateWeaveRubberBandTube } from './weaveTubeGenerator.js?v=20261122_17';
 import { sampleRGBBilinear } from './displacement.js?v=20260929_130';
 import { buildAdjacency, bucketFill,
@@ -63,12 +64,12 @@ import { buildAdjacency, bucketFill,
 import { buildSoftExclusion, softPaintedFaces } from './softMask.js';
 import { runFastDiagnostics, runExpensiveDiagnostics,
          getEdgePositions, getShellAssignments } from './meshValidation.js?v=20260908d';
-import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20260929_130';
+import { t, tHtml, initLang, setLang, getLang, applyTranslations, TRANSLATIONS } from './i18n.js?v=20261128_02';
 import { getScaleReferenceLengths, computeUV, MODE_CYLINDRICAL, MODE_MESH_UV, MODE_SURFACE_NORMAL,
          isStampActive, stampFrame, stampUV, stampUntouchedFaces, buildStampDepth,
          STAMP_DEPTH_RES, stampAxes, stampSurfaceAt } from './mapping.js?v=20261031_2115';
 import { QuantizedPointMap } from './meshIndex.js';
-import { APP_VERSION } from './version.js?v=20261122_11';
+import { APP_VERSION } from './version.js?v=20261128_07';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -586,7 +587,16 @@ function _setLayerBlendAdd(idx, blendAdd) {
   _commitUndoCapture();
 }
 
+function _isProceduralColorActive() {
+  return Boolean(
+    colorModeToggle?.checked &&
+    currentColorSubMode === 1 &&
+    (interleavedSettings.shadingSource === 'filament' || interleavedSettings.shadingSource === 'curvature')
+  );
+}
+
 function _hasTexturedLayer() {
+  if (_isProceduralColorActive()) return true;
   if (activeMapEntry) return true;
   return layers.some((L, i) => i !== activeLayer && L.visible && L.mapEntry);
 }
@@ -1224,6 +1234,14 @@ const curvatureBiasVal                = document.getElementById('curvature-bias-
 const curvatureSmoothSlider           = document.getElementById('curvature-smooth');
 const curvatureSmoothVal              = document.getElementById('curvature-smooth-val');
 const curvatureInvertChk              = document.getElementById('curvature-invert');
+const filamentOptionsContainer        = document.getElementById('filament-options-container');
+const filamentAngleSlider             = document.getElementById('filament-angle');
+const filamentAngleInput              = document.getElementById('filament-angle-input');
+const filamentSharpnessSlider         = document.getElementById('filament-sharpness');
+const filamentSharpnessVal            = document.getElementById('filament-sharpness-val');
+const filamentTwistSlider             = document.getElementById('filament-twist');
+const filamentTwistVal                = document.getElementById('filament-twist-val');
+const paletteCustomColorHint          = document.getElementById('palette-custom-color-hint');
 const interleavedShadingModeSelect    = document.getElementById('interleaved-shading-mode');
 const interleavedGammaRow             = document.getElementById('interleaved-gamma-row');
 const interleavedGammaSlider          = document.getElementById('interleaved-gamma');
@@ -1253,12 +1271,15 @@ let interleavedSettings          = {
   gamma: 1.00,    // 1.0 = standard linear, <1 brightens darks, >1 deepens blacks
   invertTools: false, // Invert Tool 1 <-> Tool 2 exposure mapping
   exclusionMode: 0, // 0: OFF/OFF, 1: OFF/ON, 2: ON/OFF, 3: ON/ON
-  shadingSource: 'texture', // 'texture' or 'curvature'
+  shadingSource: 'texture', // 'texture' | 'curvature' | 'filament'
   curvatureRadius: 3.5, // mm
   curvatureScale: 1.0,
   curvatureBias: 0.50,
   curvatureSmooth: 2,
   curvatureInvert: false,
+  filamentAngle: 0,       // degrees (0..360)
+  filamentSharpness: 0.30, // 0..1
+  filamentTwist: 0.0,     // deg/mm (-10..10)
   toolWeaveModes: {}, // { [toolId]: boolean } - true (default) = Weave wave, false = Flat circle
   flatAmpScale: 1.0,  // Protrusion amplitude multiplier for tools set to Flat in Profile 5
   weaveSolidFill: false, // false = hollow rubber band shell, true = full solid fill per layer
@@ -2084,9 +2105,23 @@ const DEFAULT_PRESET_NAME = 'Blue Porcelain';
 let _activePresetIdx = -1;   // preset picked most recently (set before its texture finishes loading)
 PRESETS = IMAGE_PRESETS.map(p => ({ name: p.name, defaultScale: p.defaultScale }));
 
+function clearActiveTexture() {
+  activeMapEntry = null;
+  _effectiveMapCache = null;
+  _effectiveMapCacheKey = null;
+  _quantizedTextureCache = null;
+  if (layers[activeLayer]) layers[activeLayer].mapEntry = null;
+  gallery.markActive(-1);
+  if (customMapSwatch) customMapSwatch.classList.remove('active');
+  updatePreview();
+  _autoSaveSettings();
+  _scheduleUndoCapture();
+}
+
 const gallery = initTextureGallery({
   onSelect: (idx) => selectPreset(idx).then(_scheduleUndoCapture),
   onSelectCustom: (id) => selectCustomTexture(id).then(_scheduleUndoCapture),
+  onClear: clearActiveTexture,
   setTurntable,
 });
 gallery.refreshText();
@@ -2575,6 +2610,30 @@ function renderPaletteUI() {
     const chip = document.createElement('div');
     chip.className = 'palette-color-chip';
     chip.style.backgroundColor = item.hex;
+    chip.title = 'クリックしてフィラメントの色を変更';
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.className = 'palette-color-picker';
+    colorInput.value = /^#[0-9a-fA-F]{6}$/.test(item.hex) ? item.hex : '#ffffff';
+    colorInput.setAttribute('aria-label', `Tool ${item.toolId} の色を変更`);
+    colorInput.addEventListener('click', (e) => e.stopPropagation());
+    colorInput.addEventListener('input', (e) => {
+      const newHex = e.target.value.toLowerCase();
+      const { r, g, b } = hexToRgb(newHex);
+      item.hex = newHex;
+      item.color = [r, g, b];
+      chip.style.backgroundColor = newHex;
+      hex.textContent = newHex;
+      updatePreview();
+    });
+    colorInput.addEventListener('change', () => {
+      renderInterleavedUI();
+      updatePreview();
+      _autoSaveSettings();
+      _scheduleUndoCapture();
+    });
+    chip.appendChild(colorInput);
 
     const info = document.createElement('div');
     info.className = 'palette-color-info';
@@ -2621,20 +2680,35 @@ function renderPaletteUI() {
     right.appendChild(label);
     right.appendChild(select);
 
-    // Weave / Flat toggle button directly in the main palette row
-    const isWeaveMode = (interleavedSettings.profileMode === 2 || interleavedSettings.profileMode === 3 || interleavedSettings.profileMode === 4 || interleavedSettings.profileMode === 5);
+    // Weave / PWM / Flat 3-state toggle button directly in the main palette row
+    const isWeaveMode = [2, 3, 4, 5, 6].includes(interleavedSettings.profileMode);
     if (isWeaveMode) {
       if (!interleavedSettings.toolWeaveModes) interleavedSettings.toolWeaveModes = {};
-      const isWeave = (interleavedSettings.toolWeaveModes[item.toolId] !== false);
+      let m = interleavedSettings.toolWeaveModes[item.toolId];
+      if (m === true || m === undefined) m = 'weave';
+      else if (m === false) m = 'flat';
+
       const toggleBtn = document.createElement('button');
       toggleBtn.type = 'button';
-      toggleBtn.className = `palette-weave-toggle ${isWeave ? 'is-weave' : 'is-flat'}`;
+      const clsName = (m === 'flat') ? 'is-flat' : (m === 'pwm' ? 'is-pwm' : 'is-weave');
+      toggleBtn.className = `palette-weave-toggle ${clsName}`;
       toggleBtn.style.marginLeft = '4px';
-      toggleBtn.textContent = isWeave ? '〰️ 編み' : '━ フラット';
-      toggleBtn.title = isWeave ? `Tool ${item.toolId}: 編み重ね(波打ち)。クリックでフラット(真円)に切替` : `Tool ${item.toolId}: フラット(真円)。クリックで編み重ね(波打ち)に切替`;
+
+      if (m === 'weave') {
+        toggleBtn.textContent = '常時編み';
+        toggleBtn.title = `Tool ${item.toolId}: 常時編み（露出100%でも波打つ）。クリックで露出比例(PWM)に切替`;
+      } else if (m === 'pwm') {
+        toggleBtn.textContent = '露出比例';
+        toggleBtn.title = `Tool ${item.toolId}: 露出比例(PWM)。クリックで完全フラットに切替`;
+      } else {
+        toggleBtn.textContent = 'フラット';
+        toggleBtn.title = `Tool ${item.toolId}: 完全フラット（波打たず直線）。クリックで常時編みに切替`;
+      }
+
       toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        interleavedSettings.toolWeaveModes[item.toolId] = !isWeave;
+        const nextM = (m === 'weave') ? 'pwm' : (m === 'pwm' ? 'flat' : 'weave');
+        interleavedSettings.toolWeaveModes[item.toolId] = nextM;
         renderPaletteUI();
         renderInterleavedUI();
         updatePreview();
@@ -2723,15 +2797,15 @@ function renderInterleavedUI() {
         toggleBtn.className = 'tool-weave-toggle';
         if (m === 'weave') {
           toggleBtn.style.cssText = 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #7c3aed;background:rgba(124,58,237,0.22);color:#c084fc;';
-          toggleBtn.textContent = '〰️ 常時編み';
+          toggleBtn.textContent = '常時編み';
           toggleBtn.title = '現在: 常時編み。クリックで露出比例(PWM)に切替';
         } else if (m === 'pwm') {
           toggleBtn.style.cssText = 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #0284c7;background:rgba(2,132,199,0.22);color:#38bdf8;';
-          toggleBtn.textContent = '🌊 露出比例';
+          toggleBtn.textContent = '露出比例';
           toggleBtn.title = '現在: 露出比例PWM。クリックで完全フラットに切替';
         } else {
           toggleBtn.style.cssText = 'margin-left:4px;padding:1px 6px;font-size:10px;font-weight:600;border-radius:3px;cursor:pointer;border:1px solid #777;background:rgba(255,255,255,0.08);color:#aaa;';
-          toggleBtn.textContent = '━ フラット';
+          toggleBtn.textContent = 'フラット';
           toggleBtn.title = '現在: 完全フラット。クリックで常時編みに切替';
         }
 
@@ -2788,7 +2862,8 @@ function renderInterleavedUI() {
 
   let weaveMask = 0;
   palette.forEach((item, idx) => {
-    const isW = (interleavedSettings.toolWeaveModes && interleavedSettings.toolWeaveModes[item.toolId] !== false);
+    const modeVal = interleavedSettings.toolWeaveModes ? interleavedSettings.toolWeaveModes[item.toolId] : undefined;
+    const isW = (modeVal !== false && modeVal !== 'flat');
     if (isW) weaveMask |= (1 << idx);
   });
   settings.interleavedToolWeaveMask = weaveMask;
@@ -2801,6 +2876,9 @@ function renderInterleavedUI() {
   settings.curvatureBias          = interleavedSettings.curvatureBias ?? 0.50;
   settings.curvatureSmooth        = interleavedSettings.curvatureSmooth ?? 2;
   settings.curvatureInvert        = !!interleavedSettings.curvatureInvert;
+  settings.filamentAngle          = interleavedSettings.filamentAngle ?? 0;
+  settings.filamentSharpness      = interleavedSettings.filamentSharpness ?? 0.30;
+  settings.filamentTwist          = interleavedSettings.filamentTwist ?? 0.0;
   if (currentCurvatureResult && interleavedSettings.shadingSource === 'curvature') {
     settings.curvatureLuminance   = currentCurvatureResult.uniqueLuminance;
   } else {
@@ -2855,13 +2933,13 @@ function renderInterleavedUI() {
         dot.style.cssText = `width:10px;height:10px;border-radius:2px;background:${item.hex};display:inline-block;border:1px solid rgba(0,0,0,0.4);flex-shrink:0;`;
 
         const txt = document.createElement('span');
-        let labelText = '〰️ 常時編み';
+        let labelText = '常時編み';
         let titleText = '現在: 常時編み（露出100%でも必ず波打つ）。クリックで露出比例(PWM)に切替';
         if (m === 'pwm') {
-          labelText = '🌊 露出比例';
+          labelText = '露出比例';
           titleText = '現在: 露出比例PWM（露出100%はフラット・中間露出で編み）。クリックで完全フラットに切替';
         } else if (m === 'flat') {
-          labelText = '━ フラット';
+          labelText = 'フラット';
           titleText = '現在: 完全フラット（波打たず直線）。クリックで常時編みに切替';
         }
         txt.textContent = `Tool ${item.toolId}: ` + labelText;
@@ -2903,6 +2981,24 @@ function renderInterleavedUI() {
 
   if (curvatureOptionsContainer) {
     curvatureOptionsContainer.classList.toggle('hidden', interleavedSettings.shadingSource !== 'curvature');
+  }
+
+  if (paletteCustomColorHint) {
+    const isNonTextureSource = (interleavedSettings.shadingSource === 'filament' || interleavedSettings.shadingSource === 'curvature');
+    paletteCustomColorHint.classList.toggle('hidden', !isNonTextureSource);
+  }
+
+  if (filamentOptionsContainer) {
+    filamentOptionsContainer.classList.toggle('hidden', interleavedSettings.shadingSource !== 'filament');
+    const ang = interleavedSettings.filamentAngle ?? 0;
+    const shp = interleavedSettings.filamentSharpness ?? 0.30;
+    const tw  = interleavedSettings.filamentTwist ?? 0.0;
+    if (filamentAngleSlider) filamentAngleSlider.value = String(Math.round(ang));
+    if (filamentAngleInput) filamentAngleInput.value = String(Math.round(ang));
+    if (filamentSharpnessSlider) filamentSharpnessSlider.value = shp.toFixed(2);
+    if (filamentSharpnessVal) filamentSharpnessVal.textContent = shp.toFixed(2);
+    if (filamentTwistSlider) filamentTwistSlider.value = tw.toFixed(1);
+    if (filamentTwistVal) filamentTwistVal.textContent = tw.toFixed(1);
   }
 
   if (interleavedGammaRow) {
@@ -3047,7 +3143,7 @@ function initInterleavedEvents() {
         interleavedSettings.nozzleDiameter = dia;
         // Auto-update to recommended pitch & amplitude on preset change
         const recPitch = Math.round(dia * 4.0 * 20) / 20; // 0.05 step
-        const recAmp = Math.round(dia * 0.50 * 50) / 50;  // 0.02 step
+        const recAmp = Math.round(dia * 1.50 * 20) / 20;  // 0.05 step (matches weaveAmpRecBadge)
         interleavedSettings.weavePitch = recPitch;
         interleavedSettings.weaveAmp = recAmp;
         if (interleavedWeavePitchSlider) interleavedWeavePitchSlider.value = recPitch;
@@ -3086,7 +3182,7 @@ function initInterleavedEvents() {
   if (weaveAmpRecBadge) {
     weaveAmpRecBadge.addEventListener('click', () => {
       const dia = interleavedSettings.nozzleDiameter || 0.40;
-      const recAmp = Math.round(dia * 0.50 * 50) / 50;
+      const recAmp = Math.round(dia * 1.50 * 20) / 20;
       interleavedSettings.weaveAmp = recAmp;
       if (interleavedWeaveAmpSlider) interleavedWeaveAmpSlider.value = recAmp;
       if (interleavedWeaveAmpVal) interleavedWeaveAmpVal.textContent = recAmp.toFixed(2);
@@ -3206,6 +3302,72 @@ function initInterleavedEvents() {
       triggerCurvatureUpdate();
       renderInterleavedUI();
       updatePreview();
+    });
+  }
+
+  if (filamentAngleSlider) {
+    filamentAngleSlider.addEventListener('input', (e) => {
+      const v = Math.max(0, Math.min(360, parseFloat(e.target.value) || 0));
+      interleavedSettings.filamentAngle = v;
+      if (filamentAngleInput) filamentAngleInput.value = String(Math.round(v));
+      settings.filamentAngle = v;
+      updatePreview();
+    });
+    filamentAngleSlider.addEventListener('change', () => {
+      _autoSaveSettings();
+      _scheduleUndoCapture();
+    });
+  }
+
+  if (filamentAngleInput) {
+    filamentAngleInput.addEventListener('input', (e) => {
+      const parsed = parseFloat(e.target.value);
+      if (!Number.isFinite(parsed)) return;
+      const v = Math.max(0, Math.min(360, parsed));
+      interleavedSettings.filamentAngle = v;
+      if (filamentAngleSlider) filamentAngleSlider.value = String(Math.round(v));
+      settings.filamentAngle = v;
+      updatePreview();
+    });
+    filamentAngleInput.addEventListener('change', (e) => {
+      const parsed = parseFloat(e.target.value);
+      const v = Number.isFinite(parsed) ? Math.max(0, Math.min(360, parsed)) : 0;
+      interleavedSettings.filamentAngle = v;
+      filamentAngleInput.value = String(Math.round(v));
+      if (filamentAngleSlider) filamentAngleSlider.value = String(Math.round(v));
+      settings.filamentAngle = v;
+      updatePreview();
+      _autoSaveSettings();
+      _scheduleUndoCapture();
+    });
+  }
+
+  if (filamentSharpnessSlider) {
+    filamentSharpnessSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      const val = Number.isFinite(v) ? v : 0.30;
+      interleavedSettings.filamentSharpness = val;
+      if (filamentSharpnessVal) filamentSharpnessVal.textContent = val.toFixed(2);
+      settings.filamentSharpness = val;
+      updatePreview();
+    });
+    filamentSharpnessSlider.addEventListener('change', () => {
+      _autoSaveSettings();
+      _scheduleUndoCapture();
+    });
+  }
+
+  if (filamentTwistSlider) {
+    filamentTwistSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value) || 0.0;
+      interleavedSettings.filamentTwist = v;
+      if (filamentTwistVal) filamentTwistVal.textContent = v.toFixed(1);
+      settings.filamentTwist = v;
+      updatePreview();
+    });
+    filamentTwistSlider.addEventListener('change', () => {
+      _autoSaveSettings();
+      _scheduleUndoCapture();
     });
   }
 
@@ -3914,6 +4076,40 @@ function wireEvents() {
   // Phase 2 Interleaved Layer Blending initialization
   initInterleavedEvents();
   renderInterleavedUI();
+
+  // ── Collapsible Sidebar Sections (Accordion UX) ──
+  document.querySelectorAll('#settings-panel .panel-section:not(#advanced-section)').forEach((sec) => {
+    const h2 = sec.querySelector(':scope > h2, :scope > .model-presets-header > h2, :scope > .section-header-row > h2');
+    if (!h2) return;
+    sec.classList.add('section-collapsible');
+    h2.classList.add('section-collapse-trigger');
+    h2.setAttribute('role', 'button');
+    h2.setAttribute('tabindex', '0');
+    h2.setAttribute('aria-expanded', 'true');
+    const toggleSection = () => {
+      const collapsed = sec.classList.toggle('is-collapsed');
+      h2.setAttribute('aria-expanded', String(!collapsed));
+    };
+    if (h2.id === 'displacement-map-title') {
+      // Avoid flickering collapse/expand when double-clicking for secret Pattern Generator
+      let clickTimer = null;
+      h2.addEventListener('click', () => {
+        if (clickTimer) clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => { clickTimer = null; toggleSection(); }, 220);
+      });
+      h2.addEventListener('dblclick', () => {
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      });
+    } else {
+      h2.addEventListener('click', toggleSection);
+    }
+    h2.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleSection();
+      }
+    });
+  });
 
   // ── Advanced / Beta Features panel: collapse toggle + bake action ──
   advancedToggle.addEventListener('click', () => {
@@ -7263,7 +7459,10 @@ function getFullPreviewSettings(preview = null) {
   for (let k = 0; k < 8; k++) {
     if (k < paletteSource.length) {
       const c = paletteSource[k].color || [255, 255, 255];
-      interleavedPaletteVecs.push(new THREE.Vector3(c[0]/255, c[1]/255, c[2]/255));
+      const cr = Array.isArray(c) ? c[0] : (c.r ?? 255);
+      const cg = Array.isArray(c) ? c[1] : (c.g ?? 255);
+      const cb = Array.isArray(c) ? c[2] : (c.b ?? 255);
+      interleavedPaletteVecs.push(new THREE.Vector3(cr / 255, cg / 255, cb / 255));
     } else {
       interleavedPaletteVecs.push(new THREE.Vector3(1, 1, 1));
     }
@@ -7272,7 +7471,8 @@ function getFullPreviewSettings(preview = null) {
   let weaveMask = 0;
   for (let k = 0; k < paletteSource.length; k++) {
     const tId = paletteSource[k].toolId;
-    const isW = (interleavedSettings.toolWeaveModes && interleavedSettings.toolWeaveModes[tId] !== false);
+    const modeVal = interleavedSettings.toolWeaveModes ? interleavedSettings.toolWeaveModes[tId] : undefined;
+    const isW = (modeVal !== false && modeVal !== 'flat');
     if (isW) weaveMask |= (1 << k);
   }
 
@@ -7296,9 +7496,14 @@ function getFullPreviewSettings(preview = null) {
     interleavedShadingMode: interleavedSettings.shadingMode ?? 1,
     interleavedGamma: interleavedSettings.gamma ?? 1.0,
     interleavedExclusionMode: interleavedSettings.exclusionMode ?? 0,
+    interleavedEnableBaseDisplacement: !!interleavedSettings.enableBaseDisplacement,
     interleavedToolWeaveMask: weaveMask,
     interleavedToolCount: paletteSource.length,
     interleavedPalette: interleavedPaletteVecs,
+    shadingSource: interleavedSettings.shadingSource ?? 'texture',
+    filamentAngle: interleavedSettings.filamentAngle ?? 0,
+    filamentSharpness: interleavedSettings.filamentSharpness ?? 0.30,
+    filamentTwist: interleavedSettings.filamentTwist ?? 0.0,
     untexturedColor: untexturedColorVec,
   };
 }
@@ -8028,6 +8233,9 @@ async function handleExport(format = 'stl') {
       curvatureBias: interleavedSettings.curvatureBias ?? 0.50,
       curvatureSmooth: interleavedSettings.curvatureSmooth ?? 2,
       curvatureInvert: !!interleavedSettings.curvatureInvert,
+      filamentAngle: interleavedSettings.filamentAngle ?? 0,
+      filamentSharpness: interleavedSettings.filamentSharpness ?? 0.30,
+      filamentTwist: interleavedSettings.filamentTwist ?? 0.0,
       curvatureLuminance: (currentCurvatureResult && interleavedSettings.shadingSource === 'curvature') ? currentCurvatureResult.uniqueLuminance : null,
       interleavedToolIds: currentColorPalette && currentColorPalette.length > 0 ? currentColorPalette.map(p => p.toolId) : [1, 2],
       // For interleaved multi-tool mode, bypass pre-displacement & decimation during pipeline
@@ -8041,7 +8249,13 @@ async function handleExport(format = 'stl') {
       } : {})
     };
     const pipeInputs = _pipelineInputs ? _pipelineInputs() : null;
-    if (!pipeInputs && !exportEntry) throw new Error('No active texture entry found');
+    if (!pipeInputs && !exportEntry) {
+      if (_isProceduralColorActive()) {
+        exportEntry = { name: interleavedSettings.shadingSource, imageData: { data: new Uint8ClampedArray([255, 255, 255, 255]) }, width: 1, height: 1 };
+      } else {
+        throw new Error('No active texture entry found');
+      }
+    }
     const result = await runPipeline({
       positions: pipeInputs ? pipeInputs.positions : currentGeometry.attributes.position.array,
       uvs: currentGeometry.attributes.uv ? currentGeometry.attributes.uv.array : null,
@@ -8291,6 +8505,16 @@ async function handleExport(format = 'stl') {
         const _sampleTmpP = new THREE.Vector3();
         const _sampleTmpN = new THREE.Vector3();
         const sampleFn = (x, y, z, nx, ny, nz) => {
+          if (effectiveSettings.shadingSource === 'filament') {
+            return computeFilamentBlend(nx, ny, Math.max(0, z), toolIds, {
+              angleDeg: effectiveSettings.filamentAngle ?? 0,
+              sharpness: effectiveSettings.filamentSharpness ?? 0.30,
+              twistDegPerMm: effectiveSettings.filamentTwist ?? 0.0,
+              invert: !!effectiveSettings.interleavedInvertTools,
+              shadingMode: effectiveSettings.interleavedShadingMode ?? 1,
+            });
+          }
+
           if (curvatureGrid) {
             const { uPos, uLum, head, next, invCell, gMinX, gMinY, gMinZ, numX, numY, numZ, numXY } = curvatureGrid;
             // Map sliced vertex coordinates back to working space where curvature was computed
@@ -9249,6 +9473,9 @@ function getSettingsSnapshot() {
   snap.curvatureBias          = interleavedSettings.curvatureBias;
   snap.curvatureSmooth        = interleavedSettings.curvatureSmooth;
   snap.curvatureInvert        = interleavedSettings.curvatureInvert;
+  snap.filamentAngle          = interleavedSettings.filamentAngle ?? 0;
+  snap.filamentSharpness      = interleavedSettings.filamentSharpness ?? 0.30;
+  snap.filamentTwist          = interleavedSettings.filamentTwist ?? 0.0;
   snap.interleavedToolWeaveModes = interleavedSettings.toolWeaveModes ? { ...interleavedSettings.toolWeaveModes } : {};
   snap.interleavedFlatAmpScale   = interleavedSettings.flatAmpScale ?? 1.0;
   snap.interleavedWeaveSolidFill = !!interleavedSettings.weaveSolidFill;
@@ -9648,6 +9875,25 @@ function applySettingsSnapshot(snap) {
   if (snap.curvatureInvert != null) {
     interleavedSettings.curvatureInvert = Boolean(snap.curvatureInvert);
     if (curvatureInvertChk) curvatureInvertChk.checked = interleavedSettings.curvatureInvert;
+  }
+  if (snap.filamentAngle != null) {
+    interleavedSettings.filamentAngle = snap.filamentAngle;
+    if (filamentAngleSlider) filamentAngleSlider.value = String(Math.round(snap.filamentAngle));
+    if (filamentAngleInput) filamentAngleInput.value = String(Math.round(snap.filamentAngle));
+  }
+  if (snap.filamentSharpness != null) {
+    interleavedSettings.filamentSharpness = snap.filamentSharpness;
+    if (filamentSharpnessSlider) {
+      filamentSharpnessSlider.value = snap.filamentSharpness.toFixed(2);
+      if (filamentSharpnessVal) filamentSharpnessVal.textContent = snap.filamentSharpness.toFixed(2);
+    }
+  }
+  if (snap.filamentTwist != null) {
+    interleavedSettings.filamentTwist = snap.filamentTwist;
+    if (filamentTwistSlider) {
+      filamentTwistSlider.value = snap.filamentTwist.toFixed(1);
+      if (filamentTwistVal) filamentTwistVal.textContent = snap.filamentTwist.toFixed(1);
+    }
   }
   if (interleavedSettings.shadingSource === 'curvature') {
     triggerCurvatureUpdate();
